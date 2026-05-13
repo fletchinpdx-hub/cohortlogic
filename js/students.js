@@ -80,11 +80,15 @@ document.querySelector('.modal-backdrop').addEventListener('click', () => {
   document.getElementById('separations-modal').classList.add('hidden');
 });
 
-function renderSeparationDropdowns() {
-  const students = [...AppState.students].sort((a, b) =>
+function sortedStudents() {
+  return [...AppState.students].sort((a, b) =>
     `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)
   );
-  const options = students.map(s =>
+}
+
+function renderSeparationDropdowns() {
+  const students = sortedStudents();
+  const options  = students.map(s =>
     `<option value="${s.id}">${s.lastName}, ${s.firstName} (Gr. ${s.grade})</option>`
   ).join('');
   document.getElementById('sep-student-a').innerHTML = `<option value="">Select student…</option>${options}`;
@@ -100,36 +104,72 @@ document.getElementById('add-separation-btn').addEventListener('click', () => {
   const exists = AppState.separations.some(p =>
     (p.a === aId && p.b === bId) || (p.a === bId && p.b === aId)
   );
-  if (exists) { alert('This separation pair already exists.'); return; }
+  if (exists) { alert('This pair already exists.'); return; }
 
   AppState.separations.push({ a: aId, b: bId });
+
+  // Keep Student A selected so you can quickly add more restrictions for the same student
+  const aVal = document.getElementById('sep-student-a').value;
   renderSeparationList();
+  document.getElementById('sep-student-a').value = aVal;
+  document.getElementById('sep-student-b').value = '';
 });
 
 function renderSeparationList() {
   const container = document.getElementById('separations-list');
   if (!AppState.separations.length) {
-    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No separation pairs added yet.</p>';
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No separation rules added yet.</p>';
     return;
   }
 
-  container.innerHTML = AppState.separations.map((pair, i) => {
+  // Group by student A — collect all students each person can't be with
+  const groups = new Map();
+  AppState.separations.forEach((pair, i) => {
     const a = AppState.students.find(s => s.id === pair.a);
     const b = AppState.students.find(s => s.id === pair.b);
-    if (!a || !b) return '';
-    return `
-      <div class="sep-pair">
-        <div class="sep-names">
-          ${a.firstName} ${a.lastName} <span>cannot be with</span> ${b.firstName} ${b.lastName}
+    if (!a || !b) return;
+
+    // Add b to a's group
+    if (!groups.has(pair.a)) groups.set(pair.a, { student: a, restricted: [] });
+    groups.get(pair.a).restricted.push({ student: b, pairIndex: i });
+
+    // Also index from b's perspective so removal works from either side
+    if (!groups.has(pair.b)) groups.set(pair.b, { student: b, restricted: [] });
+    groups.get(pair.b).restricted.push({ student: a, pairIndex: i });
+  });
+
+  // Deduplicate (same pair appears in both directions) — only render from the "a" side
+  const rendered = new Set();
+  let html = '';
+  AppState.separations.forEach((pair, i) => {
+    const a = AppState.students.find(s => s.id === pair.a);
+    if (!a || rendered.has(pair.a)) return;
+    rendered.add(pair.a);
+
+    const group = groups.get(pair.a);
+    const entries = group.restricted.map(r => `
+      <div class="sep-entry" data-pair="${r.pairIndex}">
+        <div class="sep-entry-name">${r.student.firstName} ${r.student.lastName} <span style="color:var(--gray-400);font-size:12px;">(Gr. ${r.student.grade})</span></div>
+        <button class="sep-remove-btn btn btn-sm" style="color:#ef4444;background:none;border:none;cursor:pointer;" data-pair="${r.pairIndex}">Remove</button>
+      </div>
+    `).join('');
+
+    html += `
+      <div class="sep-group">
+        <div class="sep-group-header">
+          <span class="sep-group-name">${a.firstName} ${a.lastName} <span style="font-weight:400;color:var(--gray-500);">Gr. ${a.grade}</span></span>
+          <span style="font-size:12px;color:var(--gray-400);">${group.restricted.length} restriction${group.restricted.length !== 1 ? 's' : ''}</span>
         </div>
-        <button class="btn btn-sm" style="color:#ef4444;background:none;border:none;cursor:pointer;" data-index="${i}">Remove</button>
+        ${entries}
       </div>
     `;
-  }).join('');
+  });
 
-  container.querySelectorAll('[data-index]').forEach(btn => {
+  container.innerHTML = html;
+
+  container.querySelectorAll('.sep-remove-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      AppState.separations.splice(parseInt(btn.dataset.index), 1);
+      AppState.separations.splice(parseInt(btn.dataset.pair), 1);
       renderSeparationList();
     });
   });

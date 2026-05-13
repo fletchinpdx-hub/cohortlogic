@@ -322,29 +322,45 @@ body {
 .modal-close:hover { color: var(--gray-900); }
 .modal-body { padding: 20px 24px; }
 
-.separation-add {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.separation-add select { flex: 1; min-width: 120px; }
-.separation-add span { color: var(--gray-500); font-size: 13px; white-space: nowrap; }
-
-.sep-pair {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
+.sep-add-section {
   background: var(--gray-50);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
-  margin-bottom: 8px;
+  padding: 14px 16px;
+}
+.sep-add-label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-500); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.sep-multi-row { display: flex; gap: 8px; align-items: center; }
+
+.sep-group {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.sep-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  font-weight: 600;
   font-size: 13.5px;
 }
-.sep-pair .sep-names { font-weight: 500; }
-.sep-pair .sep-names span { color: var(--gray-500); font-weight: 400; margin: 0 6px; }
+.sep-group-header .sep-group-name { color: var(--gray-900); }
+.sep-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+  color: var(--gray-700);
+}
+.sep-entry:last-child { border-bottom: none; }
+.sep-entry-name { display: flex; align-items: center; gap: 6px; }
+.sep-entry-name::before { content: "⛔"; font-size: 11px; }
 
 /* ── Class Setup View ── */
 .grade-card {
