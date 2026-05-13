@@ -1,4 +1,4 @@
-# Class Creator — CLAUDE.md
+# Cohort Logic — CLAUDE.md
 
 ## What this is
 A web app for school administrators to generate balanced, equitable classroom assignments. Built by Michael Fletcher (Cohort Logic) as the first product in a teacher tools suite.
