@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Class Creator</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- SheetJS for Excel parsing and generation -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div id="logo">
+        <span class="logo-icon">🏫</span>
+        <span class="logo-text">Class Creator</span>
+      </div>
+      <nav id="nav">
+        <a class="nav-item active" data-view="import">
+          <span class="nav-icon">📥</span> Import Data
+        </a>
+        <a class="nav-item" data-view="fields">
+          <span class="nav-icon">🗂️</span> Field Mapping
+        </a>
+        <a class="nav-item" data-view="students">
+          <span class="nav-icon">👥</span> Students
+        </a>
+        <a class="nav-item" data-view="classes">
+          <span class="nav-icon">📋</span> Class Setup
+        </a>
+        <a class="nav-item" data-view="results">
+          <span class="nav-icon">✅</span> Results
+        </a>
+      </nav>
+      <div id="sidebar-status">
+        <div class="status-item" id="status-students">
+          <span class="status-dot"></span> <span id="status-students-text">No students loaded</span>
+        </div>
+        <div class="status-item" id="status-classes">
+          <span class="status-dot"></span> <span id="status-classes-text">No classes configured</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main id="main">
+      <!-- Import View -->
+      <div id="view-import" class="view active">
+        <div class="view-header">
+          <h1>Import Student Data</h1>
+          <p class="view-subtitle">Upload an Excel file or connect a Google Sheet to get started.</p>
+        </div>
+
+        <div class="import-options">
+          <!-- Excel upload -->
+          <div class="import-card" id="excel-card">
+            <div class="import-card-icon">📊</div>
+            <h2>Excel File</h2>
+            <p>Drag and drop your .xlsx file, or click to browse.</p>
+            <div id="drop-zone" class="drop-zone">
+              <div class="drop-zone-inner">
+                <div class="drop-icon">⬆️</div>
+                <p>Drop your Excel file here</p>
+                <p class="drop-sub">or</p>
+                <button class="btn btn-secondary" id="browse-btn">Browse Files</button>
+              </div>
+              <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
+            </div>
+          </div>
+
+          <!-- Google Sheets -->
+          <div class="import-card" id="sheets-card">
+            <div class="import-card-icon">📋</div>
+            <h2>Google Sheets</h2>
+            <p>Paste the link to a publicly shared Google Sheet.</p>
+            <div class="sheets-input-group">
+              <input type="text" id="sheets-url" class="input" placeholder="https://docs.google.com/spreadsheets/d/..." />
+              <button class="btn btn-primary" id="sheets-import-btn">Import</button>
+            </div>
+            <p class="hint">The sheet must be shared as "Anyone with the link can view."</p>
+          </div>
+        </div>
+
+        <!-- Sample data section -->
+        <div class="sample-section">
+          <h3>Don't have a file yet?</h3>
+          <p>Download our sample spreadsheet to see the expected format and test the tool.</p>
+          <button class="btn btn-outline" id="download-sample-btn">⬇️ Download Sample Spreadsheet</button>
+        </div>
+
+        <!-- Import status -->
+        <div id="import-status" class="import-status hidden"></div>
+      </div>
+
+      <!-- Field Mapping View -->
+      <div id="view-fields" class="view">
+        <div class="view-header">
+          <h1>Field Mapping</h1>
+          <p class="view-subtitle">Map your spreadsheet columns to the fields Class Creator uses. Add or remove competencies below.</p>
+        </div>
+
+        <div class="fields-layout">
+          <!-- Column mapping -->
+          <div class="fields-section">
+            <h2>Column Mapping</h2>
+            <p class="section-hint">Match each required field to a column from your spreadsheet.</p>
+            <div id="mapping-table"></div>
+          </div>
+
+          <!-- Competency configuration -->
+          <div class="fields-section">
+            <h2>Competencies & Flags</h2>
+            <p class="section-hint">Define the fields used for balancing. Each can be a score (1–5) or a yes/no flag.</p>
+            <div id="competency-list"></div>
+            <button class="btn btn-outline" id="add-competency-btn">+ Add Field</button>
+          </div>
+        </div>
+
+        <div class="view-actions">
+          <button class="btn btn-primary" id="apply-mapping-btn">Apply Mapping & Continue</button>
+        </div>
+      </div>
+
+      <!-- Students View -->
+      <div id="view-students" class="view">
+        <div class="view-header">
+          <h1>Students</h1>
+          <p class="view-subtitle">Review your student list and mark any separation pairs.</p>
+        </div>
+
+        <div class="students-toolbar">
+          <div class="filter-group">
+            <label>Grade:</label>
+            <select id="grade-filter" class="input input-sm">
+              <option value="">All Grades</option>
+            </select>
+          </div>
+          <div class="search-group">
+            <input type="text" id="student-search" class="input input-sm" placeholder="Search by name..." />
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-outline btn-sm" id="manage-separations-btn">⛔ Manage Separations</button>
+            <span id="student-count" class="student-count"></span>
+          </div>
+        </div>
+
+        <div id="students-table-wrap">
+          <table id="students-table" class="data-table">
+            <thead id="students-thead"></thead>
+            <tbody id="students-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Separations modal -->
+        <div id="separations-modal" class="modal hidden">
+          <div class="modal-backdrop"></div>
+          <div class="modal-box">
+            <div class="modal-header">
+              <h2>Separation Pairs</h2>
+              <button class="modal-close" id="close-separations">✕</button>
+            </div>
+            <div class="modal-body">
+              <p>Students in a pair will never be placed in the same class.</p>
+              <div class="separation-add">
+                <select id="sep-student-a" class="input"></select>
+                <span>cannot be with</span>
+                <select id="sep-student-b" class="input"></select>
+                <button class="btn btn-primary btn-sm" id="add-separation-btn">Add</button>
+              </div>
+              <div id="separations-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Class Setup View -->
+      <div id="view-classes" class="view">
+        <div class="view-header">
+          <h1>Class Setup</h1>
+          <p class="view-subtitle">Configure the number of classes per grade and assign teachers.</p>
+        </div>
+
+        <div id="grades-config"></div>
+
+        <div class="view-actions">
+          <button class="btn btn-primary" id="generate-btn">⚡ Generate Balanced Classes</button>
+        </div>
+      </div>
+
+      <!-- Results View -->
+      <div id="view-results" class="view">
+        <div class="view-header">
+          <h1>Results</h1>
+          <p class="view-subtitle">Review the generated class lists. Drag students between classes to make adjustments.</p>
+        </div>
+
+        <div class="results-toolbar">
+          <div class="filter-group">
+            <label>Grade:</label>
+            <select id="results-grade-filter" class="input input-sm">
+              <option value="">All Grades</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-outline" id="export-results-btn">⬇️ Export to Excel</button>
+            <button class="btn btn-secondary" id="regenerate-btn">🔄 Regenerate</button>
+          </div>
+        </div>
+
+        <div id="results-stats" class="results-stats"></div>
+        <div id="results-grid" class="results-grid"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/import.js"></script>
+  <script src="js/fieldMapping.js"></script>
+  <script src="js/students.js"></script>
+  <script src="js/classes.js"></script>
+  <script src="js/algorithm.js"></script>
+  <script src="js/results.js"></script>
+  <script src="js/sample.js"></script>
+</body>
+</html>
