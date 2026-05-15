@@ -43,10 +43,43 @@ function showDashboard(email) {
   document.getElementById('admin-email').textContent = email;
 }
 
-// ── Magic link ──
+// ── Password sign in ──
+document.getElementById('signin-btn').addEventListener('click', async () => {
+  const email    = document.getElementById('email-input').value.trim();
+  const password = document.getElementById('password-input').value;
+  if (!email || !password) { showLoginAlert('Please enter your email and password.', 'error'); return; }
+
+  const btn = document.getElementById('signin-btn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  const { error } = await db.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    showLoginAlert('Incorrect email or password.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+  // On success, onAuthStateChange fires automatically
+});
+
+// Allow Enter key on password field
+document.getElementById('password-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('signin-btn').click();
+});
+
+// ── Magic link toggle ──
+document.getElementById('magic-link-toggle').addEventListener('click', e => {
+  e.preventDefault();
+  const section = document.getElementById('magic-link-section');
+  section.style.display = section.style.display === 'none' ? 'block' : 'none';
+});
+
+// ── Magic link fallback ──
 document.getElementById('magic-link-btn').addEventListener('click', async () => {
   const email = document.getElementById('email-input').value.trim();
-  if (!email) return;
+  if (!email) { showLoginAlert('Please enter your email address first.', 'error'); return; }
+
   const btn = document.getElementById('magic-link-btn');
   btn.disabled = true;
   btn.textContent = 'Sending…';
@@ -61,7 +94,7 @@ document.getElementById('magic-link-btn').addEventListener('click', async () => 
     btn.disabled = false;
     btn.textContent = 'Send Sign-In Link';
   } else {
-    showLoginAlert(`Link sent to ${email} — check your inbox and click the link to sign in.`, 'success');
+    showLoginAlert(`Link sent to ${email} — check your inbox.`, 'success');
     btn.textContent = 'Link Sent';
   }
 });
