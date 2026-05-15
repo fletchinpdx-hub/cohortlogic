@@ -74,6 +74,8 @@ function loadRawData(rows, sourceName) {
     `✓ Loaded ${rows.length} rows from "${sourceName}". Now go to Field Mapping to configure columns.`,
     'success'
   );
+  const evtName = sourceName === 'Google Sheet' ? 'import_sheets' : 'import_excel';
+  if (typeof trackEvent === 'function') trackEvent(evtName, { rows: rows.length });
   // Auto-guess column mappings
   autoGuessMapping();
   // Render field mapping view immediately

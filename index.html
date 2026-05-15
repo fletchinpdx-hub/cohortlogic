@@ -220,6 +220,8 @@
 
   <footer>© 2026 Cohort Logic</footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
   <script>
     const CODE = 'democlass';
 
@@ -227,7 +229,9 @@
       const val = document.getElementById('code-input').value.trim().toLowerCase();
       if (val === CODE) {
         sessionStorage.setItem('cl_access', '1');
-        window.location.href = 'app.html';
+        // Track the session start before navigating
+        Promise.all([trackSession(), trackEvent('session_start')])
+          .finally(() => { window.location.href = 'app.html'; });
       } else {
         document.getElementById('error-msg').classList.add('visible');
         document.getElementById('code-input').value = '';

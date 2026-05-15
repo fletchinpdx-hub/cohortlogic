@@ -1,6 +1,7 @@
 document.getElementById('download-sample-btn').addEventListener('click', generateSampleSpreadsheet);
 
 function generateSampleSpreadsheet() {
+  if (typeof trackEvent === 'function') trackEvent('sample_downloaded');
   const firstNames = ['Emma','Liam','Olivia','Noah','Ava','Elijah','Sophia','Oliver','Isabella','Lucas',
     'Mia','Mason','Charlotte','Logan','Amelia','Ethan','Harper','Aiden','Evelyn','Jackson',
     'Abigail','Sebastian','Emily','Mateo','Elizabeth','Jack','Mila','Owen','Ella','Theodore',

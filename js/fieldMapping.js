@@ -107,6 +107,7 @@ document.getElementById('apply-mapping-btn').addEventListener('click', () => {
     return student;
   }).filter(s => s.firstName || s.lastName);
 
+  if (typeof trackEvent === 'function') trackEvent('field_mapping_applied', { studentCount: AppState.students.length });
   updateSidebarStatus();
   renderStudents();
   buildGradeConfig();

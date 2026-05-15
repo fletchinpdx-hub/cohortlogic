@@ -94,6 +94,8 @@ function updateAvg(g) {
 document.getElementById('generate-btn').addEventListener('click', () => {
   if (!AppState.students.length) { alert('Please import student data first.'); return; }
   runBalancingAlgorithm();
+  const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0);
+  if (typeof trackEvent === 'function') trackEvent('classes_generated', { grades: getGrades().length, totalClasses });
   renderResults();
   navigateTo('results');
 });

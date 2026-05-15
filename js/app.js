@@ -1,3 +1,6 @@
+// Start tracking this session
+if (typeof trackSession === 'function') trackSession();
+
 // Central app state
 const AppState = {
   rawRows: [],         // raw rows from spreadsheet

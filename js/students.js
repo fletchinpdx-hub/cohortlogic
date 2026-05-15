@@ -107,6 +107,7 @@ document.getElementById('add-separation-btn').addEventListener('click', () => {
   if (exists) { alert('This pair already exists.'); return; }
 
   AppState.separations.push({ a: aId, b: bId });
+  if (typeof trackEvent === 'function') trackEvent('separation_added', { total: AppState.separations.length });
 
   // Keep Student A selected so you can quickly add more restrictions for the same student
   const aVal = document.getElementById('sep-student-a').value;

@@ -105,6 +105,7 @@ function setupDragDrop(card, g, ci) {
     if (idx === -1) return;
     const [student] = fromList.splice(idx, 1);
     AppState.results[g][ci].push(student);
+    if (typeof trackEvent === 'function') trackEvent('student_moved');
     renderResultsGrid();
   });
 }
@@ -127,6 +128,7 @@ document.getElementById('results-grid').addEventListener('dragend', e => {
 document.getElementById('export-results-btn').addEventListener('click', exportResults);
 
 function exportResults() {
+  if (typeof trackEvent === 'function') trackEvent('export_results');
   const wb = XLSX.utils.book_new();
   const grades = Object.keys(AppState.results);
   const comps  = AppState.competencies.filter(c => c.name && c.column);
