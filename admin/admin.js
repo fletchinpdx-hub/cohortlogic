@@ -69,10 +69,14 @@ document.getElementById('password-input').addEventListener('keydown', e => {
 });
 
 // ── Magic link toggle ──
+let magicLinkVisible = false;
 document.getElementById('magic-link-toggle').addEventListener('click', e => {
   e.preventDefault();
-  const section = document.getElementById('magic-link-section');
-  section.style.display = section.style.display === 'none' ? 'block' : 'none';
+  magicLinkVisible = !magicLinkVisible;
+  document.getElementById('magic-link-section').style.display = magicLinkVisible ? 'block' : 'none';
+  document.getElementById('magic-link-toggle').textContent = magicLinkVisible
+    ? 'Hide sign-in link option'
+    : 'Forgot password? Send a sign-in link instead';
 });
 
 // ── Magic link fallback ──
