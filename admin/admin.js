@@ -80,6 +80,8 @@ function showLoginAlert(msg, type) {
 // ── Logout ──
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await db.auth.signOut();
+  // Force a clean reload to clear any session tokens from the URL hash
+  window.location.replace(window.location.pathname);
 });
 
 // ── Change password ──
