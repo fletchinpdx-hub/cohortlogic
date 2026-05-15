@@ -76,15 +76,12 @@ document.getElementById('password-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('signin-btn').click();
 });
 
-// ── Forgot password toggle ──
+// ── Forgot password toggle (global so onclick attribute works in all browsers) ──
 let magicLinkVisible = false;
-document.getElementById('magic-link-toggle').addEventListener('click', () => {
+function toggleMagicLink() {
   magicLinkVisible = !magicLinkVisible;
   document.getElementById('magic-link-section').style.display = magicLinkVisible ? 'block' : 'none';
-  document.getElementById('magic-link-toggle').textContent = magicLinkVisible
-    ? 'Hide this option'
-    : 'Forgot password? Send a sign-in link instead';
-});
+}
 
 // ── Magic link ──
 document.getElementById('magic-link-btn').addEventListener('click', async () => {
@@ -107,12 +104,10 @@ document.getElementById('magic-link-btn').addEventListener('click', async () => 
 
 // ── Logout ──
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  await db.auth.signOut();
-  // Clear all Supabase localStorage keys to prevent auto re-authentication
-  Object.keys(localStorage).forEach(key => {
-    if (key.startsWith('sb-')) localStorage.removeItem(key);
-  });
-  window.location.href = window.location.pathname;
+  await db.auth.signOut({ scope: 'global' });
+  localStorage.clear();
+  sessionStorage.clear();
+  showLogin();
 });
 
 // ── Change password ──
