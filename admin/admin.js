@@ -31,7 +31,14 @@ const EVENT_LABELS = {
 // ── Auth state ──
 if (db) {
   db.auth.onAuthStateChange(async (event, session) => {
-    if (session) {
+    if (event === 'PASSWORD_RECOVERY') {
+      // User clicked a password reset link — show dashboard then open change-password
+      showDashboard(session.user.email);
+      await loadDashboard();
+      const section = document.getElementById('change-pw-section');
+      section.classList.remove('hidden');
+      section.scrollIntoView({ behavior: 'smooth' });
+    } else if (session) {
       showDashboard(session.user.email);
       await loadDashboard();
     } else {
@@ -89,9 +96,8 @@ document.getElementById('magic-link-btn').addEventListener('click', async () => 
   if (!email) { showLoginAlert('Enter your email above first.', 'error'); return; }
   const btn = document.getElementById('magic-link-btn');
   btn.disabled = true; btn.textContent = 'Sending…';
-  const { error } = await db.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: 'https://cohortlogic.com/admin/' },
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://cohortlogic.com/admin/',
   });
   if (error) {
     showLoginAlert(error.message, 'error');
