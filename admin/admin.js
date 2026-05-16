@@ -110,10 +110,10 @@ document.getElementById('magic-link-btn').addEventListener('click', async () => 
 
 // ── Logout ──
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  await db.auth.signOut({ scope: 'global' });
+  try { await db.auth.signOut({ scope: 'global' }); } catch(e) {}
   localStorage.clear();
   sessionStorage.clear();
-  showLogin();
+  window.location.href = window.location.href.split('#')[0];
 });
 
 // ── Change password ──
