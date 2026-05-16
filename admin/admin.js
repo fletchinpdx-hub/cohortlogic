@@ -109,12 +109,13 @@ document.getElementById('magic-link-btn').addEventListener('click', async () => 
 });
 
 // ── Logout ──
-document.getElementById('logout-btn').addEventListener('click', async () => {
+async function doLogout() {
   try { await db.auth.signOut({ scope: 'global' }); } catch(e) {}
   localStorage.clear();
   sessionStorage.clear();
   window.location.href = window.location.href.split('#')[0];
-});
+}
+document.getElementById('logout-btn').addEventListener('click', doLogout);
 
 // ── Change password ──
 document.getElementById('change-pw-btn').addEventListener('click', () => {
