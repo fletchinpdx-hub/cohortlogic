@@ -4,16 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Cohort Logic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --blue: #3b82f6; --blue-dark: #2563eb; --blue-light: #eff6ff;
-      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
-      --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
-      --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
-      --gray-700: #374151; --gray-900: #111827;
+      --blue: #2A9D8F; --blue-dark: #1E3A5F; --blue-light: #e8f5f4;
+      --navy: #1E3A5F; --teal: #2A9D8F; --teal-dark: #21867a; --gold: #E9B949;
+      --green: #22c55e; --red: #ef4444; --yellow: #E9B949;
+      --gray-50: #F8FAFC; --gray-100: #F2F4F7; --gray-200: #e5e7eb;
+      --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #64748B;
+      --gray-700: #374151; --gray-900: #0F172A;
     }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; color: var(--gray-900); background: var(--gray-50); min-height: 100vh; }
+    body { font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; color: var(--gray-900); background: var(--gray-50); min-height: 100vh; }
 
     /* ── Login ── */
     #login-view {
@@ -33,8 +36,8 @@
     }
     .form-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s; width: 100%; }
-    .btn-primary { background: var(--blue); color: #fff; }
-    .btn-primary:hover { background: var(--blue-dark); }
+    .btn-primary { background: var(--teal); color: #fff; }
+    .btn-primary:hover { background: var(--teal-dark); }
     .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
     .btn-outline { background: #fff; color: var(--gray-700); border: 1px solid var(--gray-300); }
     .btn-outline:hover { background: var(--gray-50); }
@@ -50,7 +53,7 @@
     /* ── Dashboard ── */
     #dashboard-view { display: none; }
     .topbar {
-      background: #1e293b; color: #e2e8f0; padding: 0 32px;
+      background: var(--navy); color: #e2e8f0; padding: 0 32px;
       display: flex; align-items: center; justify-content: space-between; height: 54px;
     }
     .topbar-brand { font-size: 15px; font-weight: 700; color: #fff; }

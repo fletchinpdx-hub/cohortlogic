@@ -4,40 +4,52 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TBD Class Tool — Cohort Logic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --navy:      #1E3A5F;
+      --teal:      #2A9D8F;
+      --teal-dark: #21867a;
+      --gold:      #E9B949;
+      --slate:     #64748B;
+      --soft-gray: #F2F4F7;
+      --charcoal:  #0F172A;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f8fafc;
-      color: #1e293b;
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--soft-gray);
+      color: var(--charcoal);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
 
     header {
-      padding: 20px 40px;
+      padding: 18px 40px;
       border-bottom: 1px solid #e2e8f0;
       background: #fff;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
-    .brand {
-      font-size: 15px;
-      font-weight: 700;
-      color: #1e293b;
-      letter-spacing: -.01em;
+    .brand-name {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--navy);
+      letter-spacing: -.02em;
     }
-    .brand-sub {
+    .brand-tagline {
       font-size: 13px;
-      color: #94a3b8;
-      font-weight: 400;
+      color: var(--teal);
+      font-weight: 600;
     }
     .divider {
       width: 1px;
-      height: 18px;
+      height: 20px;
       background: #e2e8f0;
       margin: 0 4px;
     }
@@ -53,46 +65,46 @@
     .card {
       background: #fff;
       border: 1px solid #e2e8f0;
-      border-radius: 14px;
+      border-radius: 16px;
       padding: 48px 48px 40px;
       width: 100%;
-      max-width: 480px;
-      box-shadow: 0 4px 24px rgba(0,0,0,.06);
+      max-width: 500px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.07);
     }
 
     .card-badge {
       display: inline-block;
-      background: #eff6ff;
-      color: #3b82f6;
+      background: #FEF3CD;
+      color: #8a6800;
       font-size: 11px;
       font-weight: 700;
       letter-spacing: .06em;
       text-transform: uppercase;
-      padding: 4px 10px;
+      padding: 4px 12px;
       border-radius: 20px;
       margin-bottom: 20px;
-      border: 1px solid #bfdbfe;
+      border: 1px solid #E9B949;
     }
 
     h1 {
-      font-size: 26px;
-      font-weight: 700;
-      color: #0f172a;
+      font-size: 27px;
+      font-weight: 800;
+      color: var(--navy);
       margin-bottom: 10px;
       line-height: 1.2;
     }
 
     .tagline {
       font-size: 15px;
-      color: #64748b;
+      color: var(--slate);
       margin-bottom: 28px;
-      line-height: 1.5;
+      line-height: 1.6;
     }
 
     .features {
       list-style: none;
       margin-bottom: 32px;
-      border-top: 1px solid #f1f5f9;
+      border-top: 1px solid var(--soft-gray);
       padding-top: 24px;
     }
     .features li {
@@ -100,9 +112,9 @@
       align-items: flex-start;
       gap: 10px;
       font-size: 14px;
-      color: #475569;
+      color: var(--slate);
       margin-bottom: 12px;
-      line-height: 1.4;
+      line-height: 1.5;
     }
     .features li .icon {
       font-size: 16px;
@@ -112,8 +124,8 @@
 
     .gate-label {
       font-size: 13px;
-      font-weight: 600;
-      color: #374151;
+      font-weight: 700;
+      color: var(--navy);
       margin-bottom: 8px;
     }
 
@@ -126,34 +138,36 @@
     input[type="text"], input[type="password"] {
       flex: 1;
       padding: 11px 14px;
-      border: 1px solid #d1d5db;
+      border: 1.5px solid #d1d5db;
       border-radius: 8px;
       font-size: 15px;
-      color: #111827;
+      font-family: 'Nunito', sans-serif;
+      color: var(--charcoal);
       background: #fff;
       outline: none;
       transition: border-color .15s, box-shadow .15s;
       letter-spacing: .05em;
     }
     input[type="text"]:focus, input[type="password"]:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(42,157,143,.15);
     }
 
     button {
       padding: 11px 22px;
-      background: #3b82f6;
+      background: var(--teal);
       color: #fff;
       border: none;
       border-radius: 8px;
       font-size: 15px;
-      font-weight: 600;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
       transition: background .15s;
     }
-    button:hover { background: #2563eb; }
-    button:active { background: #1d4ed8; }
+    button:hover { background: var(--teal-dark); }
+    button:active { background: #1a6e64; }
 
     .error-msg {
       font-size: 13px;
@@ -171,8 +185,8 @@
       color: #94a3b8;
       margin-top: 20px;
       padding-top: 20px;
-      border-top: 1px solid #f1f5f9;
-      line-height: 1.5;
+      border-top: 1px solid var(--soft-gray);
+      line-height: 1.6;
     }
 
     footer {
@@ -186,9 +200,9 @@
 <body>
 
   <header>
-    <span class="brand">Cohort Logic</span>
+    <span class="brand-name">Cohort Logic</span>
     <div class="divider"></div>
-    <span class="brand-sub">TBD Class Tool</span>
+    <span class="brand-tagline">Smarter tools for schools</span>
   </header>
 
   <main>
@@ -218,7 +232,7 @@
     </div>
   </main>
 
-  <footer>© 2026 Cohort Logic</footer>
+  <footer>© 2026 Cohort Logic · Smarter tools for schools</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-config.js"></script>
@@ -229,7 +243,6 @@
       const val = document.getElementById('code-input').value.trim().toLowerCase();
       if (val === CODE) {
         sessionStorage.setItem('cl_access', '1');
-        // Track the session start before navigating
         Promise.all([trackSession(), trackEvent('session_start')])
           .finally(() => { window.location.href = 'app.html'; });
       } else {
