@@ -39,11 +39,16 @@ function renderCompetencies() {
 
   container.innerHTML = AppState.competencies.map((c, i) => {
     const isScore = c.type === 'score';
+    const dir = c.direction || 'asc';
     const rangeHtml = isScore
       ? `<input type="number" class="comp-min input input-sm" value="${c.min ?? 1}" min="0" max="9999" style="width:54px" title="Min value" />
          <span class="range-sep">–</span>
-         <input type="number" class="comp-max input input-sm" value="${c.max ?? 5}" min="0" max="9999" style="width:54px" title="Max value" />`
-      : `<span style="display:inline-block;width:120px;"></span>`;
+         <input type="number" class="comp-max input input-sm" value="${c.max ?? 5}" min="0" max="9999" style="width:54px" title="Max value" />
+         <select class="comp-dir input input-sm" title="Which end of the scale is better?">
+           <option value="asc"  ${dir === 'asc'  ? 'selected' : ''}>High = Good</option>
+           <option value="desc" ${dir === 'desc' ? 'selected' : ''}>Low = Good</option>
+         </select>`
+      : `<span style="display:inline-block;width:224px;"></span>`;
 
     return `
       <div class="competency-item" data-index="${i}">
@@ -70,15 +75,18 @@ function renderCompetencies() {
     row.querySelector('.comp-type').addEventListener('change', e => {
       AppState.competencies[i].type = e.target.value;
       if (e.target.value === 'score') {
-        AppState.competencies[i].min = AppState.competencies[i].min ?? 1;
-        AppState.competencies[i].max = AppState.competencies[i].max ?? 5;
+        AppState.competencies[i].min       = AppState.competencies[i].min ?? 1;
+        AppState.competencies[i].max       = AppState.competencies[i].max ?? 5;
+        AppState.competencies[i].direction = AppState.competencies[i].direction ?? 'asc';
       }
       renderCompetencies();
     });
     const minEl = row.querySelector('.comp-min');
     const maxEl = row.querySelector('.comp-max');
+    const dirEl = row.querySelector('.comp-dir');
     if (minEl) minEl.addEventListener('change', e => { AppState.competencies[i].min = parseFloat(e.target.value) || 0; });
     if (maxEl) maxEl.addEventListener('change', e => { AppState.competencies[i].max = parseFloat(e.target.value) || 5; });
+    if (dirEl) dirEl.addEventListener('change', e => { AppState.competencies[i].direction = e.target.value; });
     row.querySelector('.comp-column').addEventListener('change', e => {
       AppState.competencies[i].column = e.target.value;
     });
@@ -90,7 +98,7 @@ function renderCompetencies() {
 }
 
 document.getElementById('add-competency-btn').addEventListener('click', () => {
-  AppState.competencies.push({ name: '', type: 'score', column: '', min: 1, max: 5 });
+  AppState.competencies.push({ name: '', type: 'score', column: '', min: 1, max: 5, direction: 'asc' });
   renderCompetencies();
 });
 

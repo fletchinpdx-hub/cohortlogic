@@ -123,7 +123,9 @@ function renderStudentPills(cls, g, ci) {
 function getScoreBadgeClass(val, comp) {
   const min = comp.min ?? 1;
   const max = comp.max ?? 5;
-  const n   = max > min ? (val - min) / (max - min) : 0.5;
+  let n = max > min ? (val - min) / (max - min) : 0.5;
+  // If low = good, invert so green = low value
+  if (comp.direction === 'desc') n = 1 - n;
   if (n <= 0.2) return 'score-1';
   if (n <= 0.4) return 'score-2';
   if (n <= 0.6) return 'score-3';

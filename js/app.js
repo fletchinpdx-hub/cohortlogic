@@ -8,11 +8,13 @@ const AppState = {
   students: [],        // mapped + parsed students
   separations: [],     // [{a: id, b: id}]
   competencies: [      // configurable scoring fields
-    { name: 'Math',     type: 'score', column: '', min: 1, max: 5 },
-    { name: 'Reading',  type: 'score', column: '', min: 1, max: 5 },
-    { name: 'Writing',  type: 'score', column: '', min: 1, max: 5 },
-    { name: 'IEP',      type: 'flag',  column: '' },
-    { name: 'Attitude', type: 'score', column: '', min: 1, max: 5 },
+    { name: 'Math',      type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
+    { name: 'Reading',   type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
+    { name: 'Writing',   type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
+    { name: 'Behavior',  type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
+    { name: 'IEP',       type: 'flag',     column: '' },
+    { name: '504',       type: 'flag',     column: '' },
+    { name: 'Ethnicity', type: 'category', column: '' },
   ],
   columnMap: {         // required field -> spreadsheet column
     firstName: '',

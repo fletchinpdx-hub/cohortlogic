@@ -81,7 +81,10 @@ function computeComposite(s) {
       if (v === null || v === undefined) return null;
       const min = c.min ?? 1;
       const max = c.max ?? 5;
-      return max > min ? (v - min) / (max - min) : 0.5;
+      if (max <= min) return 0.5;
+      const norm = (v - min) / (max - min);
+      // 'desc' means low value = better, so invert so higher composite = better
+      return (c.direction === 'desc') ? 1 - norm : norm;
     })
     .filter(v => v !== null);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5;
