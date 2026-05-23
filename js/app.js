@@ -8,11 +8,11 @@ const AppState = {
   students: [],        // mapped + parsed students
   separations: [],     // [{a: id, b: id}]
   competencies: [      // configurable scoring fields
-    { name: 'Math',     type: 'score', column: '' },
-    { name: 'Reading',  type: 'score', column: '' },
-    { name: 'Writing',  type: 'score', column: '' },
+    { name: 'Math',     type: 'score', column: '', min: 1, max: 5 },
+    { name: 'Reading',  type: 'score', column: '', min: 1, max: 5 },
+    { name: 'Writing',  type: 'score', column: '', min: 1, max: 5 },
     { name: 'IEP',      type: 'flag',  column: '' },
-    { name: 'Attitude', type: 'score', column: '' },
+    { name: 'Attitude', type: 'score', column: '', min: 1, max: 5 },
   ],
   columnMap: {         // required field -> spreadsheet column
     firstName: '',
@@ -20,7 +20,9 @@ const AppState = {
     grade:     '',
   },
   gradeConfig: {},     // { 'K': { classCount: 3, teachers: ['Ms. Smith', ...] }, ... }
+  splitClasses: [],    // [{ id, grades: ['3','4'], teacher: '' }]
   results: {},         // { 'K': [ [students], [students], ... ], ... }
+  splitResults: [],    // [{ id, grades, teacher, students: [] }]
 };
 
 // Navigation

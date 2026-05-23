@@ -1,110 +1,205 @@
 function runBalancingAlgorithm() {
   const grades = getGrades();
-  AppState.results = {};
+  AppState.results     = {};
+  AppState.splitResults = [];
 
+  // Build per-grade student pools
+  const pools = {};
+  grades.forEach(g => { pools[g] = AppState.students.filter(s => s.grade === g); });
+
+  // ── Handle split classes first ──
+  AppState.splitClasses.forEach(sc => {
+    const [gA, gB] = sc.grades;
+    const poolA = pools[gA] || [];
+    const poolB = pools[gB] || [];
+    if (!poolA.length && !poolB.length) return;
+
+    // Target size: equal share across all classes touching these two grades
+    const cfgA = AppState.gradeConfig[gA] || { classCount: 1 };
+    const cfgB = AppState.gradeConfig[gB] || { classCount: 1 };
+    const splitCount = AppState.splitClasses.filter(
+      s => s.grades.includes(gA) && s.grades.includes(gB)
+    ).length;
+    const totalStudents = poolA.length + poolB.length;
+    const totalClasses  = cfgA.classCount + cfgB.classCount + splitCount;
+    const targetSize    = Math.round(totalStudents / Math.max(totalClasses, 1));
+    const halfSize      = Math.round(targetSize / 2);
+
+    // Pick distributed sample from each pool (spread across skill range)
+    const takeA = pickDistributed(sortByComposite(poolA), Math.min(halfSize, poolA.length));
+    const takeB = pickDistributed(sortByComposite(poolB), Math.min(halfSize, poolB.length));
+
+    // Remove taken students from pools
+    const idsA = new Set(takeA.map(s => s.id));
+    const idsB = new Set(takeB.map(s => s.id));
+    pools[gA] = poolA.filter(s => !idsA.has(s.id));
+    pools[gB] = poolB.filter(s => !idsB.has(s.id));
+
+    // Balance and store split class
+    const splitStudents = snakeDraft([...takeA, ...takeB], 1)[0] || [];
+    fixSeparations([splitStudents]);
+
+    AppState.splitResults.push({
+      id:       sc.id,
+      grades:   sc.grades,
+      teacher:  sc.teacher,
+      students: splitStudents,
+    });
+  });
+
+  // ── Regular per-grade balancing ──
   grades.forEach(g => {
     const cfg      = AppState.gradeConfig[g] || { classCount: 1, teachers: [] };
-    const students = AppState.students.filter(s => s.grade === g);
-    AppState.results[g] = balanceGrade(students, cfg.classCount);
+    const students = pools[g] || [];
+    if (cfg.classCount > 0) {
+      AppState.results[g] = balanceGrade(students, cfg.classCount);
+    }
   });
+}
+
+// ── Composite score (normalized 0–1 across any range) ──
+function computeComposite(s) {
+  const vals = AppState.competencies
+    .filter(c => c.type === 'score' && c.name && c.column)
+    .map(c => {
+      const v = s.scores[c.name];
+      if (v === null || v === undefined) return null;
+      const min = c.min ?? 1;
+      const max = c.max ?? 5;
+      return max > min ? (v - min) / (max - min) : 0.5;
+    })
+    .filter(v => v !== null);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5;
+}
+
+function sortByComposite(students) {
+  return students
+    .map(s => ({ ...s, _composite: computeComposite(s) }))
+    .sort((a, b) => b._composite - a._composite);
+}
+
+// Pick `count` students distributed evenly across a sorted list
+function pickDistributed(sorted, count) {
+  if (count >= sorted.length) return [...sorted];
+  const result = [];
+  const step = sorted.length / count;
+  for (let i = 0; i < count; i++) {
+    result.push(sorted[Math.min(Math.floor(i * step + step / 2), sorted.length - 1)]);
+  }
+  return result;
+}
+
+// ── Snake-draft distribution ──
+function snakeDraft(students, classCount) {
+  const sorted  = sortByComposite(students);
+  const classes = Array.from({ length: classCount }, () => []);
+  let dir = 1, col = 0;
+  for (const s of sorted) {
+    classes[col].push(s);
+    col += dir;
+    if (col >= classCount) { col = classCount - 1; dir = -1; }
+    else if (col < 0)      { col = 0;              dir =  1; }
+  }
+  return classes;
 }
 
 function balanceGrade(students, classCount) {
   if (!classCount || classCount < 1) classCount = 1;
-
-  // Compute composite score for each student (average of all score-type competencies)
-  const scored = students.map(s => {
-    const scores = AppState.competencies
-      .filter(c => c.type === 'score' && c.name && c.column)
-      .map(c => s.scores[c.name])
-      .filter(v => v !== null && v !== undefined);
-    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 2.5;
-    return { ...s, _composite: avg };
-  });
-
-  // Sort by composite descending
-  scored.sort((a, b) => b._composite - a._composite);
-
-  // Snake-draft distribution: fill classes in zigzag order for even distribution
-  const classes = Array.from({ length: classCount }, () => []);
-  let direction = 1;
-  let col = 0;
-
-  for (const student of scored) {
-    classes[col].push(student);
-    col += direction;
-    if (col >= classCount) { col = classCount - 1; direction = -1; }
-    else if (col < 0)      { col = 0;              direction =  1; }
-  }
-
-  // Fix separation constraints
+  const classes = snakeDraft(students, classCount);
   fixSeparations(classes);
-
+  balanceCategories(classes);
   return classes;
 }
 
+// ── Separation constraint fixing ──
 function fixSeparations(classes) {
-  const maxPasses = 10;
-
-  for (let pass = 0; pass < maxPasses; pass++) {
+  for (let pass = 0; pass < 10; pass++) {
     let anyViolation = false;
-
     for (const pair of AppState.separations) {
-      // Find which classes each student is in
-      let classA = -1, classB = -1, idxA = -1, idxB = -1;
-
+      let classA = -1, classB = -1, idxB = -1;
       classes.forEach((cls, ci) => {
         cls.forEach((s, si) => {
-          if (s.id === pair.a) { classA = ci; idxA = si; }
+          if (s.id === pair.a) classA = ci;
           if (s.id === pair.b) { classB = ci; idxB = si; }
         });
       });
-
       if (classA === -1 || classB === -1 || classA !== classB) continue;
-
-      // Violation — try to swap student B with someone in another class
       anyViolation = true;
       let swapped = false;
-
-      for (let ci = 0; ci < classes.length; ci++) {
+      for (let ci = 0; ci < classes.length && !swapped; ci++) {
         if (ci === classA) continue;
-        for (let si = 0; si < classes[ci].length; si++) {
+        for (let si = 0; si < classes[ci].length && !swapped; si++) {
           const candidate = classes[ci][si];
-          // Check this swap doesn't create a new violation
           const wouldViolate = AppState.separations.some(p => {
-            const otherId = (p.a === pair.b ? p.b : p.a === pair.b ? p.b : null);
-            if (!otherId) return false;
-            return classes[ci].some(s => s.id === otherId);
+            const other = p.a === pair.b ? p.b : p.b === pair.b ? p.a : null;
+            return other && classes[ci].some(s => s.id === other);
           });
           if (!wouldViolate) {
-            // Swap
-            classes[classA][idxB] = candidate;
-            classes[ci][si]       = classes[classA][idxB];
-            classes[classA][idxB] = candidate;
-            // More precisely:
             const tmp = classes[classA][idxB];
             classes[classA][idxB] = classes[ci][si];
             classes[ci][si] = tmp;
             swapped = true;
-            break;
           }
         }
-        if (swapped) break;
       }
     }
-
     if (!anyViolation) break;
   }
 }
 
-// Compute per-competency average for a class
+// ── Category balancing ──
+function balanceCategories(classes) {
+  const catComps = AppState.competencies.filter(c => c.type === 'category' && c.name && c.column);
+  if (!catComps.length || classes.length < 2) return;
+
+  for (let pass = 0; pass < 10; pass++) {
+    let improved = false;
+    for (const comp of catComps) {
+      const getCounts = cls => {
+        const counts = {};
+        cls.forEach(s => { const v = s.scores[comp.name]; if (v) counts[v] = (counts[v] || 0) + 1; });
+        return counts;
+      };
+      for (let ci = 0; ci < classes.length - 1; ci++) {
+        for (let cj = ci + 1; cj < classes.length; cj++) {
+          const cI = getCounts(classes[ci]);
+          const cJ = getCounts(classes[cj]);
+          for (let si = 0; si < classes[ci].length; si++) {
+            for (let sj = 0; sj < classes[cj].length; sj++) {
+              const catI = classes[ci][si].scores[comp.name];
+              const catJ = classes[cj][sj].scores[comp.name];
+              if (!catI || !catJ || catI === catJ) continue;
+              const before = Math.abs((cI[catI]||0) - (cJ[catI]||0)) + Math.abs((cI[catJ]||0) - (cJ[catJ]||0));
+              const nI = { ...cI }; nI[catI]--; nI[catJ] = (nI[catJ]||0) + 1;
+              const nJ = { ...cJ }; nJ[catJ]--; nJ[catI] = (nJ[catI]||0) + 1;
+              const after  = Math.abs((nI[catI]||0) - (nJ[catI]||0)) + Math.abs((nI[catJ]||0) - (nJ[catJ]||0));
+              if (after < before) {
+                const tmp = classes[ci][si];
+                classes[ci][si] = classes[cj][sj];
+                classes[cj][sj] = tmp;
+                improved = true;
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!improved) break;
+  }
+}
+
+// ── Class averages (scores) + category distributions ──
 function classAverages(cls) {
   const avgs = {};
-  AppState.competencies
-    .filter(c => c.type === 'score' && c.name && c.column)
-    .forEach(c => {
+  AppState.competencies.filter(c => c.name && c.column).forEach(c => {
+    if (c.type === 'score') {
       const vals = cls.map(s => s.scores[c.name]).filter(v => v != null);
       avgs[c.name] = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
-    });
+    } else if (c.type === 'category') {
+      const counts = {};
+      cls.forEach(s => { const v = s.scores[c.name]; if (v) counts[v] = (counts[v]||0) + 1; });
+      avgs[c.name] = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(' ') || '—';
+    }
+  });
   return avgs;
 }

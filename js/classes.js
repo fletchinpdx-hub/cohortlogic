@@ -23,23 +23,21 @@ function renderClassSetup() {
     return;
   }
 
-  container.innerHTML = grades.map(g => {
+  // Regular grade cards
+  const gradeCards = grades.map(g => {
     const cfg   = AppState.gradeConfig[g];
     const count = AppState.students.filter(s => s.grade === g).length;
     const avg   = cfg.classCount ? Math.round(count / cfg.classCount) : '—';
-
     return `
       <div class="grade-card" data-grade="${g}">
         <div class="grade-card-header">
           <h2>Grade ${g}</h2>
           <div class="grade-meta">${count} students · ~${avg} per class</div>
         </div>
-
         <div class="class-count-row">
           <label>Number of classes:</label>
-          <input type="number" class="input" min="1" max="20" value="${cfg.classCount}" data-grade="${g}" />
+          <input type="number" class="input" min="0" max="20" value="${cfg.classCount}" data-grade="${g}" />
         </div>
-
         <div class="teachers-grid" id="teachers-${g}">
           ${renderTeacherSlots(g)}
         </div>
@@ -47,11 +45,25 @@ function renderClassSetup() {
     `;
   }).join('');
 
-  // Class count change
-  container.querySelectorAll('input[type="number"]').forEach(input => {
+  // Split classes card
+  const splitCard = `
+    <div class="grade-card">
+      <div class="grade-card-header">
+        <h2>Split Classes</h2>
+        <div class="grade-meta">Classes combining two grade levels (~50/50 split)</div>
+      </div>
+      <div id="split-classes-list">${renderSplitList(grades)}</div>
+      <button class="btn btn-outline btn-sm" id="add-split-btn" style="margin-top:14px;">+ Add Split Class</button>
+    </div>
+  `;
+
+  container.innerHTML = gradeCards + splitCard;
+
+  // Class count change listeners
+  container.querySelectorAll('input[type="number"][data-grade]').forEach(input => {
     input.addEventListener('change', () => {
       const g = input.dataset.grade;
-      const n = Math.max(1, parseInt(input.value) || 1);
+      const n = Math.max(0, parseInt(input.value) || 0);
       input.value = n;
       const existing = AppState.gradeConfig[g].teachers;
       AppState.gradeConfig[g].classCount = n;
@@ -63,6 +75,18 @@ function renderClassSetup() {
   });
 
   grades.forEach(g => attachTeacherListeners(g));
+
+  document.getElementById('add-split-btn').addEventListener('click', () => {
+    AppState.splitClasses.push({
+      id:     `split-${Date.now()}`,
+      grades: [grades[0], grades[Math.min(1, grades.length - 1)]],
+      teacher: '',
+    });
+    document.getElementById('split-classes-list').innerHTML = renderSplitList(grades);
+    attachSplitListeners(grades);
+  });
+
+  attachSplitListeners(grades);
 }
 
 function renderTeacherSlots(g) {
@@ -91,10 +115,46 @@ function updateAvg(g) {
   if (card) card.textContent = `${count} students · ~${avg} per class`;
 }
 
+function renderSplitList(grades) {
+  if (!AppState.splitClasses.length) {
+    return `<p style="color:var(--gray-500);font-size:13px;padding:4px 0 8px;">No split classes yet. Click "+ Add Split Class" to create one.</p>`;
+  }
+  return AppState.splitClasses.map((sc, i) => `
+    <div class="split-class-row" data-split-index="${i}">
+      <select class="input input-sm split-grade-a">
+        ${grades.map(g => `<option value="${g}" ${sc.grades[0] === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}
+      </select>
+      <span style="color:var(--gray-500);font-weight:700;">/</span>
+      <select class="input input-sm split-grade-b">
+        ${grades.map(g => `<option value="${g}" ${sc.grades[1] === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}
+      </select>
+      <input type="text" class="input input-sm split-teacher" placeholder="Teacher name" value="${sc.teacher}" style="flex:1;" />
+      <button class="remove-btn split-remove" title="Remove split class">×</button>
+    </div>
+  `).join('');
+}
+
+function attachSplitListeners(grades) {
+  document.querySelectorAll('.split-class-row').forEach(row => {
+    const i = parseInt(row.dataset.splitIndex);
+    const sc = AppState.splitClasses[i];
+    if (!sc) return;
+    row.querySelector('.split-grade-a').addEventListener('change', e => { sc.grades[0] = e.target.value; });
+    row.querySelector('.split-grade-b').addEventListener('change', e => { sc.grades[1] = e.target.value; });
+    row.querySelector('.split-teacher').addEventListener('input',  e => { sc.teacher = e.target.value; });
+    row.querySelector('.split-remove').addEventListener('click', () => {
+      AppState.splitClasses.splice(i, 1);
+      document.getElementById('split-classes-list').innerHTML = renderSplitList(grades);
+      attachSplitListeners(grades);
+    });
+  });
+}
+
 document.getElementById('generate-btn').addEventListener('click', () => {
   if (!AppState.students.length) { alert('Please import student data first.'); return; }
   runBalancingAlgorithm();
-  const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0);
+  const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0)
+    + AppState.splitClasses.length;
   if (typeof trackEvent === 'function') trackEvent('classes_generated', { grades: getGrades().length, totalClasses });
   renderResults();
   navigateTo('results');

@@ -37,20 +37,31 @@ function renderCompetencies() {
   const container = document.getElementById('competency-list');
   const headers   = AppState.rawHeaders;
 
-  container.innerHTML = AppState.competencies.map((c, i) => `
-    <div class="competency-item" data-index="${i}">
-      <input type="text" value="${c.name}" placeholder="Field name" class="comp-name" />
-      <select class="comp-type">
-        <option value="score" ${c.type === 'score' ? 'selected' : ''}>Score (1–5)</option>
-        <option value="flag"  ${c.type === 'flag'  ? 'selected' : ''}>Yes/No Flag</option>
-      </select>
-      <select class="comp-column input input-sm">
-        <option value="">— column —</option>
-        ${headers.map(h => `<option value="${h}" ${c.column === h ? 'selected' : ''}>${h}</option>`).join('')}
-      </select>
-      <button class="remove-btn" title="Remove">×</button>
-    </div>
-  `).join('');
+  container.innerHTML = AppState.competencies.map((c, i) => {
+    const isScore = c.type === 'score';
+    const rangeHtml = isScore
+      ? `<input type="number" class="comp-min input input-sm" value="${c.min ?? 1}" min="0" max="9999" style="width:54px" title="Min value" />
+         <span class="range-sep">–</span>
+         <input type="number" class="comp-max input input-sm" value="${c.max ?? 5}" min="0" max="9999" style="width:54px" title="Max value" />`
+      : `<span style="display:inline-block;width:120px;"></span>`;
+
+    return `
+      <div class="competency-item" data-index="${i}">
+        <input type="text" value="${c.name}" placeholder="Field name" class="comp-name" />
+        <select class="comp-type">
+          <option value="score"    ${c.type === 'score'    ? 'selected' : ''}>Score</option>
+          <option value="category" ${c.type === 'category' ? 'selected' : ''}>Category</option>
+          <option value="flag"     ${c.type === 'flag'     ? 'selected' : ''}>Yes/No Flag</option>
+        </select>
+        ${rangeHtml}
+        <select class="comp-column input input-sm">
+          <option value="">— column —</option>
+          ${headers.map(h => `<option value="${h}" ${c.column === h ? 'selected' : ''}>${h}</option>`).join('')}
+        </select>
+        <button class="remove-btn" title="Remove">×</button>
+      </div>
+    `;
+  }).join('');
 
   container.querySelectorAll('.competency-item').forEach((row, i) => {
     row.querySelector('.comp-name').addEventListener('input', e => {
@@ -58,7 +69,16 @@ function renderCompetencies() {
     });
     row.querySelector('.comp-type').addEventListener('change', e => {
       AppState.competencies[i].type = e.target.value;
+      if (e.target.value === 'score') {
+        AppState.competencies[i].min = AppState.competencies[i].min ?? 1;
+        AppState.competencies[i].max = AppState.competencies[i].max ?? 5;
+      }
+      renderCompetencies();
     });
+    const minEl = row.querySelector('.comp-min');
+    const maxEl = row.querySelector('.comp-max');
+    if (minEl) minEl.addEventListener('change', e => { AppState.competencies[i].min = parseFloat(e.target.value) || 0; });
+    if (maxEl) maxEl.addEventListener('change', e => { AppState.competencies[i].max = parseFloat(e.target.value) || 5; });
     row.querySelector('.comp-column').addEventListener('change', e => {
       AppState.competencies[i].column = e.target.value;
     });
@@ -70,7 +90,7 @@ function renderCompetencies() {
 }
 
 document.getElementById('add-competency-btn').addEventListener('click', () => {
-  AppState.competencies.push({ name: '', type: 'score', column: '' });
+  AppState.competencies.push({ name: '', type: 'score', column: '', min: 1, max: 5 });
   renderCompetencies();
 });
 
@@ -82,7 +102,6 @@ document.getElementById('apply-mapping-btn').addEventListener('click', () => {
     return;
   }
 
-  // Build student objects from raw rows
   AppState.students = AppState.rawRows.map((row, i) => {
     const student = {
       id:        i,
@@ -97,8 +116,14 @@ document.getElementById('apply-mapping-btn').addEventListener('click', () => {
       const raw = row[c.column];
       if (c.type === 'score') {
         const num = parseFloat(raw);
-        student.scores[c.name] = isNaN(num) ? null : Math.min(5, Math.max(1, num));
+        const min = c.min ?? 1;
+        const max = c.max ?? 5;
+        student.scores[c.name] = isNaN(num) ? null : Math.min(max, Math.max(min, num));
+      } else if (c.type === 'category') {
+        const val = String(raw ?? '').trim();
+        student.scores[c.name] = val || null;
       } else {
+        // flag
         const val = String(raw).toLowerCase().trim();
         student.scores[c.name] = ['yes', 'y', '1', 'true'].includes(val);
       }
