@@ -8,43 +8,58 @@ function runBalancingAlgorithm() {
   grades.forEach(g => { pools[g] = AppState.students.filter(s => s.grade === g); });
 
   // ── Handle split classes first ──
+  // Group by grade pair so we calculate target size ONCE per pair
+  // using original pool sizes — not shrinking pools mid-loop
+  const pairMap = {};
   AppState.splitClasses.forEach(sc => {
-    const [gA, gB] = sc.grades;
-    const poolA = pools[gA] || [];
-    const poolB = pools[gB] || [];
-    if (!poolA.length && !poolB.length) return;
+    const key = sc.grades.slice().sort().join('|');
+    if (!pairMap[key]) pairMap[key] = { grades: sc.grades, splits: [] };
+    pairMap[key].splits.push(sc);
+  });
 
-    // Target size: equal share across all classes touching these two grades
-    const cfgA = AppState.gradeConfig[gA] || { classCount: 1 };
-    const cfgB = AppState.gradeConfig[gB] || { classCount: 1 };
-    const splitCount = AppState.splitClasses.filter(
-      s => s.grades.includes(gA) && s.grades.includes(gB)
-    ).length;
-    const totalStudents = poolA.length + poolB.length;
-    const totalClasses  = cfgA.classCount + cfgB.classCount + splitCount;
+  Object.values(pairMap).forEach(({ grades: [gA, gB], splits }) => {
+    const origA = pools[gA] || [];
+    const origB = pools[gB] || [];
+    if (!origA.length && !origB.length) return;
+
+    // Calculate target size ONCE using full original pools
+    const cfgA        = AppState.gradeConfig[gA] || { classCount: 1 };
+    const cfgB        = AppState.gradeConfig[gB] || { classCount: 1 };
+    const totalStudents = origA.length + origB.length;
+    const totalClasses  = cfgA.classCount + cfgB.classCount + splits.length;
     const targetSize    = Math.round(totalStudents / Math.max(totalClasses, 1));
     const halfSize      = Math.round(targetSize / 2);
 
-    // Pick distributed sample from each pool (spread across skill range)
-    const takeA = pickDistributed(sortByComposite(poolA), Math.min(halfSize, poolA.length));
-    const takeB = pickDistributed(sortByComposite(poolB), Math.min(halfSize, poolB.length));
+    // Sort pools once; track which students have been assigned
+    const sortedA  = sortByComposite(origA);
+    const sortedB  = sortByComposite(origB);
+    const usedA    = new Set();
+    const usedB    = new Set();
 
-    // Remove taken students from pools
-    const idsA = new Set(takeA.map(s => s.id));
-    const idsB = new Set(takeB.map(s => s.id));
-    pools[gA] = poolA.filter(s => !idsA.has(s.id));
-    pools[gB] = poolB.filter(s => !idsB.has(s.id));
+    splits.forEach(sc => {
+      const availA = sortedA.filter(s => !usedA.has(s.id));
+      const availB = sortedB.filter(s => !usedB.has(s.id));
 
-    // Balance and store split class
-    const splitStudents = snakeDraft([...takeA, ...takeB], 1)[0] || [];
-    fixSeparations([splitStudents]);
+      const takeA = pickDistributed(availA, Math.min(halfSize, availA.length));
+      const takeB = pickDistributed(availB, Math.min(halfSize, availB.length));
 
-    AppState.splitResults.push({
-      id:       sc.id,
-      grades:   sc.grades,
-      teacher:  sc.teacher,
-      students: splitStudents,
+      takeA.forEach(s => usedA.add(s.id));
+      takeB.forEach(s => usedB.add(s.id));
+
+      const splitStudents = snakeDraft([...takeA, ...takeB], 1)[0] || [];
+      fixSeparations([splitStudents]);
+
+      AppState.splitResults.push({
+        id:      sc.id,
+        grades:  sc.grades,
+        teacher: sc.teacher,
+        students: splitStudents,
+      });
     });
+
+    // Remove all assigned students from the grade pools
+    pools[gA] = origA.filter(s => !usedA.has(s.id));
+    pools[gB] = origB.filter(s => !usedB.has(s.id));
   });
 
   // ── Regular per-grade balancing ──
