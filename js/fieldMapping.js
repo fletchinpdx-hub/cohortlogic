@@ -10,15 +10,18 @@ function renderColumnMapping() {
   const map       = AppState.columnMap;
 
   const fields = [
-    { key: 'firstName', label: 'First Name', required: true },
-    { key: 'lastName',  label: 'Last Name',  required: true },
-    { key: 'grade',     label: 'Grade',      required: true },
-    { key: 'studentId', label: 'Student ID', required: false },
+    { key: 'firstName', label: 'First Name', required: false, hint: 'Required if no Student ID' },
+    { key: 'lastName',  label: 'Last Name',  required: false, hint: 'Required if no Student ID' },
+    { key: 'grade',     label: 'Grade',      required: true  },
+    { key: 'studentId', label: 'Student ID', required: false, hint: 'Required if no First/Last Name' },
   ];
 
   container.innerHTML = fields.map(f => `
     <div class="mapping-row">
-      <div class="mapping-label">${f.label}${f.required ? '<span class="required">*</span>' : ''}</div>
+      <div class="mapping-label">
+        ${f.label}${f.required ? '<span class="required">*</span>' : ''}
+        ${f.hint ? `<span class="mapping-hint">${f.hint}</span>` : ''}
+      </div>
       <select class="input" data-field="${f.key}">
         <option value="">— select column —</option>
         ${headers.map(h => `<option value="${h}" ${map[f.key] === h ? 'selected' : ''}>${h}</option>`).join('')}
@@ -106,8 +109,14 @@ document.getElementById('add-competency-btn').addEventListener('click', () => {
 // ── Apply mapping ──
 document.getElementById('apply-mapping-btn').addEventListener('click', () => {
   const map = AppState.columnMap;
-  if (!map.firstName || !map.lastName || !map.grade) {
-    alert('Please map First Name, Last Name, and Grade before continuing.');
+  const hasNames = map.firstName && map.lastName;
+  const hasId    = !!map.studentId;
+  if (!map.grade) {
+    alert('Please map the Grade field before continuing.');
+    return;
+  }
+  if (!hasNames && !hasId) {
+    alert('Please map either (First Name + Last Name) or Student ID before continuing.');
     return;
   }
 
@@ -140,7 +149,10 @@ document.getElementById('apply-mapping-btn').addEventListener('click', () => {
     });
 
     return student;
-  }).filter(s => s.firstName || s.lastName);
+  }).filter(s => s.firstName || s.lastName || s.studentId);
+
+  // Auto-switch to ID mode if no names were mapped
+  if (!hasNames) AppState.displayMode = 'id';
 
   if (typeof trackEvent === 'function') trackEvent('field_mapping_applied', { studentCount: AppState.students.length });
   updateSidebarStatus();

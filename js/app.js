@@ -87,8 +87,10 @@ function gradeOrder(g) {
   return parseInt(g) || 99;
 }
 
-// Returns the display label for a student based on the current displayMode
+// Returns the display label for a student based on the current displayMode.
+// Falls back to studentId when no name is available (ID-only datasets).
 function studentLabel(s) {
   if (AppState.displayMode === 'id' && s.studentId) return s.studentId;
-  return `${s.firstName} ${s.lastName}`;
+  const name = `${s.firstName} ${s.lastName}`.trim();
+  return name || s.studentId || `Student ${s.id}`;
 }
