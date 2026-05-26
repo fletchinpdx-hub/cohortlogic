@@ -6,13 +6,19 @@
   <title>TBD Class Tool — Cohort Logic</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
   <script>
-    if (!sessionStorage.getItem('cl_access')) {
-      window.location.replace('index.html');
-    }
+    // Gate: must be logged in and approved
+    (async () => {
+      const { data: { session } } = await SupabaseClient.auth.getSession();
+      if (!session) { window.location.replace('login.html'); return; }
+      const { data: profile } = await SupabaseClient
+        .from('profiles').select('approved').eq('id', session.user.id).single();
+      if (!profile || !profile.approved) { window.location.replace('dashboard.html'); }
+    })();
   </script>
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- SheetJS for Excel parsing and generation -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>

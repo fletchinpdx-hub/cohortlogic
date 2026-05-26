@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Cohort Logic</title>
+  <link rel="stylesheet" href="css/marketing.css" />
+</head>
+<body class="dash-page page-enter">
+
+<nav class="dash-nav">
+  <a href="dashboard.html" class="logo-mark">
+    <svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+      <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+      <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+      <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+      <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+      <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+    </svg>
+    <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+  </a>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span class="dash-greeting" id="user-greeting"></span>
+    <button class="btn btn-ghost btn-sm" onclick="doSignOut()">Sign out</button>
+  </div>
+</nav>
+
+<!-- Pending state (shown if not approved) -->
+<div id="pending-state" style="display:none;min-height:80vh;display:none;align-items:center;justify-content:center;padding:48px 24px;">
+  <div style="text-align:center;max-width:480px;display:grid;gap:16px;">
+    <div style="font-size:48px;">📬</div>
+    <h2 style="font-size:24px;">Your account is pending approval</h2>
+    <p style="color:var(--text-2);">We review each account before granting access. We'll send you an email when you're approved, usually within one business day.</p>
+    <p style="font-size:13px;color:var(--text-3);">Questions? Reply to your signup confirmation email.</p>
+    <button class="btn btn-ghost btn-sm" style="margin:0 auto;" onclick="doSignOut()">Sign out</button>
+  </div>
+</div>
+
+<!-- Dashboard (shown if approved) -->
+<div id="dashboard-state" style="display:none;">
+  <div class="dash-body">
+    <div class="dash-header">
+      <span class="eyebrow" style="margin-bottom:10px;">Your workspace</span>
+      <h1>Products</h1>
+      <p style="color:var(--text-2);font-size:15px;margin-top:8px;" id="school-line"></p>
+    </div>
+
+    <div class="product-cards">
+      <!-- Class Builder — active -->
+      <div class="product-card active">
+        <div class="product-card-header">
+          <div class="product-glyph" style="background:var(--teal-soft);">
+            <svg width="24" height="24" viewBox="0 0 30 30" fill="none">
+              <circle cx="8" cy="9" r="3" fill="var(--teal-deep)"/>
+              <circle cx="22" cy="9" r="3" fill="var(--teal-deep)" opacity=".4"/>
+              <circle cx="8" cy="21" r="3" fill="var(--teal-deep)" opacity=".4"/>
+              <circle cx="22" cy="21" r="3" fill="var(--teal-deep)"/>
+              <path d="M11 9h8M8 12v6M22 12v6M11 21h8" stroke="var(--teal-deep)" stroke-width="1.5" opacity=".5"/>
+            </svg>
+          </div>
+          <span class="tag tag--teal"><span class="tag-dot"></span>Available</span>
+        </div>
+        <h3>Class Builder</h3>
+        <p>Generate balanced, equitable classroom assignments from your student data. Import, set constraints, solve, export.</p>
+        <div class="product-card-footer">
+          <a href="app.html" class="btn btn-accent btn-sm btn-full">Open Class Builder <span class="arrow">→</span></a>
+        </div>
+      </div>
+
+      <!-- Schedule Builder — coming soon -->
+      <div class="product-card coming">
+        <div class="product-card-header">
+          <div class="product-glyph" style="background:#EAF0F8;">
+            <svg width="24" height="24" viewBox="0 0 30 30" fill="none">
+              <rect x="4" y="6" width="22" height="18" rx="2" stroke="var(--navy)" stroke-width="1.6"/>
+              <path d="M4 11h22" stroke="var(--navy)" stroke-width="1.6"/>
+              <rect x="7" y="14" width="5" height="3" rx="1" fill="var(--navy)"/>
+              <rect x="14" y="14" width="9" height="3" rx="1" fill="var(--navy)" opacity=".4"/>
+            </svg>
+          </div>
+          <span class="tag tag--coming">Coming soon</span>
+        </div>
+        <h3>Schedule Builder</h3>
+        <p>Build and manage your building master schedule. Block placement, staff assignments, and conflict detection.</p>
+        <div class="product-card-footer">
+          <button class="btn btn-ghost btn-sm btn-full" disabled style="opacity:.5;cursor:not-allowed;">Not yet available</button>
+        </div>
+      </div>
+
+      <!-- Check-in / Check-out — coming soon -->
+      <div class="product-card coming">
+        <div class="product-card-header">
+          <div class="product-glyph" style="background:var(--gold-soft);">
+            <svg width="24" height="24" viewBox="0 0 30 30" fill="none">
+              <circle cx="15" cy="10" r="4" stroke="#8a6a18" stroke-width="1.6"/>
+              <path d="M7 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#8a6a18" stroke-width="1.6"/>
+              <path d="M20 14l2 2 4-4" stroke="#8a6a18" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span class="tag tag--coming">Coming soon</span>
+        </div>
+        <h3>Check-in / Check-out</h3>
+        <p>Track student attendance and interventions. Designed for the front office and intervention teams.</p>
+        <div class="product-card-footer">
+          <button class="btn btn-ghost btn-sm btn-full" disabled style="opacity:.5;cursor:not-allowed;">Not yet available</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:48px;padding-top:32px;border-top:1px solid var(--hairline);">
+      <p style="font-size:13px;color:var(--text-3);">
+        Cohort Logic is free through September 2026. Have feedback or a feature request?
+        <a href="index.html#security" style="color:var(--teal-deep);">Reach out →</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script>
+  async function init() {
+    const { data: { session } } = await SupabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return; }
+
+    const { data: profile } = await SupabaseClient
+      .from('profiles')
+      .select('full_name, school_name, approved')
+      .eq('id', session.user.id)
+      .single();
+
+    // Update greeting
+    const firstName = profile?.full_name?.split(' ')[0] || session.user.email;
+    document.getElementById('user-greeting').textContent = firstName;
+
+    if (!profile || !profile.approved) {
+      document.getElementById('pending-state').style.display = 'flex';
+    } else {
+      document.getElementById('dashboard-state').style.display = 'block';
+      if (profile.school_name) {
+        document.getElementById('school-line').textContent = profile.school_name;
+      }
+    }
+  }
+
+  async function doSignOut() {
+    await SupabaseClient.auth.signOut();
+    window.location.href = 'index.html';
+  }
+
+  init();
+</script>
+</body>
+</html>

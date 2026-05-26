@@ -91,6 +91,13 @@
     .event-chip { display: inline-block; background: var(--blue-light); color: #1e40af; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 500; margin: 2px 2px 2px 0; }
     .ua-text { font-size: 11px; color: var(--gray-400); }
     .empty-row { text-align: center; padding: 32px; color: var(--gray-400); font-size: 14px; }
+    .pending-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--gray-100); gap: 12px; flex-wrap: wrap; }
+    .pending-row:last-child { border-bottom: none; }
+    .pending-info strong { font-size: 14px; font-weight: 600; }
+    .pending-info .meta { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+    .approve-btn { background: var(--teal); color: #fff; border: none; border-radius: 6px; padding: 7px 16px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .approve-btn:hover { background: var(--teal-dark); }
+    .approve-btn:disabled { opacity: .5; cursor: not-allowed; }
 
     /* Change password */
     #change-pw-section { margin-top: 24px; }
@@ -138,6 +145,16 @@
   </div>
 
   <div class="dashboard-body">
+
+    <!-- Pending Users -->
+    <h2 style="margin-bottom:12px;">Pending Approvals</h2>
+    <div class="section-card" style="margin-bottom:32px;">
+      <h3 style="display:flex;align-items:center;gap:10px;">
+        Pending Users
+        <span id="pending-badge" style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;"></span>
+      </h3>
+      <div id="pending-users-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+    </div>
 
     <!-- Stats -->
     <h2>Overview</h2>

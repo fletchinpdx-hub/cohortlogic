@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — Cohort Logic</title>
+  <link rel="stylesheet" href="css/marketing.css" />
+</head>
+<body class="auth-page page-enter">
+
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+  </div>
+</div>
+
+<div class="auth-body">
+  <div class="auth-card">
+    <h1>Sign in</h1>
+    <p class="auth-subtitle">Welcome back. Enter your email and password.</p>
+
+    <div id="auth-error" class="auth-error"></div>
+
+    <form class="auth-form" id="login-form" novalidate>
+      <div class="field">
+        <label for="email">Work email</label>
+        <input type="email" id="email" autocomplete="email" placeholder="you@yourschool.org" required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
+        Sign in <span class="arrow">→</span>
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      Don't have an account? <a href="signup.html">Sign up free</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script>
+  // Redirect if already logged in and approved
+  (async () => {
+    const { data: { session } } = await SupabaseClient.auth.getSession();
+    if (session) {
+      const { data: profile } = await SupabaseClient
+        .from('profiles').select('approved').eq('id', session.user.id).single();
+      if (profile?.approved) { window.location.href = 'dashboard.html'; return; }
+      if (profile) { window.location.href = 'dashboard.html'; return; } // show pending
+    }
+  })();
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const errorEl = document.getElementById('auth-error');
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    errorEl.classList.remove('visible');
+
+    const { data, error } = await SupabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      errorEl.textContent = error.message === 'Invalid login credentials'
+        ? 'Incorrect email or password. Please try again.'
+        : error.message;
+      errorEl.classList.add('visible');
+      btn.disabled = false;
+      btn.innerHTML = 'Sign in <span class="arrow">→</span>';
+      return;
+    }
+
+    window.location.href = 'dashboard.html';
+  });
+</script>
+</body>
+</html>

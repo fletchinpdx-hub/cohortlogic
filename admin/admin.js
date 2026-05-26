@@ -149,8 +149,77 @@ document.getElementById('save-pw-btn').addEventListener('click', async () => {
   if (!error) { document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
 });
 
+// ── Pending users ──
+async function loadPendingUsers() {
+  const container = document.getElementById('pending-users-list');
+  const badge     = document.getElementById('pending-badge');
+
+  const { data: pending, error } = await db
+    .from('profiles')
+    .select('id, full_name, school_name, created_at')
+    .eq('approved', false)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load pending users. Make sure the profiles table exists and RLS is set up.</p>`;
+    return;
+  }
+
+  if (!pending || !pending.length) {
+    badge.style.display = 'none';
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No pending users. All accounts are approved.</p>';
+    return;
+  }
+
+  badge.textContent = pending.length;
+  badge.style.display = 'inline';
+
+  container.innerHTML = pending.map(u => {
+    const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `
+      <div class="pending-row" id="row-${u.id}">
+        <div class="pending-info">
+          <strong>${u.full_name || '(no name)'}</strong>
+          <div class="meta">${u.school_name || ''} · Signed up ${date}</div>
+        </div>
+        <button class="approve-btn" onclick="approveUser('${u.id}')">Approve</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function approveUser(userId) {
+  const btn = document.querySelector(`#row-${userId} .approve-btn`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
+
+  const { error } = await db
+    .from('profiles')
+    .update({ approved: true })
+    .eq('id', userId);
+
+  if (error) {
+    alert('Error approving user: ' + error.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
+    return;
+  }
+
+  // Remove the row and update badge count
+  const row = document.getElementById(`row-${userId}`);
+  if (row) row.remove();
+  const remaining = document.querySelectorAll('.pending-row').length;
+  const badge = document.getElementById('pending-badge');
+  if (remaining === 0) {
+    badge.style.display = 'none';
+    document.getElementById('pending-users-list').innerHTML =
+      '<p style="color:#9ca3af;font-size:13px;">No pending users. All accounts are approved.</p>';
+  } else {
+    badge.textContent = remaining;
+  }
+}
+
 // ── Dashboard data ──
 async function loadDashboard() {
+  loadPendingUsers();
   const [sessionsRes, eventsRes] = await Promise.all([
     db.from('sessions').select('*').order('created_at', { ascending: false }),
     db.from('events').select('*').order('created_at', { ascending: false }),

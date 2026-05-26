@@ -3,257 +3,379 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TBD Class Tool — Cohort Logic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --navy:      #1E3A5F;
-      --teal:      #2A9D8F;
-      --teal-dark: #21867a;
-      --gold:      #E9B949;
-      --slate:     #64748B;
-      --soft-gray: #F2F4F7;
-      --charcoal:  #0F172A;
-    }
-
-    body {
-      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--soft-gray);
-      color: var(--charcoal);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      padding: 18px 40px;
-      border-bottom: 1px solid #e2e8f0;
-      background: #fff;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .brand-name {
-      font-size: 20px;
-      font-weight: 800;
-      color: var(--navy);
-      letter-spacing: -.02em;
-    }
-    .brand-tagline {
-      font-size: 13px;
-      color: var(--teal);
-      font-weight: 600;
-    }
-    .divider {
-      width: 1px;
-      height: 20px;
-      background: #e2e8f0;
-      margin: 0 4px;
-    }
-
-    main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 20px;
-    }
-
-    .card {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 48px 48px 40px;
-      width: 100%;
-      max-width: 500px;
-      box-shadow: 0 4px 24px rgba(0,0,0,.07);
-    }
-
-    .card-badge {
-      display: inline-block;
-      background: #FEF3CD;
-      color: #8a6800;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-bottom: 20px;
-      border: 1px solid #E9B949;
-    }
-
-    h1 {
-      font-size: 27px;
-      font-weight: 800;
-      color: var(--navy);
-      margin-bottom: 10px;
-      line-height: 1.2;
-    }
-
-    .tagline {
-      font-size: 15px;
-      color: var(--slate);
-      margin-bottom: 28px;
-      line-height: 1.6;
-    }
-
-    .features {
-      list-style: none;
-      margin-bottom: 32px;
-      border-top: 1px solid var(--soft-gray);
-      padding-top: 24px;
-    }
-    .features li {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 14px;
-      color: var(--slate);
-      margin-bottom: 12px;
-      line-height: 1.5;
-    }
-    .features li .icon {
-      font-size: 16px;
-      margin-top: 1px;
-      flex-shrink: 0;
-    }
-
-    .gate-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--navy);
-      margin-bottom: 8px;
-    }
-
-    .input-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    input[type="text"], input[type="password"] {
-      flex: 1;
-      padding: 11px 14px;
-      border: 1.5px solid #d1d5db;
-      border-radius: 8px;
-      font-size: 15px;
-      font-family: 'Nunito', sans-serif;
-      color: var(--charcoal);
-      background: #fff;
-      outline: none;
-      transition: border-color .15s, box-shadow .15s;
-      letter-spacing: .05em;
-    }
-    input[type="text"]:focus, input[type="password"]:focus {
-      border-color: var(--teal);
-      box-shadow: 0 0 0 3px rgba(42,157,143,.15);
-    }
-
-    button {
-      padding: 11px 22px;
-      background: var(--teal);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-family: 'Nunito', sans-serif;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background .15s;
-    }
-    button:hover { background: var(--teal-dark); }
-    button:active { background: #1a6e64; }
-
-    .error-msg {
-      font-size: 13px;
-      color: #dc2626;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      border-radius: 6px;
-      padding: 8px 12px;
-      display: none;
-    }
-    .error-msg.visible { display: block; }
-
-    .demo-note {
-      font-size: 12px;
-      color: #94a3b8;
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid var(--soft-gray);
-      line-height: 1.6;
-    }
-
-    footer {
-      text-align: center;
-      padding: 20px;
-      font-size: 12px;
-      color: #94a3b8;
-    }
-  </style>
+  <title>Cohort Logic — Smarter tools for schools</title>
+  <meta name="description" content="Cohort Logic builds operational tools for school leaders. Class Builder helps you generate balanced, equitable class lists in minutes." />
+  <link rel="stylesheet" href="css/marketing.css" />
 </head>
-<body>
+<body class="page-enter">
 
-  <header>
-    <img src="images/logo.png" alt="Cohort Logic" style="height:40px;width:auto;" />
-  </header>
-
-  <main>
-    <div class="card">
-      <div class="card-badge">Early Access Demo</div>
-      <h1>Smarter class lists,<br>built for administrators.</h1>
-      <p class="tagline">Import your student data and generate balanced, equitable classrooms in minutes — not hours.</p>
-
-      <ul class="features">
-        <li><span class="icon">📊</span> Import from Excel or Google Sheets with flexible field mapping</li>
-        <li><span class="icon">⚖️</span> Automatically balance classes by skill level, attitude, and custom competencies</li>
-        <li><span class="icon">⛔</span> Set separation rules so specific students are never placed together</li>
-        <li><span class="icon">✏️</span> Drag and drop to fine-tune results, then export to Excel</li>
-      </ul>
-
-      <div class="gate-label">Enter your access code to continue</div>
-      <div class="input-row">
-        <input type="password" id="code-input" placeholder="Access code" autocomplete="off" />
-        <button id="enter-btn">Enter</button>
-      </div>
-      <div class="error-msg" id="error-msg">That code doesn't look right. Please try again.</div>
-
-      <p class="demo-note">
-        This is an early-access demo. Please use sample or anonymized data only —
-        do not enter real student names or identifying information during this phase.
-      </p>
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="#products">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="#security">Security</a>
     </div>
-  </main>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Start free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
 
-  <footer>© 2026 Cohort Logic · Smarter tools for schools</footer>
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="hero-section">
+  <div class="hairline-grid" style="position:absolute;inset:0;mask-image:linear-gradient(180deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,0) 75%);-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,0) 75%);pointer-events:none;"></div>
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <span class="tag tag--teal">
+          <span class="tag-dot"></span>
+          Class Builder · free through September 2026
+        </span>
+        <h1>Smarter tools for schools.</h1>
+        <p class="lede">We're building operational tools for the people who run schools, starting with one. Class Builder is available now, free for any school.</p>
+        <div class="hero-actions">
+          <a href="signup.html" class="btn btn-primary">Sign up for free access <span class="arrow">→</span></a>
+          <a href="#class-builder" class="btn btn-ghost">See how Class Builder works</a>
+        </div>
+        <div class="trust-pills">
+          <span class="trust-pill">No credit card</span>
+          <span class="trust-pill">Built with school leaders</span>
+          <span class="trust-pill">Privacy by default</span>
+        </div>
+      </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/supabase-config.js"></script>
-  <script>
-    const CODE = 'democlass';
+      <!-- CohortBalancer viz -->
+      <div class="hero-viz">
+        <div class="cohort-viz">
+          <div class="cohort-viz-dot-bg"></div>
+          <div class="cohort-viz-inner">
+            <div class="cohort-viz-header">
+              <div class="cohort-viz-title">
+                <span>cohort_balancer.run()</span>
+                <span class="solved-dot"></span>
+                <span style="color:var(--teal-deep);font-size:11px;">solved</span>
+              </div>
+              <span class="cohort-viz-meta tnum">18 students · 3 rooms · 12 constraints</span>
+            </div>
+            <div class="cohort-cards">
+              <div class="cohort-card">
+                <div class="cohort-card-title">
+                  <span class="cohort-card-title-inner"><span class="color-dot" style="background:#2A9D8F"></span>Room 3A</span>
+                  <span class="tnum">6/6</span>
+                </div>
+                <div class="kid-chips">
+                  <span class="kid-chip"><span class="av" style="background:#2A9D8F">M</span>Maya</span>
+                  <span class="kid-chip"><span class="av" style="background:#1E3A5F">L</span>Leo</span>
+                  <span class="kid-chip"><span class="av" style="background:#4FA8E0">S</span>Sofia</span>
+                  <span class="kid-chip"><span class="av" style="background:#E9B949">T</span>Theo</span>
+                  <span class="kid-chip"><span class="av" style="background:#64748B">I</span>Iris</span>
+                  <span class="kid-chip"><span class="av" style="background:#2A9D8F">K</span>Kai</span>
+                </div>
+                <div class="cohort-card-balance">
+                  <span>F <strong>3</strong></span>
+                  <span>M <strong>3</strong></span>
+                  <span>IEP <strong>1</strong></span>
+                  <span>ELL <strong>2</strong></span>
+                </div>
+              </div>
+              <div class="cohort-card">
+                <div class="cohort-card-title">
+                  <span class="cohort-card-title-inner"><span class="color-dot" style="background:#1E3A5F"></span>Room 3B</span>
+                  <span class="tnum">6/6</span>
+                </div>
+                <div class="kid-chips">
+                  <span class="kid-chip"><span class="av" style="background:#4FA8E0">A</span>Avery</span>
+                  <span class="kid-chip"><span class="av" style="background:#E9B949">N</span>Noah</span>
+                  <span class="kid-chip"><span class="av" style="background:#2A9D8F">M</span>Mira</span>
+                  <span class="kid-chip"><span class="av" style="background:#64748B">E</span>Eli</span>
+                  <span class="kid-chip"><span class="av" style="background:#1E3A5F">A</span>Aya</span>
+                  <span class="kid-chip"><span class="av" style="background:#4FA8E0">E</span>Ezra</span>
+                </div>
+                <div class="cohort-card-balance">
+                  <span>F <strong>3</strong></span>
+                  <span>M <strong>3</strong></span>
+                  <span>IEP <strong>2</strong></span>
+                  <span>ELL <strong>1</strong></span>
+                </div>
+              </div>
+              <div class="cohort-card">
+                <div class="cohort-card-title">
+                  <span class="cohort-card-title-inner"><span class="color-dot" style="background:#4FA8E0"></span>Room 3C</span>
+                  <span class="tnum">6/6</span>
+                </div>
+                <div class="kid-chips">
+                  <span class="kid-chip"><span class="av" style="background:#2A9D8F">N</span>Nia</span>
+                  <span class="kid-chip"><span class="av" style="background:#1E3A5F">O</span>Owen</span>
+                  <span class="kid-chip"><span class="av" style="background:#E9B949">R</span>Ravi</span>
+                  <span class="kid-chip"><span class="av" style="background:#64748B">L</span>Lila</span>
+                  <span class="kid-chip"><span class="av" style="background:#4FA8E0">J</span>June</span>
+                  <span class="kid-chip"><span class="av" style="background:#2A9D8F">A</span>Asa</span>
+                </div>
+                <div class="cohort-card-balance">
+                  <span>F <strong>3</strong></span>
+                  <span>M <strong>3</strong></span>
+                  <span>IEP <strong>1</strong></span>
+                  <span>ELL <strong>2</strong></span>
+                </div>
+              </div>
+            </div>
+            <div class="constraint-footer">
+              <div class="constraint-footer-head">
+                <span class="constraint-label">applied constraints</span>
+                <span class="constraint-count tnum">12 of 12 satisfied</span>
+              </div>
+              <div class="constraint-rows">
+                <div class="constraint-row">
+                  <div class="constraint-row-left">
+                    <span class="kid-chip"><span class="av" style="background:#1E3A5F">L</span>Leo</span>
+                    <span class="constraint-icon" style="color:#a23b3b">⤫</span>
+                    <span class="kid-chip"><span class="av" style="background:#1E3A5F">O</span>Owen</span>
+                  </div>
+                  <span class="constraint-pill" style="color:#a23b3b;background:#FDEBEB">separate</span>
+                </div>
+                <div class="constraint-row">
+                  <div class="constraint-row-left">
+                    <span class="kid-chip"><span class="av" style="background:#2A9D8F">M</span>Maya</span>
+                    <span class="constraint-icon" style="color:var(--teal-deep)">⥁</span>
+                    <span class="kid-chip"><span class="av" style="background:#2A9D8F">N</span>Nia</span>
+                  </div>
+                  <span class="constraint-pill" style="color:var(--teal-deep);background:var(--teal-soft)">keep together</span>
+                </div>
+                <div class="constraint-row">
+                  <div class="constraint-row-left">
+                    <span class="kid-chip" style="padding:3px 8px;font-size:11px;"><span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">IEP students</span></span>
+                    <span class="constraint-icon" style="color:var(--navy)">≈</span>
+                    <span class="kid-chip" style="padding:3px 8px;font-size:11px;"><span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3)">across rooms</span></span>
+                  </div>
+                  <span class="constraint-pill" style="color:var(--navy);background:#EAF0F8">balance</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-    function attempt() {
-      const val = document.getElementById('code-input').value.trim().toLowerCase();
-      if (val === CODE) {
-        sessionStorage.setItem('cl_access', '1');
-        Promise.all([trackSession(), trackEvent('session_start')])
-          .finally(() => { window.location.href = 'app.html'; });
-      } else {
-        document.getElementById('error-msg').classList.add('visible');
-        document.getElementById('code-input').value = '';
-        document.getElementById('code-input').focus();
-      }
-    }
+<!-- ── Products ──────────────────────────────────────────────────────────── -->
+<section class="section section--soft" id="products">
+  <div class="container">
+    <div style="margin-bottom:48px;">
+      <span class="eyebrow">The suite</span>
+      <h2 style="margin-top:14px;max-width:600px;">One product is live. More are being built the same way.</h2>
+    </div>
 
-    document.getElementById('enter-btn').addEventListener('click', attempt);
-    document.getElementById('code-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') attempt();
-    });
-  </script>
+    <div class="product-hero-card" id="class-builder" style="margin-bottom:24px;">
+      <div class="product-hero-card-body">
+        <div class="product-hero-text">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="product-glyph" style="background:var(--teal-soft);">
+              <svg width="26" height="26" viewBox="0 0 30 30" fill="none">
+                <circle cx="8" cy="9" r="3" fill="var(--teal-deep)"/>
+                <circle cx="22" cy="9" r="3" fill="var(--teal-deep)" opacity=".4"/>
+                <circle cx="8" cy="21" r="3" fill="var(--teal-deep)" opacity=".4"/>
+                <circle cx="22" cy="21" r="3" fill="var(--teal-deep)"/>
+                <path d="M11 9h8M8 12v6M22 12v6M11 21h8" stroke="var(--teal-deep)" stroke-width="1.5" opacity=".5"/>
+              </svg>
+            </div>
+            <span class="tag tag--teal"><span class="tag-dot"></span>Available now</span>
+          </div>
+          <h3 style="font-size:24px;">Class Builder</h3>
+          <p class="lede" style="font-size:16px;">Generate balanced, equitable classroom assignments from your student data. Set constraints, solve in seconds, export to Excel.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <a href="signup.html" class="btn btn-accent btn-sm">Try it free <span class="arrow">→</span></a>
+            <a href="login.html" class="btn btn-ghost btn-sm">Sign in to open app</a>
+          </div>
+        </div>
+        <div class="product-hero-viz">
+          <div style="width:100%;max-width:320px;">
+            <div style="background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);">
+              <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px;">Grade 3 · 3 classes</div>
+              <div style="display:grid;gap:8px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);width:48px;">Room 3A</span>
+                  <div style="flex:1;height:5px;background:var(--hairline);border-radius:99px;"><div style="width:68%;height:100%;background:var(--teal);border-radius:99px;"></div></div>
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-2);">21</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);width:48px;">Room 3B</span>
+                  <div style="flex:1;height:5px;background:var(--hairline);border-radius:99px;"><div style="width:65%;height:100%;background:var(--teal);border-radius:99px;"></div></div>
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-2);">20</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);width:48px;">Room 3C</span>
+                  <div style="flex:1;height:5px;background:var(--hairline);border-radius:99px;"><div style="width:68%;height:100%;background:var(--teal);border-radius:99px;"></div></div>
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-2);">21</span>
+                </div>
+              </div>
+              <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--hairline);font-family:var(--font-mono);font-size:10px;color:var(--teal-deep);">✓ All constraints satisfied</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="coming-card">
+        <div class="coming-card-header">
+          <div class="product-glyph" style="background:#EAF0F8;">
+            <svg width="24" height="24" viewBox="0 0 30 30" fill="none"><rect x="4" y="6" width="22" height="18" rx="2" stroke="var(--navy)" stroke-width="1.6"/><path d="M4 11h22" stroke="var(--navy)" stroke-width="1.6"/><rect x="7" y="14" width="5" height="3" rx="1" fill="var(--navy)"/><rect x="14" y="14" width="9" height="3" rx="1" fill="var(--navy)" opacity=".4"/></svg>
+          </div>
+          <span class="tag tag--coming">Researching</span>
+        </div>
+        <h4 style="margin-bottom:8px;">Schedule Builder</h4>
+        <p style="font-size:14px;color:var(--text-2);">Build and manage your building master schedule. Block placement, staff assignments, conflict detection.</p>
+        <a href="signup.html" style="display:inline-block;margin-top:16px;font-size:13px;color:var(--teal-deep);font-weight:500;">Want this? Tell us why →</a>
+      </div>
+      <div class="coming-card">
+        <div class="coming-card-header">
+          <div class="product-glyph" style="background:var(--gold-soft);">
+            <svg width="24" height="24" viewBox="0 0 30 30" fill="none"><path d="M6 5h13l5 5v15H6Z" stroke="#8a6a18" stroke-width="1.6"/><path d="M19 5v5h5" stroke="#8a6a18" stroke-width="1.6"/><path d="M10 16h10M10 19h7" stroke="#8a6a18" stroke-width="1.6"/></svg>
+          </div>
+          <span class="tag tag--coming">Researching</span>
+        </div>
+        <h4 style="margin-bottom:8px;">IEP Workbench</h4>
+        <p style="font-size:14px;color:var(--text-2);">Track IEP status, goals, and service minutes across your student population in one place.</p>
+        <a href="signup.html" style="display:inline-block;margin-top:16px;font-size:13px;color:var(--teal-deep);font-weight:500;">Want this? Tell us why →</a>
+      </div>
+      <div class="coming-card">
+        <div class="coming-card-header">
+          <div class="product-glyph" style="background:var(--soft-gray);">
+            <svg width="24" height="24" viewBox="0 0 30 30" fill="none"><circle cx="11" cy="10" r="3" stroke="var(--text-2)" stroke-width="1.6"/><circle cx="20" cy="10" r="2.4" stroke="var(--text-2)" stroke-width="1.6" opacity=".5"/><path d="M5 22c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="var(--text-2)" stroke-width="1.6"/><path d="M17 22c0-2.5 1.6-4.6 4-5.4" stroke="var(--text-2)" stroke-width="1.6" opacity=".5"/></svg>
+          </div>
+          <span class="tag tag--coming">Researching</span>
+        </div>
+        <h4 style="margin-bottom:8px;">Staffing Allocator</h4>
+        <p style="font-size:14px;color:var(--text-2);">Match staff to students, rooms, and programs. Visualize instructional coverage across the building.</p>
+        <a href="signup.html" style="display:inline-block;margin-top:16px;font-size:13px;color:var(--teal-deep);font-weight:500;">Want this? Tell us why →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ──────────────────────────────────────────────────────── -->
+<section class="section">
+  <div class="container">
+    <div style="margin-bottom:48px;">
+      <span class="eyebrow">How it works</span>
+      <h2 style="margin-top:14px;max-width:500px;">From spreadsheet to balanced classes in four steps.</h2>
+    </div>
+    <div class="grid grid-4">
+      <div style="display:grid;gap:12px;">
+        <span class="step-num">01</span>
+        <h3 style="font-size:19px;line-height:1.25;">Bring your data in</h3>
+        <p style="color:var(--text-2);font-size:15px;">Import from Excel or a public Google Sheet. Map your columns once. The app reads names, grades, and any scores or flags you care about.</p>
+      </div>
+      <div style="display:grid;gap:12px;">
+        <span class="step-num">02</span>
+        <h3 style="font-size:19px;line-height:1.25;">Add the human stuff</h3>
+        <p style="color:var(--text-2);font-size:15px;">Set constraints: keep these two apart, keep those two together, balance IEP students across rooms. The algorithm handles the rest.</p>
+      </div>
+      <div style="display:grid;gap:12px;">
+        <span class="step-num">03</span>
+        <h3 style="font-size:19px;line-height:1.25;">Solve and review</h3>
+        <p style="color:var(--text-2);font-size:15px;">One click generates balanced class lists. Drag students between classes to fine-tune. Every constraint violation is flagged immediately.</p>
+      </div>
+      <div style="display:grid;gap:12px;">
+        <span class="step-num">04</span>
+        <h3 style="font-size:19px;line-height:1.25;">Export and decide</h3>
+        <p style="color:var(--text-2);font-size:15px;">Download a clean Excel file with one tab per grade. Take it to your team. Nothing is stored on our servers when you're done.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Value props ───────────────────────────────────────────────────────── -->
+<section class="section section--soft">
+  <div class="container">
+    <div style="margin-bottom:48px;">
+      <span class="eyebrow">Built differently</span>
+      <h2 style="margin-top:14px;max-width:500px;">What we stand for.</h2>
+    </div>
+    <div class="grid grid-4">
+      <div class="card"><span class="value-glyph">⏻</span><h4 style="margin-bottom:8px;">Secure</h4><p style="font-size:14px;color:var(--text-2);">Student data never leaves your browser. Nothing is stored on our servers. We'll tell you exactly where that changes, when it changes.</p></div>
+      <div class="card"><span class="value-glyph">∑</span><h4 style="margin-bottom:8px;">Smart</h4><p style="font-size:14px;color:var(--text-2);">The algorithm is deterministic and explainable. Every placement has a reason. No black-box surprises.</p></div>
+      <div class="card"><span class="value-glyph">⌖</span><h4 style="margin-bottom:8px;">Student focused</h4><p style="font-size:14px;color:var(--text-2);">Balance is about equity, not just convenience. IEP distribution, behavior considerations, sibling rules all count.</p></div>
+      <div class="card"><span class="value-glyph">◎</span><h4 style="margin-bottom:8px;">Education built</h4><p style="font-size:14px;color:var(--text-2);">Every decision is made with school leaders, not consultants. We build for the people who will actually use it.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Security note ─────────────────────────────────────────────────────── -->
+<section class="section section--tight" id="security">
+  <div class="container">
+    <div style="background:var(--gold-soft);border:1px solid rgba(233,185,73,.3);border-radius:16px;padding:32px 36px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;">
+      <div>
+        <span class="eyebrow plain" style="color:#8a6a18;">Honest note on security</span>
+        <p style="margin-top:10px;font-size:15px;color:var(--text-2);">We're not yet SOC 2 audited or part of formal DPA programs. We won't claim we are until we are. What we can say: student data runs entirely in your browser and is never sent to our servers. That's the design, not the promise.</p>
+      </div>
+      <a href="signup.html" class="btn btn-ghost btn-sm" style="white-space:nowrap;">Learn more</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Final CTA ─────────────────────────────────────────────────────────── -->
+<section class="section section--tight">
+  <div class="container">
+    <div class="final-cta">
+      <span class="eyebrow plain" style="justify-content:center;margin-bottom:14px;">Free through September 2026</span>
+      <h2>Ready to try it?</h2>
+      <p class="lede" style="margin:12px auto 0;max-width:480px;text-align:center;">Sign up and use Class Builder for free. No credit card, no commitment.</p>
+      <div class="final-cta-actions">
+        <a href="signup.html" class="btn btn-primary">Sign up here <span class="arrow">→</span></a>
+        <a href="signup.html" class="btn btn-ghost">Talk to us first</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="login.html">Class Builder</a></li><li><a href="#products">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li><li><a href="#products">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li><li><a href="pricing.html">Pricing</a></li></ul></div>
+      <div><h4>Company</h4><ul><li><a href="#security">Security &amp; privacy</a></li><li><a href="signup.html">Contact</a></li></ul></div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-bottom:16px;">Free through September 2026. No credit card.</p>
+        <a href="signup.html" class="btn btn-accent btn-sm">Start free trial <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span>© 2026 Cohort Logic · Built for schools</span>
+      <div class="footer-copy-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="#security">Security</a></div>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
