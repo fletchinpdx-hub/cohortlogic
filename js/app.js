@@ -6,7 +6,9 @@ const AppState = {
   rawRows: [],         // raw rows from spreadsheet
   rawHeaders: [],      // column headers from spreadsheet
   students: [],        // mapped + parsed students
-  separations: [],     // [{a: id, b: id}]
+  separations: [],     // [{a: id, b: id}]  — must be in different classes
+  togethers:   [],     // [{a: id, b: id}]  — must be in the same class
+  displayMode: 'name', // 'name' | 'id'  — how students are labelled in the UI
   competencies: [      // configurable scoring fields
     { name: 'Math',      type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
     { name: 'Reading',   type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
@@ -17,9 +19,10 @@ const AppState = {
     { name: 'Ethnicity', type: 'category', column: '' },
   ],
   columnMap: {         // required field -> spreadsheet column
-    firstName: '',
-    lastName:  '',
-    grade:     '',
+    firstName:  '',
+    lastName:   '',
+    grade:      '',
+    studentId:  '',    // optional
   },
   gradeConfig: {},     // { 'K': { classCount: 3, teachers: ['Ms. Smith', ...] }, ... }
   splitClasses: [],    // [{ id, grades: ['3','4'], teacher: '' }]
@@ -82,4 +85,10 @@ function gradeOrder(g) {
   const map = { 'K': 0, 'TK': -1 };
   if (map[g] !== undefined) return map[g];
   return parseInt(g) || 99;
+}
+
+// Returns the display label for a student based on the current displayMode
+function studentLabel(s) {
+  if (AppState.displayMode === 'id' && s.studentId) return s.studentId;
+  return `${s.firstName} ${s.lastName}`;
 }

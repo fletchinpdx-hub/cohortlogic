@@ -401,6 +401,11 @@ body {
 .sep-entry-name { display: flex; align-items: center; gap: 6px; }
 .sep-entry-name::before { content: "⛔"; font-size: 11px; }
 
+/* ── Keep Together styles ── */
+.tog-group { border-color: #bbf7d0; }
+.tog-group-header { background: #f0fdf4; border-bottom-color: #bbf7d0; }
+.tog-entry .sep-entry-name::before { content: "🤝"; }
+
 /* ── Class Setup View ── */
 .grade-card {
   background: #fff;

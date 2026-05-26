@@ -144,10 +144,15 @@
             </select>
           </div>
           <div class="search-group">
-            <input type="text" id="student-search" class="input input-sm" placeholder="Search by name..." />
+            <input type="text" id="student-search" class="input input-sm" placeholder="Search..." />
           </div>
           <div class="toolbar-right">
-            <button class="btn btn-outline btn-sm" id="manage-separations-btn">⛔ Manage Separations</button>
+            <select id="display-mode-sel" class="input input-sm hidden" title="How to identify students">
+              <option value="name">Show Names</option>
+              <option value="id">Show Student IDs</option>
+            </select>
+            <button class="btn btn-outline btn-sm" id="manage-separations-btn">⛔ Keep Apart</button>
+            <button class="btn btn-outline btn-sm" id="manage-togethers-btn">🤝 Keep Together</button>
             <span id="student-count" class="student-count"></span>
           </div>
         </div>
@@ -159,30 +164,50 @@
           </table>
         </div>
 
-        <!-- Separations modal -->
+        <!-- Keep Apart modal -->
         <div id="separations-modal" class="modal hidden">
           <div class="modal-backdrop"></div>
           <div class="modal-box">
             <div class="modal-header">
-              <h2>Separation Rules</h2>
+              <h2>Keep Apart Rules</h2>
               <button class="modal-close" id="close-separations">✕</button>
             </div>
             <div class="modal-body">
-              <p style="margin-bottom:16px;">Students listed under a rule will never be placed in the same class.</p>
-
-              <!-- Add new rule -->
+              <p style="margin-bottom:16px;">These students will never be placed in the same class.</p>
               <div class="sep-add-section">
                 <label class="sep-add-label">Select a student:</label>
                 <select id="sep-student-a" class="input" style="width:100%;margin-bottom:10px;"></select>
-
                 <label class="sep-add-label">Cannot be in the same class as:</label>
                 <div class="sep-multi-row">
                   <select id="sep-student-b" class="input" style="flex:1;"></select>
                   <button class="btn btn-primary btn-sm" id="add-separation-btn">+ Add</button>
                 </div>
               </div>
-
               <div id="separations-list" style="margin-top:20px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keep Together modal -->
+        <div id="togethers-modal" class="modal hidden">
+          <div class="modal-backdrop tog-backdrop"></div>
+          <div class="modal-box">
+            <div class="modal-header" style="background:var(--teal);color:#fff;">
+              <h2>Keep Together Rules</h2>
+              <button class="modal-close" id="close-togethers" style="color:#fff;">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="margin-bottom:16px;">These students will always be placed in the same class.</p>
+              <div class="sep-add-section">
+                <label class="sep-add-label">Select a student:</label>
+                <select id="tog-student-a" class="input" style="width:100%;margin-bottom:10px;"></select>
+                <label class="sep-add-label">Must be in the same class as:</label>
+                <div class="sep-multi-row">
+                  <select id="tog-student-b" class="input" style="flex:1;"></select>
+                  <button class="btn btn-primary btn-sm" id="add-together-btn">+ Add</button>
+                </div>
+              </div>
+              <div id="togethers-list" style="margin-top:20px;"></div>
             </div>
           </div>
         </div>

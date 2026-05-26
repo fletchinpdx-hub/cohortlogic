@@ -48,6 +48,7 @@ function runBalancingAlgorithm() {
 
       const splitStudents = snakeDraft([...takeA, ...takeB], 1)[0] || [];
       fixSeparations([splitStudents]);
+      fixTogethers([splitStudents]);
 
       AppState.splitResults.push({
         id:      sc.id,
@@ -125,6 +126,7 @@ function balanceGrade(students, classCount) {
   if (!classCount || classCount < 1) classCount = 1;
   const classes = snakeDraft(students, classCount);
   fixSeparations(classes);
+  fixTogethers(classes);
   balanceCategories(classes);
   return classes;
 }
@@ -159,6 +161,51 @@ function fixSeparations(classes) {
             swapped = true;
           }
         }
+      }
+    }
+    if (!anyViolation) break;
+  }
+}
+
+// ── Together constraint fixing ──
+function fixTogethers(classes) {
+  for (let pass = 0; pass < 10; pass++) {
+    let anyViolation = false;
+    for (const pair of AppState.togethers) {
+      let classA = -1, classB = -1, idxB = -1;
+      classes.forEach((cls, ci) => {
+        cls.forEach((s, si) => {
+          if (s.id === pair.a) classA = ci;
+          if (s.id === pair.b) { classB = ci; idxB = si; }
+        });
+      });
+      if (classA === -1 || classB === -1 || classA === classB) continue;
+      anyViolation = true;
+
+      // Try to move B into classA by swapping B with someone in classA (not A itself)
+      let swapped = false;
+      for (let si = 0; si < classes[classA].length && !swapped; si++) {
+        const candidate = classes[classA][si];
+        if (candidate.id === pair.a) continue;
+
+        // Would B landing in classA violate any separation?
+        const bViolatesInA = AppState.separations.some(p => {
+          const other = p.a === pair.b ? p.b : p.b === pair.b ? p.a : null;
+          return other && classes[classA].some((s, i) => i !== si && s.id === other);
+        });
+        if (bViolatesInA) continue;
+
+        // Would candidate landing in classB violate any separation?
+        const cViolatesInB = AppState.separations.some(p => {
+          const other = p.a === candidate.id ? p.b : p.b === candidate.id ? p.a : null;
+          return other && classes[classB].some((s, i) => i !== idxB && s.id === other);
+        });
+        if (cViolatesInB) continue;
+
+        // Safe — swap B and candidate
+        classes[classA][si]  = classes[classB][idxB];
+        classes[classB][idxB] = candidate;
+        swapped = true;
       }
     }
     if (!anyViolation) break;

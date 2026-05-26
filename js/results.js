@@ -32,12 +32,14 @@ function renderResultsGrid() {
   const splitStudents   = AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
   const totalStudents   = regularStudents + splitStudents;
   const totalClasses    = grades.reduce((n, g) => n + AppState.results[g].length, 0) + AppState.splitResults.length;
-  const sepViolations   = countSepViolations();
+  const sepViolations  = countSepViolations();
+  const togViolations  = countTogViolations();
 
   stats.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Students</div><div class="stat-value">${totalStudents}</div></div>
     <div class="stat-card"><div class="stat-label">Total Classes</div><div class="stat-value">${totalClasses}</div></div>
-    <div class="stat-card"><div class="stat-label">Separation Violations</div><div class="stat-value" style="color:${sepViolations ? '#ef4444' : '#22c55e'}">${sepViolations}</div></div>
+    <div class="stat-card"><div class="stat-label">Keep Apart Violations</div><div class="stat-value" style="color:${sepViolations ? '#ef4444' : '#22c55e'}">${sepViolations}</div></div>
+    <div class="stat-card"><div class="stat-label">Keep Together Violations</div><div class="stat-value" style="color:${togViolations ? '#ef4444' : '#22c55e'}">${togViolations}</div></div>
   `;
 
   grid.innerHTML = '';
@@ -113,7 +115,7 @@ function renderStudentPills(cls, g, ci) {
 
     return `
       <div class="student-pill" draggable="true" data-id="${s.id}" data-grade="${g}" data-class="${ci}">
-        <span class="student-name">${s.firstName} ${s.lastName}</span>
+        <span class="student-name">${studentLabel(s)}</span>
         <span class="student-scores">${scoreBadges}${catBadges}</span>
       </div>
     `;
@@ -233,6 +235,20 @@ function countSepViolations() {
     allClasses.forEach(cls => {
       if (cls.some(s => s.id === pair.a) && cls.some(s => s.id === pair.b)) count++;
     });
+  });
+  return count;
+}
+
+function countTogViolations() {
+  let count = 0;
+  const allClasses = [
+    ...Object.values(AppState.results).flat(),
+    ...AppState.splitResults.map(sr => sr.students),
+  ];
+  AppState.togethers.forEach(pair => {
+    const aClass = allClasses.findIndex(cls => cls.some(s => s.id === pair.a));
+    const bClass = allClasses.findIndex(cls => cls.some(s => s.id === pair.b));
+    if (aClass !== -1 && bClass !== -1 && aClass !== bClass) count++;
   });
   return count;
 }
