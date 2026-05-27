@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security &amp; Privacy — Cohort Logic</title>
+  <meta name="description" content="How Cohort Logic handles student data, what we commit to today, and what we're working toward." />
+  <link rel="stylesheet" href="css/marketing.css" />
+  <style>
+    .commitment-row {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .commitment-row:last-child { border-bottom: none; }
+    .commitment-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .anon-table { width: 100%; border-collapse: collapse; }
+    .anon-table th {
+      text-align: left; font-family: var(--font-mono);
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-3); padding: 10px 16px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .anon-table td {
+      padding: 12px 16px; font-size: 14px; color: var(--text-2);
+      border-bottom: 1px solid var(--hairline-2); vertical-align: top;
+    }
+    .anon-table tr:last-child td { border-bottom: none; }
+    .anon-avoid { color: #b91c1c; }
+    .anon-prefer { color: var(--teal-deep); font-weight: 500; }
+  </style>
+</head>
+<body class="page-enter">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="products.html">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="resources.html">Resources</a>
+      <a href="security.html">Security</a>
+    </div>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Start free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="section" style="padding-bottom:56px;">
+  <div class="container">
+    <div style="max-width:680px;">
+      <span class="eyebrow">Security &amp; privacy</span>
+      <h1 style="margin-top:16px;">Honest about what we do and don't do.</h1>
+      <p class="lede" style="margin-top:20px;max-width:580px;">Student data is sensitive. We'll tell you exactly how we handle it — what's true now, what isn't yet, and what we're committed to building toward.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Honest status banner ──────────────────────────────────────────────── -->
+<section class="section section--tight" style="padding-top:0;">
+  <div class="container">
+    <div style="background:var(--gold-soft);border:1px solid rgba(233,185,73,.3);border-radius:16px;padding:28px 32px;">
+      <span class="eyebrow plain" style="color:#8a6a18;margin-bottom:10px;display:block;">Where we are today</span>
+      <p style="font-size:15px;color:var(--text-2);line-height:1.7;max-width:680px;">Cohort Logic is not yet SOC 2 audited. We are not enrolled in formal DPA programs. We won't claim those things until they're real. What we can say with certainty: <strong style="color:var(--text);">student data in Class Builder never leaves your browser</strong>. That's the architecture, not just the promise — and that's our strongest privacy protection right now.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Current commitments ───────────────────────────────────────────────── -->
+<section class="section">
+  <div class="container">
+    <div style="margin-bottom:40px;">
+      <span class="eyebrow">What's true today</span>
+      <h2 style="margin-top:14px;">Current commitments.</h2>
+    </div>
+
+    <div class="commitment-row">
+      <div class="commitment-icon" style="background:var(--teal-soft);">🔒</div>
+      <div>
+        <h4 style="margin-bottom:8px;">Student data stays in your browser</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Class Builder runs entirely client-side. When you import a spreadsheet or Google Sheet, the data lives only in your browser tab. Nothing is uploaded to Cohort Logic's servers. When you close the tab, it's gone. This is not a setting you configure — it's how the app is built.</p>
+      </div>
+    </div>
+
+    <div class="commitment-row">
+      <div class="commitment-icon" style="background:var(--teal-soft);">🙈</div>
+      <div>
+        <h4 style="margin-bottom:8px;">We can't see your student data</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Because student data never reaches our servers, we genuinely cannot access it. There are no admin backdoors, no database queries, no logs. This is a deliberate architectural choice made to protect student privacy before we've earned the technical certifications that would justify a different approach.</p>
+      </div>
+    </div>
+
+    <div class="commitment-row">
+      <div class="commitment-icon" style="background:var(--teal-soft);">📢</div>
+      <div>
+        <h4 style="margin-bottom:8px;">We'll tell you before anything changes</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">If we ever change the data architecture — adding server-side storage, syncing, or collaboration features — we'll announce it clearly and give you a meaningful opt-in choice. We won't move student data to servers without telling you it's happening and why.</p>
+      </div>
+    </div>
+
+    <div class="commitment-row">
+      <div class="commitment-icon" style="background:var(--teal-soft);">🔑</div>
+      <div>
+        <h4 style="margin-bottom:8px;">Your account data is stored securely</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Account information (email, name, school name) is stored in Supabase, a Postgres-based backend with row-level security. Passwords are hashed. We don't store payment data because there is none. Session management uses industry-standard JWT tokens.</p>
+      </div>
+    </div>
+
+    <div class="commitment-row">
+      <div class="commitment-icon" style="background:var(--teal-soft);">🚫</div>
+      <div>
+        <h4 style="margin-bottom:8px;">No ads. No data sales. Ever.</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">We don't run ads. We don't sell user data or behavioral profiles. The only revenue model we're building toward is direct subscription fees from schools that find value in the tools. Full stop.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Anonymization guide ───────────────────────────────────────────────── -->
+<section class="section section--soft">
+  <div class="container">
+    <div style="margin-bottom:40px;">
+      <span class="eyebrow">How to use Class Builder safely</span>
+      <h2 style="margin-top:14px;max-width:520px;">You don't have to import names.</h2>
+      <p class="lede" style="margin-top:16px;max-width:560px;font-size:16px;">Class Builder supports student ID numbers as an alternative to names. If your school prefers to minimize PII in the tool, here's a guide to what to include and what to leave out.</p>
+    </div>
+
+    <div style="border:1px solid var(--hairline);border-radius:16px;overflow:hidden;">
+      <table class="anon-table">
+        <thead>
+          <tr style="background:var(--light-gray);">
+            <th style="width:30%;">Data field</th>
+            <th style="width:35%;color:#b91c1c;">✕  Avoid</th>
+            <th style="width:35%;color:var(--teal-deep);">✓  Prefer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:500;color:var(--text);">Student identity</td>
+            <td class="anon-avoid">Full legal name + date of birth</td>
+            <td class="anon-prefer">Student ID number or preferred name only</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:var(--text);">Grade level</td>
+            <td class="anon-avoid">Specific homeroom + teacher name</td>
+            <td class="anon-prefer">Grade level only (K, 1, 2 …)</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:var(--text);">Academic scores</td>
+            <td class="anon-avoid">Raw test score + test name + date</td>
+            <td class="anon-prefer">Normalized 1–5 scale or percentile band</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:var(--text);">Special education</td>
+            <td class="anon-avoid">Disability category, service provider, diagnosis</td>
+            <td class="anon-prefer">Boolean IEP: Yes/No only</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:var(--text);">Demographics</td>
+            <td class="anon-avoid">Specific ethnicity labels from your SIS</td>
+            <td class="anon-prefer">Broad category codes (e.g. A, B, C) for balancing only</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:var(--text);">Contact info</td>
+            <td class="anon-avoid">Phone numbers, addresses, parent names</td>
+            <td class="anon-prefer">Leave out entirely — not needed for balancing</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px;font-size:13px;color:var(--text-3);font-family:var(--font-mono);">The app only uses what you give it. The leaner your import, the lower your exposure risk — even in a browser-only tool.</p>
+  </div>
+</section>
+
+<!-- ── What's next ───────────────────────────────────────────────────────── -->
+<section class="section">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start;">
+      <div>
+        <span class="eyebrow">What we're building toward</span>
+        <h2 style="margin-top:14px;">The security roadmap.</h2>
+        <p style="margin-top:16px;font-size:15px;color:var(--text-2);line-height:1.7;">As Cohort Logic grows and moves toward features that require server-side storage, we'll build the right protections first. This is the order we're working in.</p>
+        <a href="contact.html" class="btn btn-ghost btn-sm" style="margin-top:20px;">Questions about security? Talk to us →</a>
+      </div>
+      <div style="display:grid;gap:0;">
+        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+            <span style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:#fff;">✓</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Browser-only architecture</p>
+            <p style="font-size:14px;color:var(--text-2);">Student data never reaches our servers. Implemented now in Class Builder.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+            <span style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:#fff;">✓</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Supabase row-level security</p>
+            <p style="font-size:14px;color:var(--text-2);">Account records locked to the authenticated user. No cross-account data access.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
+          <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;background:#fff;">
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">→</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Formal privacy policy &amp; DPA template</p>
+            <p style="font-size:14px;color:var(--text-2);">Written legal framework for school DPA agreements. On the roadmap.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
+          <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;background:#fff;">
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">→</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Encrypted server-side session storage</p>
+            <p style="font-size:14px;color:var(--text-2);">Required for save/load features. Will include at-rest encryption and explicit user consent before any data is stored.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;padding:20px 0;">
+          <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;background:#fff;">
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">→</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">SOC 2 Type II audit</p>
+            <p style="font-size:14px;color:var(--text-2);">We'll pursue formal certification when we have the server-side footprint that warrants it. Not yet — and we won't claim it until it's real.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div><h4>Product</h4><ul>
+        <li><a href="class-builder.html">Class Builder</a></li>
+        <li><a href="products.html">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="products.html">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="security.html">Security &amp; privacy</a></li>
+        <li><a href="resources.html">Resources</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul></div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-bottom:16px;">Free through September 2026. No credit card.</p>
+        <a href="signup.html" class="btn btn-accent btn-sm">Start free <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span>© <span class="footer-year">2026</span> Cohort Logic · Built for schools</span>
+      <div class="footer-copy-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="security.html">Security</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/marketing-chrome.js"></script>
+</body>
+</html>

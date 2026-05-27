@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pricing — Cohort Logic</title>
+  <meta name="description" content="Class Builder is free for any school through September 2026. Honest pricing — no credit card, no surprise fees, advance notice before anything changes." />
+  <link rel="stylesheet" href="css/marketing.css" />
+  <style>
+    .price-card {
+      background: linear-gradient(160deg, var(--teal-soft) 0%, #fff 60%);
+      border: 1px solid rgba(42,157,143,.25);
+      border-radius: 24px;
+      padding: 48px 40px;
+      max-width: 440px;
+      position: relative;
+    }
+    .price-amount {
+      font-size: 64px;
+      font-weight: 700;
+      letter-spacing: -.04em;
+      color: var(--navy-deep);
+      line-height: 1;
+    }
+    .price-amount sup {
+      font-size: 28px;
+      vertical-align: super;
+      font-weight: 500;
+      letter-spacing: -.02em;
+    }
+    .price-features { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .price-features li {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 15px; color: var(--text-2);
+    }
+    .price-features li::before {
+      content: "✓";
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--teal); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; flex-shrink: 0;
+    }
+
+    .commitment-card {
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      padding: 24px;
+      background: #fff;
+    }
+    .commitment-card h4 { margin-bottom: 10px; }
+    .commitment-card p { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+  </style>
+</head>
+<body class="page-enter">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="products.html">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="resources.html">Resources</a>
+      <a href="security.html">Security</a>
+    </div>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Start free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="section" style="padding-bottom:48px;">
+  <div class="container">
+    <div style="text-align:center;max-width:560px;margin:0 auto;">
+      <span class="eyebrow plain" style="justify-content:center;">Honest pricing</span>
+      <h1 style="margin-top:16px;">Free for schools. For now.</h1>
+      <p class="lede" style="margin-top:20px;">Class Builder is available free to any school through September 2026. No credit card. No usage limits. Here's exactly what that means and how we'll handle pricing when that changes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Price card ─────────────────────────────────────────────────────────── -->
+<section class="section section--tight" style="padding-top:0;">
+  <div class="container">
+    <div style="display:flex;justify-content:center;">
+      <div class="price-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+          <div>
+            <span class="tag tag--teal" style="margin-bottom:12px;"><span class="tag-dot"></span>Available now</span>
+            <div style="font-size:18px;font-weight:600;color:var(--navy-deep);margin-top:8px;">Class Builder</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="price-amount"><sup>$</sup>0</div>
+            <div style="font-size:13px;color:var(--text-3);font-family:var(--font-mono);">per school / year</div>
+          </div>
+        </div>
+
+        <ul class="price-features" style="margin-bottom:28px;">
+          <li>Unlimited students</li>
+          <li>All grades, all classes</li>
+          <li>Unlimited constraint rules</li>
+          <li>Excel &amp; Google Sheets import</li>
+          <li>Excel export</li>
+          <li>Grade split classes</li>
+          <li>Keep-apart and keep-together</li>
+          <li>No credit card required</li>
+        </ul>
+
+        <a href="signup.html" class="btn btn-accent btn-full">Sign up for free access <span class="arrow">→</span></a>
+        <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text-3);font-family:var(--font-mono);">Free through September 2026</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Commitments ───────────────────────────────────────────────────────── -->
+<section class="section section--soft">
+  <div class="container">
+    <div style="margin-bottom:48px;">
+      <span class="eyebrow">Our pricing commitments</span>
+      <h2 style="margin-top:14px;max-width:520px;">How we'll handle pricing when it changes.</h2>
+      <p class="lede" style="margin-top:16px;max-width:540px;font-size:16px;">We'll be transparent about the "why" when pricing changes, and we'll structure it so that the schools that can't afford it still have access to the core tools they need.</p>
+    </div>
+
+    <div class="grid grid-3" style="gap:16px;">
+      <div class="commitment-card">
+        <div style="font-size:22px;margin-bottom:12px;">📣</div>
+        <h4>Advance notice</h4>
+        <p>We'll announce any pricing changes at least 90 days before they take effect. You'll never be surprised by a charge. We'll tell you what's changing and why.</p>
+      </div>
+      <div class="commitment-card">
+        <div style="font-size:22px;margin-bottom:12px;">🏫</div>
+        <h4>School-sized pricing</h4>
+        <p>When we introduce paid tiers, they'll be priced for school budgets — not district enterprise contracts. A single school should be able to afford this without a procurement process.</p>
+      </div>
+      <div class="commitment-card">
+        <div style="font-size:22px;margin-bottom:12px;">🔓</div>
+        <h4>Free tier stays</h4>
+        <p>A meaningful free tier will always exist. Core functionality — import, balance, export — will not go behind a paywall. We may charge for advanced features, but not the basics.</p>
+      </div>
+      <div class="commitment-card">
+        <div style="font-size:22px;margin-bottom:12px;">📤</div>
+        <h4>Your data, always</h4>
+        <p>You can export everything at any time. No data lock-in, no hostage files. If you stop using Cohort Logic, you take your work with you.</p>
+      </div>
+      <div class="commitment-card">
+        <div style="font-size:22px;margin-bottom:12px;">🤝</div>
+        <h4>Title I consideration</h4>
+        <p>We'll maintain a program for Title I schools that provides full access at no cost. The schools that need these tools most will always be able to get them.</p>
+      </div>
+      <div class="commitment-card">
+        <div style="font-size:22px;margin-bottom:12px;">💬</div>
+        <h4>Users help set the price</h4>
+        <p>When we're ready to launch paid tiers, we'll talk to active users first. Pricing will reflect what's actually worth paying for in your workflow — not what a consultant thinks.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Why free now ──────────────────────────────────────────────────────── -->
+<section class="section section--tight">
+  <div class="container">
+    <div style="max-width:640px;margin:0 auto;text-align:center;">
+      <span class="eyebrow plain" style="justify-content:center;">Why free right now?</span>
+      <h2 style="margin-top:14px;">We're building in public with real schools.</h2>
+      <p style="margin-top:16px;font-size:15px;color:var(--text-2);line-height:1.7;">Class Builder is in its early phase. We want real administrators using it with real rosters so we can learn what works and what doesn't. Free access gets it into the hands of the people who can tell us the most. It's that simple.</p>
+      <p style="margin-top:12px;font-size:15px;color:var(--text-2);line-height:1.7;">When it's ready to charge for, it'll be because we've built something genuinely worth paying for.</p>
+      <a href="signup.html" class="btn btn-primary" style="margin-top:28px;">Sign up now — it's free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div><h4>Product</h4><ul>
+        <li><a href="class-builder.html">Class Builder</a></li>
+        <li><a href="products.html">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="products.html">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="security.html">Security &amp; privacy</a></li>
+        <li><a href="resources.html">Resources</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul></div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-bottom:16px;">Free through September 2026. No credit card.</p>
+        <a href="signup.html" class="btn btn-accent btn-sm">Start free <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span>© <span class="footer-year">2026</span> Cohort Logic · Built for schools</span>
+      <div class="footer-copy-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="security.html">Security</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/marketing-chrome.js"></script>
+</body>
+</html>

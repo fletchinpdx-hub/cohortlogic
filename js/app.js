@@ -39,8 +39,20 @@ function navigateTo(view) {
 }
 
 document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => navigateTo(item.dataset.view));
+  item.addEventListener('click', () => {
+    navigateTo(item.dataset.view);
+    // Close mobile menu after navigating
+    document.getElementById('sidebar').classList.remove('menu-open');
+  });
 });
+
+// Mobile sidebar toggle
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+if (mobileMenuBtn) {
+  mobileMenuBtn.addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('menu-open');
+  });
+}
 
 // Sidebar status updater
 function updateSidebarStatus() {

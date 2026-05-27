@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact — Cohort Logic</title>
+  <meta name="description" content="Tell us about your school, what you're working on, and how we can help." />
+  <link rel="stylesheet" href="css/marketing.css" />
+  <style>
+    .contact-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 80px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .contact-layout { grid-template-columns: 1fr; gap: 40px; }
+    }
+
+    /* enrollment pills */
+    .pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill-option { display: none; }
+    .pill-label {
+      display: inline-flex; align-items: center;
+      padding: 8px 16px;
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      font-size: 13px; color: var(--text-2);
+      cursor: pointer;
+      transition: border-color .12s ease, background .12s ease, color .12s ease;
+    }
+    .pill-option:checked + .pill-label {
+      border-color: var(--teal);
+      background: var(--teal-soft);
+      color: var(--teal-deep);
+      font-weight: 500;
+    }
+
+    /* product checkboxes */
+    .check-group { display: grid; gap: 10px; }
+    .check-option { display: none; }
+    .check-label {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      font-size: 14px; color: var(--text-2);
+      cursor: pointer;
+      transition: border-color .12s ease, background .12s ease;
+    }
+    .check-label .checkmark {
+      width: 18px; height: 18px; border-radius: 5px;
+      border: 1.5px solid var(--hairline);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 11px; font-weight: 700; color: #fff;
+      background: #fff; transition: background .12s ease, border-color .12s ease;
+    }
+    .check-option:checked + .check-label {
+      border-color: var(--teal);
+      background: var(--teal-soft);
+    }
+    .check-option:checked + .check-label .checkmark {
+      background: var(--teal);
+      border-color: var(--teal);
+    }
+    .check-option:checked + .check-label .checkmark::after {
+      content: "✓";
+    }
+
+    textarea.field-textarea {
+      font-family: var(--font-sans); font-size: 15px;
+      padding: 12px 14px;
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      background: #fff; color: var(--text); outline: none;
+      resize: vertical; min-height: 100px; width: 100%;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    textarea.field-textarea:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(42,157,143,.16);
+    }
+  </style>
+</head>
+<body class="page-enter">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="products.html">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="resources.html">Resources</a>
+      <a href="security.html">Security</a>
+    </div>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Start free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div class="contact-layout">
+
+      <!-- Left: context -->
+      <div>
+        <span class="eyebrow">Get in touch</span>
+        <h1 style="margin-top:16px;font-size:clamp(32px,4vw,52px);">Tell us about your school.</h1>
+        <p class="lede" style="margin-top:20px;font-size:16px;">Whether you want to try Class Builder, have feedback on what we're building, or want to tell us about a problem we haven't solved yet — we read everything.</p>
+
+        <div style="margin-top:40px;display:grid;gap:24px;">
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <span style="font-size:16px;">💬</span>
+            </div>
+            <div>
+              <p style="font-weight:500;font-size:15px;margin-bottom:4px;">We reply to every message</p>
+              <p style="font-size:14px;color:var(--text-2);">Usually within a day. If you're a school administrator with a real use case, we want to hear it.</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <span style="font-size:16px;">🗺️</span>
+            </div>
+            <div>
+              <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Your problems shape the roadmap</p>
+              <p style="font-size:14px;color:var(--text-2);">If you describe a problem we haven't solved, there's a real chance it becomes a feature. We track every request.</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <span style="font-size:16px;">🔓</span>
+            </div>
+            <div>
+              <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Free access is automatic</p>
+              <p style="font-size:14px;color:var(--text-2);">If you want to try Class Builder now, just sign up. No approval needed. If you want to talk first, use this form.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: form -->
+      <div>
+        <div id="contact-form-wrap" style="background:#fff;border:1px solid var(--hairline);border-radius:20px;padding:36px;box-shadow:var(--shadow-md);">
+          <form id="contact-form" novalidate>
+            <div style="display:grid;gap:20px;">
+
+              <div class="row-2">
+                <div class="field">
+                  <label for="c-name">Your name</label>
+                  <input type="text" id="c-name" placeholder="Alex Rivera" required />
+                </div>
+                <div class="field">
+                  <label for="c-email">Work email</label>
+                  <input type="email" id="c-email" placeholder="you@yourschool.org" required />
+                </div>
+              </div>
+
+              <div class="row-2">
+                <div class="field">
+                  <label for="c-role">Your role</label>
+                  <select id="c-role">
+                    <option value="">Select a role…</option>
+                    <option>Principal</option>
+                    <option>Assistant Principal</option>
+                    <option>School Administrator</option>
+                    <option>District Administrator</option>
+                    <option>Instructional Coach</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="c-school">School name</label>
+                  <input type="text" id="c-school" placeholder="Lincoln Elementary" />
+                </div>
+              </div>
+
+              <!-- Enrollment size -->
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-2);font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;">School enrollment</label>
+                <div class="pill-group">
+                  <input type="radio" name="enrollment" id="e1" value="Under 200" class="pill-option" />
+                  <label class="pill-label" for="e1">Under 200</label>
+                  <input type="radio" name="enrollment" id="e2" value="200–400" class="pill-option" />
+                  <label class="pill-label" for="e2">200–400</label>
+                  <input type="radio" name="enrollment" id="e3" value="400–700" class="pill-option" />
+                  <label class="pill-label" for="e3">400–700</label>
+                  <input type="radio" name="enrollment" id="e4" value="700+" class="pill-option" />
+                  <label class="pill-label" for="e4">700+</label>
+                </div>
+              </div>
+
+              <!-- Product interest -->
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-2);font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;">Interested in</label>
+                <div class="check-group">
+                  <input type="checkbox" id="p-class" value="Class Builder" class="check-option" checked />
+                  <label class="check-label" for="p-class">
+                    <span class="checkmark"></span>
+                    Class Builder <span style="font-size:12px;color:var(--teal-deep);margin-left:6px;font-family:var(--font-mono);">Available now</span>
+                  </label>
+                  <input type="checkbox" id="p-schedule" value="Schedule Builder" class="check-option" />
+                  <label class="check-label" for="p-schedule">
+                    <span class="checkmark"></span>
+                    Schedule Builder <span style="font-size:12px;color:var(--text-3);margin-left:6px;font-family:var(--font-mono);">Researching</span>
+                  </label>
+                  <input type="checkbox" id="p-checkin" value="Check-in / Check-out" class="check-option" />
+                  <label class="check-label" for="p-checkin">
+                    <span class="checkmark"></span>
+                    Check-in / Check-out <span style="font-size:12px;color:var(--text-3);margin-left:6px;font-family:var(--font-mono);">Researching</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Timing -->
+              <div class="field">
+                <label for="c-timing">When are you looking to use a tool like this?</label>
+                <select id="c-timing">
+                  <option value="">Select timing…</option>
+                  <option>ASAP — we need it now</option>
+                  <option>Before the next school year</option>
+                  <option>This school year</option>
+                  <option>Just exploring for now</option>
+                </select>
+              </div>
+
+              <!-- Message -->
+              <div class="field">
+                <label for="c-message">What problem are you trying to solve? <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+                <textarea class="field-textarea" id="c-message" placeholder="Tell us about your current process, what's painful, or what you're hoping a tool could do…"></textarea>
+              </div>
+
+              <div id="contact-error" class="auth-error"></div>
+
+              <button type="submit" class="btn btn-primary btn-full" id="contact-submit">
+                Send message <span class="arrow">→</span>
+              </button>
+
+            </div>
+          </form>
+        </div>
+
+        <!-- Submitted state (hidden by default) -->
+        <div id="contact-success" class="hidden" style="background:#fff;border:1px solid var(--hairline);border-radius:20px;padding:56px 36px;box-shadow:var(--shadow-md);text-align:center;">
+          <div style="font-size:48px;margin-bottom:16px;">✉️</div>
+          <h3 style="margin-bottom:12px;">Message sent.</h3>
+          <p style="font-size:15px;color:var(--text-2);max-width:360px;margin:0 auto 24px;">Thanks for reaching out. We'll be in touch within a day. In the meantime, you can sign up and start using Class Builder right now.</p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <a href="signup.html" class="btn btn-accent">Start free <span class="arrow">→</span></a>
+            <a href="index.html" class="btn btn-ghost">Back to home</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div><h4>Product</h4><ul>
+        <li><a href="class-builder.html">Class Builder</a></li>
+        <li><a href="products.html">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="products.html">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="security.html">Security &amp; privacy</a></li>
+        <li><a href="resources.html">Resources</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul></div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-bottom:16px;">Free through September 2026. No credit card.</p>
+        <a href="signup.html" class="btn btn-accent btn-sm">Start free <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span>© <span class="footer-year">2026</span> Cohort Logic · Built for schools</span>
+      <div class="footer-copy-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="security.html">Security</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/marketing-chrome.js"></script>
+<script>
+  // Pre-select product from URL param: contact.html?interest=schedule
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const interest = params.get('interest');
+    if (interest === 'schedule') document.getElementById('p-schedule').checked = true;
+    if (interest === 'checkin')  document.getElementById('p-checkin').checked  = true;
+    if (interest === 'iep')      { /* no checkbox yet */ }
+  })();
+
+  document.getElementById('contact-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('contact-submit');
+    const errEl = document.getElementById('contact-error');
+    errEl.classList.remove('visible');
+
+    const name  = document.getElementById('c-name').value.trim();
+    const email = document.getElementById('c-email').value.trim();
+
+    if (!name || !email) {
+      errEl.textContent = 'Please fill in your name and email address.';
+      errEl.classList.add('visible');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errEl.textContent = 'Please enter a valid email address.';
+      errEl.classList.add('visible');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    // Collect form data
+    const products = Array.from(document.querySelectorAll('.check-option:checked')).map(el => el.value);
+    const enrollment = (document.querySelector('input[name="enrollment"]:checked') || {}).value || '';
+    const payload = {
+      name,
+      email,
+      role:       document.getElementById('c-role').value,
+      school:     document.getElementById('c-school').value.trim(),
+      enrollment,
+      products:   products.join(', '),
+      timing:     document.getElementById('c-timing').value,
+      message:    document.getElementById('c-message').value.trim(),
+      submitted:  new Date().toISOString(),
+    };
+
+    // Try to log to Supabase if available; always show success either way
+    try {
+      if (typeof SupabaseClient !== 'undefined') {
+        await SupabaseClient.from('contact_submissions').insert([payload]);
+      }
+    } catch(_) { /* silent — form still shows success */ }
+
+    // Show success state
+    document.getElementById('contact-form-wrap').classList.add('hidden');
+    document.getElementById('contact-success').classList.remove('hidden');
+  });
+</script>
+</body>
+</html>

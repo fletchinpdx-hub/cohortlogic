@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resources — Cohort Logic</title>
+  <meta name="description" content="Guides, templates, and articles for school administrators. Coming soon from Cohort Logic." />
+  <link rel="stylesheet" href="css/marketing.css" />
+  <style>
+    .draft-stack {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .draft-card {
+      background: #fff;
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .draft-card + .draft-card {
+      margin-top: -8px;
+    }
+    .draft-card:nth-child(1) { position: relative; z-index: 3; }
+    .draft-card:nth-child(2) { position: relative; z-index: 2; opacity: .75; transform: scale(.97) translateY(2px); }
+    .draft-card:nth-child(3) { position: relative; z-index: 1; opacity: .5; transform: scale(.94) translateY(4px); }
+    .draft-label {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .draft-label::before {
+      content: "";
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--gold);
+    }
+    .draft-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--navy-deep);
+      line-height: 1.35;
+      margin-bottom: 10px;
+    }
+    .draft-bar {
+      height: 4px;
+      border-radius: 99px;
+      background: var(--hairline);
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body class="page-enter">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="products.html">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="resources.html">Resources</a>
+      <a href="security.html">Security</a>
+    </div>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Start free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main content: coming soon ─────────────────────────────────────────── -->
+<section class="section" style="min-height:70vh;">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;min-height:60vh;">
+
+      <div style="display:grid;gap:20px;">
+        <span class="tag tag--gold"><span class="tag-dot" style="background:#8a6a18;"></span>Coming soon</span>
+        <h1>Resources.</h1>
+        <p class="lede">Guides, templates, and practical articles for school administrators. We're drafting the first set now.</p>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.7;">We're building articles around the real problems we hear from school administrators — class placement, scheduling, data privacy, and the operational work that falls between tools. No vendor fluff.</p>
+
+        <div style="margin-top:8px;">
+          <p style="font-size:14px;font-weight:500;color:var(--navy-deep);margin-bottom:12px;">Topics in the pipeline:</p>
+          <div style="display:grid;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-2);">
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);">01</span>
+              How to prepare your student roster for class placement
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-2);">
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);">02</span>
+              What "balanced classes" actually means (and how to measure it)
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-2);">
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);">03</span>
+              Student data privacy: what to import, what to leave out
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-2);">
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);">04</span>
+              Managing grade-split classes without the spreadsheet chaos
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">
+          <a href="contact.html" class="btn btn-ghost btn-sm">Suggest a topic →</a>
+          <a href="signup.html" class="btn btn-primary btn-sm">Sign up for updates <span class="arrow">→</span></a>
+        </div>
+      </div>
+
+      <!-- Draft card stack viz -->
+      <div>
+        <div class="draft-stack">
+          <div class="draft-card">
+            <div class="draft-label">In progress</div>
+            <div class="draft-title">How to prepare your student roster for class placement</div>
+            <div class="draft-bar" style="width:78%;background:var(--teal);"></div>
+            <div class="draft-bar" style="width:60%;"></div>
+            <div class="draft-bar" style="width:90%;"></div>
+            <div class="draft-bar" style="width:45%;"></div>
+            <div style="margin-top:12px;display:flex;align-items:center;gap:8px;">
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">~8 min read</span>
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">·</span>
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--teal-deep);">Class placement</span>
+            </div>
+          </div>
+          <div class="draft-card">
+            <div class="draft-label">Drafting</div>
+            <div class="draft-title">What "balanced classes" actually means — and how to measure it</div>
+            <div class="draft-bar" style="width:55%;background:var(--teal);opacity:.5;"></div>
+            <div class="draft-bar" style="width:80%;"></div>
+            <div class="draft-bar" style="width:40%;"></div>
+          </div>
+          <div class="draft-card">
+            <div class="draft-label">Queued</div>
+            <div class="draft-title">Student data privacy: what to import, what to leave out</div>
+            <div class="draft-bar" style="width:30%;background:var(--teal);opacity:.3;"></div>
+            <div class="draft-bar" style="width:65%;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div><h4>Product</h4><ul>
+        <li><a href="class-builder.html">Class Builder</a></li>
+        <li><a href="products.html">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="products.html">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="security.html">Security &amp; privacy</a></li>
+        <li><a href="resources.html">Resources</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul></div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-bottom:16px;">Free through September 2026. No credit card.</p>
+        <a href="signup.html" class="btn btn-accent btn-sm">Start free <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span>© <span class="footer-year">2026</span> Cohort Logic · Built for schools</span>
+      <div class="footer-copy-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="security.html">Security</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/marketing-chrome.js"></script>
+</body>
+</html>
