@@ -89,10 +89,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script>
-  const errorEl   = document.getElementById('auth-error');
-  const loginForm = document.getElementById('login-form');
-  const forgotForm= document.getElementById('forgot-form');
-  const resetForm = document.getElementById('reset-form');
+  const errorEl    = document.getElementById('auth-error');
+  const loginForm  = document.getElementById('login-form');
+  const forgotForm = document.getElementById('forgot-form');
+  const resetForm  = document.getElementById('reset-form');
   const footerLinks = document.getElementById('auth-footer-links');
 
   function showForm(which, titleText, subtitleText) {
@@ -101,25 +101,33 @@
     resetForm.classList.add('hidden');
     which.classList.remove('hidden');
     document.querySelector('h1').textContent = titleText || 'Sign in';
-    document.querySelector('.auth-subtitle').textContent = subtitleText || 'Welcome back. Enter your email and password.';
+    document.querySelector('.auth-subtitle').textContent = subtitleText || '';
     errorEl.classList.remove('visible');
   }
 
-  // ── Detect password recovery token in URL ──
-  SupabaseClient.auth.onAuthStateChange((event, session) => {
+  // ── Check URL hash immediately for recovery token ──
+  // Supabase puts #access_token=...&type=recovery in the URL when reset link is clicked
+  const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+  const isRecovery = hashParams.get('type') === 'recovery';
+
+  if (isRecovery) {
+    showForm(resetForm, 'Set new password', 'Choose a new password for your account.');
+    footerLinks.classList.add('hidden');
+  } else {
+    // Only redirect if already logged in (normal visit, not recovery)
+    (async () => {
+      const { data: { session } } = await SupabaseClient.auth.getSession();
+      if (session) window.location.href = 'dashboard.html';
+    })();
+  }
+
+  // Also catch the auth event (belt-and-suspenders)
+  SupabaseClient.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') {
       showForm(resetForm, 'Set new password', 'Choose a new password for your account.');
       footerLinks.classList.add('hidden');
     }
   });
-
-  // ── Redirect if already logged in ──
-  (async () => {
-    const { data: { session } } = await SupabaseClient.auth.getSession();
-    if (session) {
-      window.location.href = 'dashboard.html';
-    }
-  })();
 
   // ── Sign in ──
   loginForm.addEventListener('submit', async (e) => {
