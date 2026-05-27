@@ -31,6 +31,7 @@
 
     <div id="auth-error" class="auth-error"></div>
 
+    <!-- Normal login form -->
     <form class="auth-form" id="login-form" novalidate>
       <div class="field">
         <label for="email">Work email</label>
@@ -40,12 +41,46 @@
         <label for="password">Password</label>
         <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required />
       </div>
+      <div style="text-align:right;margin-top:-8px;margin-bottom:4px;">
+        <a href="#" id="forgot-link" style="font-size:13px;color:var(--teal-deep);">Forgot password?</a>
+      </div>
       <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
         Sign in <span class="arrow">→</span>
       </button>
     </form>
 
-    <div class="auth-footer">
+    <!-- Forgot password form (hidden by default) -->
+    <form class="auth-form hidden" id="forgot-form" novalidate>
+      <p style="font-size:14px;color:var(--text-2);margin-bottom:16px;">Enter your email and we'll send a reset link.</p>
+      <div class="field">
+        <label for="reset-email">Work email</label>
+        <input type="email" id="reset-email" autocomplete="email" placeholder="you@yourschool.org" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="reset-btn">
+        Send reset link <span class="arrow">→</span>
+      </button>
+      <div style="text-align:center;margin-top:12px;">
+        <a href="#" id="back-to-login" style="font-size:13px;color:var(--teal-deep);">Back to sign in</a>
+      </div>
+    </form>
+
+    <!-- Set new password form (shown when recovery token is in URL) -->
+    <form class="auth-form hidden" id="reset-form" novalidate>
+      <p style="font-size:14px;color:var(--text-2);margin-bottom:16px;">Choose a new password for your account.</p>
+      <div class="field">
+        <label for="new-password">New password</label>
+        <input type="password" id="new-password" autocomplete="new-password" placeholder="At least 8 characters" required />
+      </div>
+      <div class="field">
+        <label for="confirm-password">Confirm password</label>
+        <input type="password" id="confirm-password" autocomplete="new-password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="set-pwd-btn">
+        Set new password <span class="arrow">→</span>
+      </button>
+    </form>
+
+    <div class="auth-footer" id="auth-footer-links">
       Don't have an account? <a href="signup.html">Sign up free</a>
     </div>
   </div>
@@ -54,37 +89,120 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script>
-  // Redirect if already logged in and approved
+  const errorEl   = document.getElementById('auth-error');
+  const loginForm = document.getElementById('login-form');
+  const forgotForm= document.getElementById('forgot-form');
+  const resetForm = document.getElementById('reset-form');
+  const footerLinks = document.getElementById('auth-footer-links');
+
+  function showForm(which, titleText, subtitleText) {
+    loginForm.classList.add('hidden');
+    forgotForm.classList.add('hidden');
+    resetForm.classList.add('hidden');
+    which.classList.remove('hidden');
+    document.querySelector('h1').textContent = titleText || 'Sign in';
+    document.querySelector('.auth-subtitle').textContent = subtitleText || 'Welcome back. Enter your email and password.';
+    errorEl.classList.remove('visible');
+  }
+
+  // ── Detect password recovery token in URL ──
+  SupabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showForm(resetForm, 'Set new password', 'Choose a new password for your account.');
+      footerLinks.classList.add('hidden');
+    }
+  });
+
+  // ── Redirect if already logged in ──
   (async () => {
     const { data: { session } } = await SupabaseClient.auth.getSession();
     if (session) {
-      const { data: profile } = await SupabaseClient
-        .from('profiles').select('approved').eq('id', session.user.id).single();
-      if (profile?.approved) { window.location.href = 'dashboard.html'; return; }
-      if (profile) { window.location.href = 'dashboard.html'; return; } // show pending
+      window.location.href = 'dashboard.html';
     }
   })();
 
-  document.getElementById('login-form').addEventListener('submit', async (e) => {
+  // ── Sign in ──
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('submit-btn');
-    const errorEl = document.getElementById('auth-error');
-    const email = document.getElementById('email').value.trim();
+    const email    = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-
-    btn.disabled = true;
-    btn.textContent = 'Signing in…';
+    btn.disabled = true; btn.textContent = 'Signing in…';
     errorEl.classList.remove('visible');
 
-    const { data, error } = await SupabaseClient.auth.signInWithPassword({ email, password });
-
+    const { error } = await SupabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
       errorEl.textContent = error.message === 'Invalid login credentials'
-        ? 'Incorrect email or password. Please try again.'
-        : error.message;
+        ? 'Incorrect email or password. Please try again.' : error.message;
       errorEl.classList.add('visible');
       btn.disabled = false;
       btn.innerHTML = 'Sign in <span class="arrow">→</span>';
+      return;
+    }
+    window.location.href = 'dashboard.html';
+  });
+
+  // ── Forgot password link ──
+  document.getElementById('forgot-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    showForm(forgotForm, 'Reset password', 'Enter your email and we\'ll send a reset link.');
+  });
+
+  document.getElementById('back-to-login').addEventListener('click', (e) => {
+    e.preventDefault();
+    showForm(loginForm, 'Sign in', 'Welcome back. Enter your email and password.');
+  });
+
+  // ── Send reset email ──
+  forgotForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('reset-btn');
+    const email = document.getElementById('reset-email').value.trim();
+    btn.disabled = true; btn.textContent = 'Sending…';
+    errorEl.classList.remove('visible');
+
+    const { error } = await SupabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://cohortlogic.com/login.html',
+    });
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.add('visible');
+      btn.disabled = false;
+      btn.innerHTML = 'Send reset link <span class="arrow">→</span>';
+      return;
+    }
+
+    btn.textContent = '✓ Email sent';
+    document.querySelector('.auth-subtitle').textContent =
+      'Check your inbox for a reset link. You can close this tab.';
+  });
+
+  // ── Set new password ──
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn  = document.getElementById('set-pwd-btn');
+    const pwd  = document.getElementById('new-password').value;
+    const pwd2 = document.getElementById('confirm-password').value;
+    errorEl.classList.remove('visible');
+
+    if (pwd.length < 8) {
+      errorEl.textContent = 'Password must be at least 8 characters.';
+      errorEl.classList.add('visible'); return;
+    }
+    if (pwd !== pwd2) {
+      errorEl.textContent = 'Passwords do not match.';
+      errorEl.classList.add('visible'); return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const { error } = await SupabaseClient.auth.updateUser({ password: pwd });
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.add('visible');
+      btn.disabled = false;
+      btn.innerHTML = 'Set new password <span class="arrow">→</span>';
       return;
     }
 
