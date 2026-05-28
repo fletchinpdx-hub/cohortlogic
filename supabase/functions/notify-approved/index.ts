@@ -20,7 +20,8 @@ const WEBHOOK_SECRET        = Deno.env.get('NOTIFY_WEBHOOK_SECRET')
 const SUPABASE_URL          = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const APP_URL               = 'https://cohortlogic.com'
-const FROM_EMAIL            = 'Cohort Logic <hello@cohortlogic.com>'
+// TODO: switch back to 'Cohort Logic <hello@cohortlogic.com>' once domain verifies in Resend
+const FROM_EMAIL            = 'Cohort Logic <onboarding@resend.dev>'
 
 Deno.serve(async (req: Request) => {
   // ── Verify webhook secret ──────────────────────────────────────────────
