@@ -149,7 +149,74 @@ document.getElementById('save-pw-btn').addEventListener('click', async () => {
   if (!error) { document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
 });
 
-// ── Pending users ──
+// ── Schools ──────────────────────────────────────────────────────────────
+
+let _schools = [];  // cached list for selects
+
+async function loadSchools() {
+  const container = document.getElementById('schools-list');
+  const { data, error } = await db.from('schools').select('*').order('name');
+  if (error) {
+    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load schools: ${error.message}</p>`;
+    return;
+  }
+  _schools = data || [];
+  if (!_schools.length) {
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools yet. Add one below.</p>';
+    return;
+  }
+  container.innerHTML = _schools.map(s => `
+    <div class="school-row">
+      <div>
+        <div class="school-name">${escAdmin(s.name)}</div>
+        <div class="school-meta">${[s.district, s.state].filter(Boolean).join(' · ') || 'No district / state set'}</div>
+      </div>
+      <span style="font-family:monospace;font-size:11px;color:#9ca3af;">${s.id.slice(0,8)}…</span>
+    </div>
+  `).join('');
+}
+
+async function addSchool() {
+  const name     = document.getElementById('new-school-name').value.trim();
+  const district = document.getElementById('new-school-district').value.trim();
+  const state    = document.getElementById('new-school-state').value.trim();
+  const alertEl  = document.getElementById('school-alert');
+
+  if (!name) {
+    alertEl.textContent = 'School name is required.';
+    alertEl.className = 'alert alert-error';
+    alertEl.classList.remove('hidden');
+    return;
+  }
+
+  const { data, error } = await db.from('schools')
+    .insert({ name, district: district || null, state: state || null })
+    .select().single();
+
+  if (error) {
+    alertEl.textContent = 'Error: ' + error.message;
+    alertEl.className = 'alert alert-error';
+    alertEl.classList.remove('hidden');
+    return;
+  }
+
+  alertEl.textContent = `"${name}" added.`;
+  alertEl.className = 'alert alert-success';
+  alertEl.classList.remove('hidden');
+  setTimeout(() => alertEl.classList.add('hidden'), 3000);
+
+  document.getElementById('new-school-name').value     = '';
+  document.getElementById('new-school-district').value = '';
+  document.getElementById('new-school-state').value    = '';
+  await loadSchools();
+}
+
+function escAdmin(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Pending users (with school assignment) ───────────────────────────────
+
 async function loadPendingUsers() {
   const container = document.getElementById('pending-users-list');
   const badge     = document.getElementById('pending-badge');
@@ -161,7 +228,7 @@ async function loadPendingUsers() {
     .order('created_at', { ascending: true });
 
   if (error) {
-    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load pending users. Make sure the profiles table exists and RLS is set up.</p>`;
+    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load pending users.</p>`;
     return;
   }
 
@@ -174,27 +241,58 @@ async function loadPendingUsers() {
   badge.textContent = pending.length;
   badge.style.display = 'inline';
 
+  const schoolOptions = _schools.map(s =>
+    `<option value="${s.id}">${escAdmin(s.name)}</option>`
+  ).join('');
+
   container.innerHTML = pending.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    // Try to find a matching school by name for pre-selection
+    const matchedSchool = _schools.find(s =>
+      s.name.toLowerCase() === (u.school_name || '').toLowerCase()
+    );
+    const selectedVal = matchedSchool ? matchedSchool.id : '';
     return `
       <div class="pending-row" id="row-${u.id}">
         <div class="pending-info">
-          <strong>${u.full_name || '(no name)'}</strong>
-          <div class="meta">${u.school_name || ''} · Signed up ${date}</div>
+          <strong>${escAdmin(u.full_name || '(no name)')}</strong>
+          <div class="meta">${escAdmin(u.school_name || 'No school listed')} · Signed up ${date}</div>
+          <div class="pending-school-row">
+            <label style="font-size:12px;color:#6b7280;">Assign to school:</label>
+            <select class="school-sel" id="school-sel-${u.id}">
+              <option value="">— None / create below —</option>
+              ${schoolOptions}
+            </select>
+            ${selectedVal ? `<script>document.getElementById('school-sel-${u.id}').value='${selectedVal}';<\/script>` : ''}
+          </div>
         </div>
         <button class="approve-btn" onclick="approveUser('${u.id}')">Approve</button>
       </div>
     `;
   }).join('');
+
+  // Pre-select matched schools after DOM is ready
+  pending.forEach(u => {
+    const matchedSchool = _schools.find(s =>
+      s.name.toLowerCase() === (u.school_name || '').toLowerCase()
+    );
+    if (matchedSchool) {
+      const sel = document.getElementById(`school-sel-${u.id}`);
+      if (sel) sel.value = matchedSchool.id;
+    }
+  });
 }
 
 async function approveUser(userId) {
-  const btn = document.querySelector(`#row-${userId} .approve-btn`);
+  const btn      = document.querySelector(`#row-${userId} .approve-btn`);
+  const schoolSel = document.getElementById(`school-sel-${userId}`);
+  const schoolId  = schoolSel ? (schoolSel.value || null) : null;
+
   if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
 
   const { error } = await db
     .from('profiles')
-    .update({ approved: true })
+    .update({ approved: true, school_id: schoolId })
     .eq('id', userId);
 
   if (error) {
@@ -203,7 +301,6 @@ async function approveUser(userId) {
     return;
   }
 
-  // Remove the row and update badge count
   const row = document.getElementById(`row-${userId}`);
   if (row) row.remove();
   const remaining = document.querySelectorAll('.pending-row').length;
@@ -219,6 +316,7 @@ async function approveUser(userId) {
 
 // ── Dashboard data ──
 async function loadDashboard() {
+  await loadSchools();      // load schools first so approval dropdowns are populated
   loadPendingUsers();
   const [sessionsRes, eventsRes] = await Promise.all([
     db.from('sessions').select('*').order('created_at', { ascending: false }),

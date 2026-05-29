@@ -297,6 +297,7 @@ async function saveCheckin() {
         student_id:    CicoState.entry.studentId,
         check_in_date: CicoState.entry.date,
         submitted_by:  CicoState.currentUser.id,
+        school_id:     CicoState.schoolId || null,
         notes:         document.getElementById('entry-notes').value.trim() || null
       })
       .select()

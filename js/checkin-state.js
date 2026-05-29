@@ -7,6 +7,7 @@
 // ── Central state ──────────────────────────────────────────────────────────
 const CicoState = {
   currentUser: null,        // Supabase auth user object
+  schoolId:    null,        // UUID of the user's school (null until assigned by admin)
   settings:    { id: null, period_count: 8 },
   categories:  [],          // [{id, name, display_order, active}]
   incidentTypes: [],        // [{id, abbreviation, description, tracks_minutes}]
@@ -81,6 +82,18 @@ function formatDate(iso) {
 // ── Load all reference data from Supabase ──────────────────────────────────
 async function loadCicoData() {
   try {
+    // Load user profile to get school_id
+    const { data: profile } = await SupabaseClient
+      .from('profiles')
+      .select('school_id')
+      .eq('id', CicoState.currentUser.id)
+      .single();
+
+    CicoState.schoolId = profile?.school_id || null;
+
+    // All queries are automatically scoped by RLS using my_school_id().
+    // The school_id filter on settings/categories/incident_types ensures
+    // we get this school's config rather than another school's.
     const [settRes, catRes, incRes, studRes] = await Promise.all([
       SupabaseClient.from('cico_settings').select('*').limit(1).maybeSingle(),
       SupabaseClient.from('cico_categories').select('*').eq('active', true).order('display_order'),

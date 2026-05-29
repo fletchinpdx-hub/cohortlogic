@@ -96,9 +96,10 @@ async function saveStudent() {
   const payload = {
     first_name:  first,
     last_name:   last,
-    grade:       grade  || null,
+    grade:       grade    || null,
     homeroom:    homeroom || null,
-    student_ref: ref    || null
+    student_ref: ref      || null,
+    school_id:   CicoState.schoolId || null,
   };
 
   try {
@@ -292,7 +293,8 @@ async function confirmStudentImport() {
     last_name:   String(row[lastIdx]  || '').trim(),
     grade:       gradeIdx    !== null ? String(row[gradeIdx]    || '').trim() || null : null,
     homeroom:    homeroomIdx !== null ? String(row[homeroomIdx] || '').trim() || null : null,
-    student_ref: refIdx      !== null ? String(row[refIdx]      || '').trim() || null : null
+    student_ref: refIdx      !== null ? String(row[refIdx]      || '').trim() || null : null,
+    school_id:   CicoState.schoolId || null,
   })).filter(r => r.first_name && r.last_name);
 
   if (!rows.length) {

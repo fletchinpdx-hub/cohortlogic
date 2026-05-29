@@ -105,6 +105,18 @@
     .pw-form input { padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 14px; outline: none; }
     .pw-form input:focus { border-color: var(--blue); }
     .pw-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+    /* Schools */
+    .school-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--gray-100); gap: 12px; flex-wrap: wrap; }
+    .school-row:last-child { border-bottom: none; }
+    .school-name { font-size: 14px; font-weight: 600; }
+    .school-meta { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+    .add-school-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .add-school-row input { padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 13px; outline: none; flex: 1; min-width: 140px; }
+    .add-school-row input:focus { border-color: var(--blue); }
+    .school-sel { padding: 7px 10px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; font-family: inherit; outline: none; min-width: 160px; }
+    .school-sel:focus { border-color: var(--blue); }
+    .pending-school-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -190,6 +202,20 @@
         </thead>
         <tbody id="sessions-tbody"></tbody>
       </table>
+    </div>
+
+    <!-- Schools -->
+    <h2 style="margin-bottom:12px;margin-top:8px;">Schools</h2>
+    <div class="section-card" style="margin-bottom:32px;">
+      <h3>Manage Schools</h3>
+      <div id="schools-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+      <div class="add-school-row">
+        <input type="text" id="new-school-name"     placeholder="School name *" />
+        <input type="text" id="new-school-district" placeholder="District (optional)" />
+        <input type="text" id="new-school-state"    placeholder="State (optional)" style="max-width:90px;" />
+        <button class="btn btn-primary btn-sm" onclick="addSchool()">+ Add School</button>
+      </div>
+      <div id="school-alert" class="alert hidden" style="margin-top:10px;"></div>
     </div>
 
     <!-- Change password -->

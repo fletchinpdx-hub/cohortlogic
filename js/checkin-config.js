@@ -28,7 +28,7 @@ async function savePeriodCount() {
     } else {
       const { data, error } = await SupabaseClient
         .from('cico_settings')
-        .insert({ period_count: val })
+        .insert({ period_count: val, school_id: CicoState.schoolId || null })
         .select()
         .single();
       if (error) throw error;
@@ -68,7 +68,7 @@ async function addCategory() {
   try {
     const { data, error } = await SupabaseClient
       .from('cico_categories')
-      .insert({ name, display_order: maxOrder + 1 })
+      .insert({ name, display_order: maxOrder + 1, school_id: CicoState.schoolId || null })
       .select()
       .single();
     if (error) throw error;
@@ -138,7 +138,8 @@ async function addIncidentType() {
         abbreviation:   abbr,
         description:    desc,
         tracks_minutes: minutes,
-        display_order:  maxOrder + 1
+        display_order:  maxOrder + 1,
+        school_id:      CicoState.schoolId || null,
       })
       .select()
       .single();
