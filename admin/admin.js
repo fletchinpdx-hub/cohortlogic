@@ -30,17 +30,16 @@ const EVENT_LABELS = {
 
 // ── Auth state ──
 if (db) {
-  db.auth.onAuthStateChange(async (event, session) => {
+  db.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') {
-      // User clicked a password reset link — show dashboard then open change-password
       showDashboard(session.user.email);
-      await loadDashboard();
+      loadDashboard();
       const section = document.getElementById('change-pw-section');
       section.classList.remove('hidden');
       section.scrollIntoView({ behavior: 'smooth' });
     } else if (session) {
       showDashboard(session.user.email);
-      await loadDashboard();
+      loadDashboard();
     } else {
       showLogin();
     }
@@ -379,15 +378,139 @@ async function loadSchools() {
     container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools yet. Add one below.</p>';
     return;
   }
-  container.innerHTML = _schools.map(s => `
-    <div class="school-row">
+  container.innerHTML = _schools.map(s => schoolRowHtml(s)).join('');
+}
+
+function schoolRowHtml(s) {
+  const meta = [s.district, s.state].filter(Boolean).join(' · ') || 'No district / state set';
+  return `
+    <div class="school-row" id="school-row-${s.id}">
       <div>
         <div class="school-name">${escAdmin(s.name)}</div>
-        <div class="school-meta">${[s.district, s.state].filter(Boolean).join(' · ') || 'No district / state set'}</div>
+        <div class="school-meta">${escAdmin(meta)}</div>
       </div>
-      <span style="font-family:monospace;font-size:11px;color:#9ca3af;">${s.id.slice(0,8)}…</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:monospace;font-size:11px;color:#9ca3af;">${s.id.slice(0,8)}…</span>
+        <button class="reassign-btn" onclick="startEditSchool('${s.id}')">Edit</button>
+        <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deleteSchool('${s.id}')">Delete</button>
+      </div>
+    </div>`;
+}
+
+function startEditSchool(id) {
+  const school = _schools.find(s => s.id === id);
+  if (!school) return;
+  const row = document.getElementById(`school-row-${id}`);
+  if (!row) return;
+  row.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;">
+      <input id="edit-name-${id}"     value="${escAdmin(school.name)}"           placeholder="School name *"   style="padding:7px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;outline:none;flex:1;min-width:140px;" />
+      <input id="edit-district-${id}" value="${escAdmin(school.district || '')}" placeholder="District"        style="padding:7px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;outline:none;flex:1;min-width:120px;" />
+      <input id="edit-state-${id}"    value="${escAdmin(school.state || '')}"    placeholder="State"           style="padding:7px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;outline:none;width:70px;" />
     </div>
-  `).join('');
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      <button class="reassign-btn" style="color:var(--teal);border-color:var(--teal);" onclick="saveEditSchool('${id}')">Save</button>
+      <button class="reassign-btn" onclick="cancelEditSchool('${id}')">Cancel</button>
+    </div>`;
+  document.getElementById(`edit-name-${id}`).focus();
+}
+
+function cancelEditSchool(id) {
+  const school = _schools.find(s => s.id === id);
+  if (!school) return;
+  const row = document.getElementById(`school-row-${id}`);
+  if (row) row.outerHTML = schoolRowHtml(school);
+}
+
+async function saveEditSchool(id) {
+  const nameEl     = document.getElementById(`edit-name-${id}`);
+  const districtEl = document.getElementById(`edit-district-${id}`);
+  const stateEl    = document.getElementById(`edit-state-${id}`);
+  const name       = nameEl     ? nameEl.value.trim()     : '';
+  const district   = districtEl ? districtEl.value.trim() : '';
+  const state      = stateEl    ? stateEl.value.trim()    : '';
+
+  if (!name) {
+    if (nameEl) nameEl.style.borderColor = 'var(--red)';
+    return;
+  }
+
+  const { error } = await db.from('schools')
+    .update({ name, district: district || null, state: state || null })
+    .eq('id', id);
+
+  if (error) { alert('Error saving: ' + error.message); return; }
+
+  // Update cache
+  const idx = _schools.findIndex(s => s.id === id);
+  if (idx !== -1) _schools[idx] = { ..._schools[idx], name, district: district || null, state: state || null };
+
+  // Update all dropdowns that list this school
+  document.querySelectorAll(`.school-sel option[value="${id}"]`).forEach(opt => { opt.textContent = name; });
+
+  // Re-render the row
+  const row = document.getElementById(`school-row-${id}`);
+  if (row) row.outerHTML = schoolRowHtml(_schools[idx]);
+}
+
+function deleteSchool(id) {
+  const school = _schools.find(s => s.id === id);
+  if (!school) return;
+  const row = document.getElementById(`school-row-${id}`);
+  if (!row) return;
+  row.innerHTML = `
+    <div>
+      <div class="school-name">${escAdmin(school.name)}</div>
+      <div class="school-meta" style="color:var(--red);">Delete this school? This cannot be undone.</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmDeleteSchool('${id}')">Yes, delete</button>
+      <button class="reassign-btn" onclick="cancelDeleteSchool('${id}')">Cancel</button>
+    </div>`;
+}
+
+function cancelDeleteSchool(id) {
+  const school = _schools.find(s => s.id === id);
+  if (!school) return;
+  const row = document.getElementById(`school-row-${id}`);
+  if (row) row.outerHTML = schoolRowHtml(school);
+}
+
+async function confirmDeleteSchool(id) {
+  const school = _schools.find(s => s.id === id);
+  const row    = document.getElementById(`school-row-${id}`);
+
+  // Check for assigned users first
+  const { data: assigned, error: checkErr } = await db
+    .from('profiles').select('id').eq('school_id', id);
+
+  if (checkErr) { alert('Error: ' + checkErr.message); return; }
+
+  if (assigned && assigned.length) {
+    if (row) row.innerHTML = `
+      <div>
+        <div class="school-name">${escAdmin(school?.name || '')}</div>
+        <div class="school-meta" style="color:var(--red);">
+          ${assigned.length} user${assigned.length !== 1 ? 's are' : ' is'} assigned here — reassign them first.
+        </div>
+      </div>
+      <button class="reassign-btn" onclick="cancelDeleteSchool('${id}')">OK</button>`;
+    return;
+  }
+
+  const { error } = await db.from('schools').delete().eq('id', id);
+  if (error) { alert('Error deleting: ' + error.message); loadSchools(); return; }
+
+  // Remove from cache and all dropdowns
+  _schools = _schools.filter(s => s.id !== id);
+  document.querySelectorAll(`.school-sel option[value="${id}"]`).forEach(opt => opt.remove());
+
+  // Remove the row; show empty state if none left
+  if (row) row.remove();
+  const container = document.getElementById('schools-list');
+  if (container && !container.querySelector('.school-row')) {
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools yet. Add one below.</p>';
+  }
 }
 
 async function addSchool() {
@@ -430,6 +553,9 @@ async function addSchool() {
   document.getElementById('new-school-district').value = '';
   document.getElementById('new-school-state').value    = '';
   await loadSchools();
+  // Inject the new school into every existing dropdown immediately — no re-query needed
+  const newOpt = `<option value="${escAdmin(data.id)}">${escAdmin(data.name)}</option>`;
+  document.querySelectorAll('.school-sel').forEach(sel => sel.insertAdjacentHTML('beforeend', newOpt));
 }
 
 function escAdmin(str) {
@@ -643,17 +769,21 @@ async function approveUser(userId) {
 }
 
 // ── Dashboard data ──
-async function loadDashboard() {
-  // Default audit date range: last 30 days
-  const today    = new Date().toISOString().split('T')[0];
+function loadDashboard() {
+  const today     = new Date().toISOString().split('T')[0];
   const thirtyAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
   document.getElementById('audit-from').value = thirtyAgo;
   document.getElementById('audit-to').value   = today;
 
-  await loadSchools();      // load schools first so approval dropdowns are populated
-  loadPendingUsers();
-  loadAllUsers();
+  loadSchools().then(() => {
+    loadPendingUsers();
+    loadAllUsers();
+  });
   loadAuditLog();
+  loadAnalytics();
+}
+
+async function loadAnalytics() {
   const [sessionsRes, eventsRes] = await Promise.all([
     db.from('sessions').select('*').order('created_at', { ascending: false }),
     db.from('events').select('*').order('created_at', { ascending: false }),
