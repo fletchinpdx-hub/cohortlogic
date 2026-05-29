@@ -1,113 +1,159 @@
 # Cohort Logic — CLAUDE.md
 
 ## What this is
-A web app for school administrators to generate balanced, equitable classroom assignments. Built by Michael Fletcher (Cohort Logic) as the first product in a teacher tools suite.
+A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohort Logic).
 
 **Live site:** cohortlogic.com  
-**Demo access code:** democlass  
 **GitHub:** github.com/fletchinpdx-hub/cohortlogic  
-**Local dev:** http://localhost:3456 (run via `npx serve -l 3456 .`)
+**Supabase project:** dlqnzlwuzktcljxxxlit  
+**Local dev:** http://localhost:3456 (run via `npx serve -l 3456 .`)  
+**Hosting:** Netlify (auto-deploys on push to `main`). Switching to Cloudflare Pages in ~3 weeks.
 
-## Product name
-Currently "TBD Class Tool" — name not finalized. Company is Cohort Logic.
+---
 
-## Who uses it
-School administrators (not teachers directly). They manage multiple grades, each with multiple classes, and need to distribute ~500 students equitably across classrooms before the school year starts.
+## Products
 
-## Core workflow
-1. Import student data from Excel (.xlsx) or public Google Sheet
-2. Map spreadsheet columns to app fields (configurable)
-3. Define competencies — each is a score, category, flag, or has a direction
-4. Review student list, set separation pairs (students who can't be in the same class)
-5. Configure classes per grade, assign teachers, optionally add grade-split classes
-6. Generate balanced class lists
-7. Drag-and-drop to fine-tune, then export to Excel
+### 1. Class Builder (`app.html`)
+Generates balanced, equitable classroom assignments for school admins.
+- **Demo access code:** democlass
+- **No backend** — everything runs in the browser. No data persistence between sessions.
+- Session-based auth via `sessionStorage`.
 
-## Key product decisions
-- **No backend, no database** — everything runs in the browser. Data is never sent to a server. This is intentional for v1 (privacy, simplicity). Data does not persist between sessions — known limitation for v2.
-- **Session-based auth** — `sessionStorage` gate with a demo code. Not cryptographically secure but sufficient for trusted demo users. The code is in the client-side JS.
-- **Public Google Sheets only** — private Sheets (OAuth) is a planned future feature.
-- **Netlify hosting** — auto-deploys on every push to `main` on GitHub. Site: gleeful-banoffee-050c62.netlify.app → cohortlogic.com (DNS at Porkbun: A → 75.2.60.5, CNAME www → gleeful-banoffee-050c62.netlify.app).
-- **No framework** — vanilla HTML, CSS, JavaScript only. SheetJS loaded from CDN for Excel parsing/generation.
-- **Brand** — navy (#0a2240) / teal (#0ea5e9) / gold (#f59e0b), Nunito font (Google Fonts), logo at images/logo.png.
+### 2. Check-in / Check-out (`checkin-app.html`)
+Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi-school.
+- Requires login (Supabase auth) + admin approval
+- 5 views: Entry, History, Students, Reports, Settings
+- Reports: 4 tabs — Student trend, By Teacher (homeroom), By Grade, School-wide
+- Score colors: 0=red (#EF4444), 1=amber (#F59E0B), 2=green (#22C55E)
 
-## Competency types (js/fieldMapping.js)
-Each competency has a `type`:
-- **score** — numeric value within a user-defined min/max range. Has a `direction`: `'asc'` (high = good, default) or `'desc'` (low = good). Shown as color-coded badges in results. Used in composite score for balancing.
-- **category** — string value read from data (e.g. Ethnicity). Balanced across classes by a swap-pass algorithm. Shown as `.cat-badge` in results.
-- **flag** — yes/no boolean (e.g. IEP, 504). Not used in composite score directly.
+---
 
-Default competencies: Math (score), Reading (score), Writing (score), Behavior (score), IEP (flag), 504 (flag), Ethnicity (category).
+## Infrastructure
 
-## Balancing algorithm (js/algorithm.js)
-- `computeComposite(s)` — normalizes all score competencies to 0–1 using `(v - min) / (max - min)`, then inverts if `direction === 'desc'`. Averages across all score competencies.
-- `sortByComposite(students)` — sorts students best → worst by composite.
-- `snakeDraft(students, classCount)` — distributes students using snake-draft order (1,2,3,4,4,3,2,1…) for even score spread.
-- `fixSeparations(classes)` — up to 10 passes to swap students violating separation constraints.
-- `balanceCategories(classes)` — up to 10 swap passes to equalize category distributions across classes.
-- **Split classes** — grouped by grade pair. `halfSize` calculated ONCE from original pool sizes. Each split class pulls ~50% from each grade using `pickDistributed`. Remaining students go to regular grade classes.
+### Supabase (free tier)
+- Pauses after 1 week of inactivity — wake it up at supabase.com/dashboard
+- Anon/publishable key used in all client JS: `sb_publishable_RoK_SBEyXYfp11RfTmh26g_7VLumGSe`
+- RLS enforced on all CICO tables
 
-## Grade split classes (js/classes.js)
-Admins can add one or more split classes that draw from two grade levels (e.g. a 3/4 split). Configured in the Classes step. Regular class counts can be set to 0 if all classes are splits. `AppState.splitClasses` holds the config; `AppState.splitResults` holds the generated output.
+### Key Supabase tables
+| Table | Purpose |
+|-------|---------|
+| `profiles` | User profiles: `id, full_name, school_name, school_id, approved, is_admin, created_at` |
+| `schools` | School registry: `id, name, district, state, created_at` |
+| `audit_log` | FERPA audit trail: `id, user_id, action, table_name, record_id, old_data, new_data, created_at` |
+| `cico_students` | Students per school |
+| `cico_checkins` | Daily check-in records |
+| `cico_period_scores` | Per-period scores (child of checkins) |
+| `cico_incidents` | Incident records (child of checkins) |
+| `cico_settings` | Period count per school |
+| `cico_categories` | Scoring categories per school |
+| `cico_incident_types` | Incident type definitions per school |
+
+### RLS helper functions
+- `public.is_admin()` — SECURITY DEFINER, checks `profiles.is_admin = true`
+- `public.my_school_id()` — SECURITY DEFINER, returns `profiles.school_id` for current user
+
+### Migrations run (in order)
+1. `supabase/migrations/ferpa_compliance.sql` — audit log, schools table, school_id on all tables, transition-safe RLS
+2. `supabase/migrations/school_isolation_complete.sql` — **NOT YET RUN** — backfills null school_ids and tightens RLS to strict isolation
+
+### ⚠️ Pending: Run school isolation
+Before running `school_isolation_complete.sql`:
+1. Create a school at cohortlogic.com/admin → Schools section ✅ (done)
+2. Confirm all approved users have a school assigned (use All Users section in admin)
+3. Paste `supabase/migrations/school_isolation_complete.sql` into Supabase SQL Editor and run it
+
+---
+
+## Admin panel (`admin/index.html` + `admin/admin.js`)
+
+### Sections
+- **Pending Approvals** — approve new users, assign them to a school
+- **All Users** — view all approved users, reassign school via inline dropdown
+- **Overview / Analytics** — Class Builder usage funnel and events
+- **Audit Log** — FERPA audit trail with filter by table/action/date, paginated, detail modal
+- **Schools** — Add schools (name, district, state); list shows UUID prefix
+
+### Key functions in admin.js
+- `loadDashboard()` — calls loadSchools → loadPendingUsers + loadAllUsers + loadAuditLog in parallel
+- `loadSchools()` — populates `_schools` cache used by all dropdowns
+- `addSchool()` — inserts to `schools` table; requires `is_admin = true` on profile
+- `loadAllUsers()` — shows approved users with school assignment; calls `reassignUserSchool()`
+- `approveUser(userId)` — sets `approved = true` + `school_id` together
+- `loadAuditLog(append)` — paginated, 50/page; resolves user names via `_auditUserCache`
+- `openAuditDetail(id)` — modal showing INSERT/UPDATE/DELETE diff
+
+---
 
 ## File structure
 ```
-index.html        — Landing page with access code gate (Cohort Logic branding)
-app.html          — The main application (redirects to index.html if no session)
+index.html              — Marketing/landing page (Class Builder demo gate)
+dashboard.html          — Product dashboard (links to both products)
+app.html                — Class Builder app
+checkin-app.html        — Check-in / Check-out app
+login.html              — Shared login page for CICO
 admin/
-  index.html      — Admin panel (Supabase auth, password reset, user management)
-  admin.js        — doLogout(), toggleMagicLink(), PASSWORD_RECOVERY handler
+  index.html            — Admin panel
+  admin.js              — All admin logic
 css/
-  styles.css      — All styles (CSS variables, layout, components)
+  styles.css            — Class Builder styles (CSS vars: --navy, --teal, --gold)
+  checkin.css           — CICO styles (CSS vars: --ci-navy, --ci-teal, --ci-gold)
 js/
-  app.js          — Central AppState object, navigation, sidebar status, utilities
-  import.js       — Excel drag & drop + Google Sheets URL import, auto-guess mapping
-  fieldMapping.js — Column mapping UI, competency config (score/category/flag + direction)
-  students.js     — Student table, grade filter, separation pairs modal
-  classes.js      — Grade/class config, teacher assignment, split class UI
-  algorithm.js    — Balancing algorithm, separation fixing, category balancing, averages
-  results.js      — Class card display, drag-to-move students, Excel export
-  sample.js       — Generates a 500-student sample Excel file for testing
+  app.js                — Class Builder: AppState, navigation, utilities
+  import.js             — Excel + Google Sheets import
+  fieldMapping.js       — Column mapping, competency config
+  students.js           — Student table, separation pairs
+  classes.js            — Grade/class config, teacher assignment, split classes
+  algorithm.js          — Snake-draft balancing, separation fixing, category balancing
+  results.js            — Class card display, drag-to-move, Excel export
+  sample.js             — Generates 500-student sample (includes Student ID + Homeroom)
+  checkin-state.js      — CicoState, loadCicoData(), navigation, toast, initApp()
+  checkin-entry.js      — Entry view: student search dropdown, period grid, incidents
+  checkin-history.js    — History view: filter, load, render check-in cards
+  checkin-students.js   — Students view: list, add/edit modal, Excel import
+  checkin-config.js     — Settings view: period count, categories, incident types
+  checkin-reports.js    — Reports view: 4 tabs, Chart.js charts, stat cards
 images/
-  logo.png        — Transparent background PNG logo
+  logo.png              — Transparent background PNG
+supabase/migrations/
+  ferpa_compliance.sql        — Audit log + school scoping (ALREADY RUN)
+  school_isolation_complete.sql — Strict RLS isolation (NOT YET RUN)
 ```
 
-## AppState (js/app.js)
-Central state object shared across all modules:
-- `rawRows` / `rawHeaders` — data as imported from spreadsheet
-- `students` — mapped student objects: `{ id, firstName, lastName, grade, scores{} }`
-- `separations` — array of `{ a: studentId, b: studentId }` pairs
-- `competencies` — array of `{ name, type: 'score'|'category'|'flag', column, min?, max?, direction? }`
-- `columnMap` — maps required fields (firstName, lastName, grade) to spreadsheet columns
-- `gradeConfig` — `{ grade: { classCount, teachers[] } }`
-- `splitClasses` — `[{ id, grades: ['3','4'], teacher: '' }]`
-- `results` — `{ grade: [ [students], [students], ... ] }`
-- `splitResults` — `[{ id, grades, teacher, students: [] }]`
+---
 
-## Sample spreadsheet
-500 students across grades K–5. Generated in-browser via SheetJS — "Download Sample Spreadsheet" button on the Import view.
+## Brand & tech
+- **Colors:** navy (#0a2240 / --ci-navy: #1e3a5f), teal (#0ea5e9 / --ci-teal: #2a9d8f), gold (#f59e0b)
+- **Font:** Nunito (Google Fonts)
+- **Logo:** images/logo.png, display at height 30px with `align-items: flex-start` to prevent stretch
+- **No framework** — vanilla HTML/CSS/JS only
+- **SheetJS** — CDN, Excel parsing/export
+- **Chart.js** — CDN, used in CICO reports (line + bar charts)
+- **Safari quirk** — button click handlers must use `onclick="fn()"` attribute, not `addEventListener`
+
+---
 
 ## Deployment
-- `git push origin main` → Netlify auto-deploys to cohortlogic.com (no build step)
-- Admin panel lives at cohortlogic.com/admin/ — uses Supabase auth
-- Safari-specific issue: button click handlers must use `onclick="fn()"` attribute pattern, not `addEventListener`, for reliable click registration
+- `git push origin main` → Netlify auto-deploys (no build step)
+- DNS at Porkbun: A → 75.2.60.5, CNAME www → gleeful-banoffee-050c62.netlify.app
+- Plan: switch to Cloudflare Pages in ~3 weeks
 
-## What's built (v1)
-- Full import → map → review → configure → generate → export flow
-- Configurable competencies: score (with min/max/direction), category, yes/no flag
-- Grade split classes with ~50/50 pull from two grade levels
-- Separation pairs with grouped display
-- Snake-draft balancing + category balancing + separation enforcement
-- Drag-and-drop manual adjustments in results view
-- Excel export of final class lists (regular grades + split classes tab)
-- Cohort Logic branding (navy/teal/gold, Nunito, logo)
-- Admin panel with Supabase auth and password reset
+---
 
-## Planned / not yet built
-- User accounts and persistent data storage (requires backend)
-- Private Google Sheets import (requires OAuth)
-- Save/load sessions
-- Print-friendly class list view
-- Ability to lock individual students to a specific class
-- Mobile responsiveness (currently desktop-only)
-- Logo text fix: currently reads "Smarter fools for schools" — needs designer correction to "Smarter tools for schools"
+## What's built
+- Class Builder: full import → map → generate → export flow
+- CICO: full check-in entry, history, student management, settings, 4-tab reports
+- Admin panel: approvals, school management, all-users view, FERPA audit log
+- School-scoped multi-tenancy (RLS, transition-safe — strict isolation pending SQL run)
+- FERPA audit log (triggers on all CICO tables + profiles)
+- Product badges in both app sidebars, back-to-dashboard link in Class Builder
+
+## Pending / to do
+- **Run `school_isolation_complete.sql`** in Supabase (see instructions above)
+- **Privacy policy page** on marketing site (FERPA checklist)
+- **Teacher-level RLS** — teachers see only their homeroom students in CICO
+- **Supabase Pro + DPA** — needed for formal FERPA compliance (can wait)
+- **Data retention policy** — process decision, not yet defined
+- **Switch to Cloudflare Pages** (~3 weeks)
+- Class Builder: private Google Sheets (OAuth), save/load sessions, print view, lock student to class
+- CICO: mobile polish, print-friendly check-in sheets
