@@ -149,6 +149,220 @@ document.getElementById('save-pw-btn').addEventListener('click', async () => {
   if (!error) { document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
 });
 
+// ── Audit Log ────────────────────────────────────────────────────────────
+
+const AUDIT_PAGE_SIZE = 50;
+let _auditOffset      = 0;
+let _auditRecords     = [];   // accumulated rows for current filter set
+let _auditUserCache   = {};   // userId → display name
+
+async function loadAuditLog(append = false) {
+  const wrap      = document.getElementById('audit-log-wrap');
+  const tableFilter  = document.getElementById('audit-table-filter').value;
+  const actionFilter = document.getElementById('audit-action-filter').value;
+  const fromDate     = document.getElementById('audit-from').value;
+  const toDate       = document.getElementById('audit-to').value;
+
+  if (!append) {
+    _auditOffset  = 0;
+    _auditRecords = [];
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+  }
+
+  let query = db
+    .from('audit_log')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(_auditOffset, _auditOffset + AUDIT_PAGE_SIZE - 1);
+
+  if (tableFilter)  query = query.eq('table_name', tableFilter);
+  if (actionFilter) query = query.eq('action', actionFilter);
+  if (fromDate)     query = query.gte('created_at', fromDate);
+  if (toDate)       query = query.lte('created_at', toDate + 'T23:59:59');
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    wrap.innerHTML = `<p style="color:#ef4444;font-size:13px;">Error: ${escAdmin(error.message)}</p>`;
+    return;
+  }
+
+  if (!data?.length && !append) {
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No audit records match the selected filters.</p>';
+    return;
+  }
+
+  // Fetch user names for any new user_ids
+  const unknownIds = [...new Set((data || []).map(r => r.user_id).filter(id => id && !_auditUserCache[id]))];
+  if (unknownIds.length) {
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', unknownIds);
+    (profiles || []).forEach(p => {
+      _auditUserCache[p.id] = p.full_name || '(no name)';
+    });
+  }
+
+  _auditRecords = append ? [..._auditRecords, ...(data || [])] : (data || []);
+  _auditOffset += (data?.length || 0);
+
+  renderAuditTable(wrap, _auditRecords, count);
+}
+
+function renderAuditTable(wrap, records, totalCount) {
+  if (!records.length) {
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No records found.</p>';
+    return;
+  }
+
+  const rows = records.map(r => {
+    const ts       = new Date(r.created_at);
+    const dateStr  = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr  = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    const userName = r.user_id ? (_auditUserCache[r.user_id] || r.user_id.slice(0,8) + '…') : 'System';
+    const actionClass = { INSERT: 'action-insert', UPDATE: 'action-update', DELETE: 'action-delete' }[r.action] || '';
+    const shortId  = r.record_id ? r.record_id.slice(0, 8) + '…' : '—';
+
+    // Brief summary of what changed
+    let summary = '';
+    if (r.action === 'INSERT' && r.new_data) {
+      const keys = Object.keys(r.new_data).filter(k => !['id','created_at','updated_at'].includes(k));
+      summary = keys.slice(0, 3).join(', ') + (keys.length > 3 ? '…' : '');
+    } else if (r.action === 'UPDATE' && r.old_data && r.new_data) {
+      const changed = Object.keys(r.new_data).filter(k => JSON.stringify(r.new_data[k]) !== JSON.stringify(r.old_data[k]));
+      summary = changed.length ? changed.slice(0, 3).join(', ') + (changed.length > 3 ? '…' : '') : 'no changes';
+    } else if (r.action === 'DELETE' && r.old_data) {
+      const keys = Object.keys(r.old_data).filter(k => !['id','created_at'].includes(k));
+      summary = keys.slice(0, 3).join(', ') + (keys.length > 3 ? '…' : '');
+    }
+
+    return `<tr>
+      <td style="white-space:nowrap;">
+        ${escAdmin(dateStr)}<br>
+        <span style="font-size:11px;color:#9ca3af;">${escAdmin(timeStr)}</span>
+      </td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAdmin(r.user_id||'')}">
+        ${escAdmin(userName)}
+      </td>
+      <td><span class="action-badge ${actionClass}">${r.action}</span></td>
+      <td><span class="table-chip">${escAdmin(r.table_name)}</span></td>
+      <td style="font-family:monospace;font-size:11px;color:#9ca3af;" title="${escAdmin(r.record_id||'')}">${escAdmin(shortId)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9ca3af;font-size:12px;">${escAdmin(summary)}</td>
+      <td><button class="audit-detail-btn" onclick="openAuditDetail('${escAdmin(r.id)}')">View</button></td>
+    </tr>`;
+  }).join('');
+
+  const hasMore = totalCount !== null && _auditOffset < totalCount;
+
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">
+      Showing ${records.length}${totalCount !== null ? ' of ' + totalCount : ''} records
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Table</th>
+            <th>Record ID</th>
+            <th>Fields</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${hasMore ? `<button class="audit-load-more" onclick="loadAuditLog(true)">Load more (${totalCount - _auditOffset} remaining)</button>` : ''}
+  `;
+}
+
+function clearAuditFilters() {
+  document.getElementById('audit-table-filter').value  = '';
+  document.getElementById('audit-action-filter').value = '';
+  document.getElementById('audit-from').value = '';
+  document.getElementById('audit-to').value   = '';
+  loadAuditLog();
+}
+
+// ── Audit detail modal ────────────────────────────────────────────────────
+
+function openAuditDetail(id) {
+  const record = _auditRecords.find(r => r.id === id);
+  if (!record) return;
+
+  const ts       = new Date(record.created_at);
+  const dateStr  = ts.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  const timeStr  = ts.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', second:'2-digit' });
+  const userName = record.user_id ? (_auditUserCache[record.user_id] || record.user_id) : 'System';
+  const actionClass = { INSERT: 'action-insert', UPDATE: 'action-update', DELETE: 'action-delete' }[record.action] || '';
+
+  document.getElementById('audit-modal-title').innerHTML =
+    `<span class="action-badge ${actionClass}">${record.action}</span>
+     <span style="font-size:13px;font-weight:400;color:#6b7280;margin-left:8px;">${escAdmin(record.table_name)}</span>`;
+
+  let bodyHtml = `
+    <div class="audit-meta-row">
+      <div><strong>When:</strong> ${escAdmin(dateStr)} at ${escAdmin(timeStr)}</div>
+      <div><strong>Who:</strong> ${escAdmin(userName)}</div>
+      <div><strong>Record:</strong> <span style="font-family:monospace;font-size:12px;">${escAdmin(record.record_id || '—')}</span></div>
+    </div>`;
+
+  if (record.action === 'INSERT') {
+    bodyHtml += `<div class="diff-panel insert">
+      <h4>New Record</h4>
+      <pre>${formatJson(record.new_data)}</pre>
+    </div>`;
+  } else if (record.action === 'DELETE') {
+    bodyHtml += `<div class="diff-panel delete">
+      <h4>Deleted Record</h4>
+      <pre>${formatJson(record.old_data)}</pre>
+    </div>`;
+  } else if (record.action === 'UPDATE') {
+    // Highlight changed fields
+    const changed = record.old_data && record.new_data
+      ? Object.keys(record.new_data).filter(k => JSON.stringify(record.new_data[k]) !== JSON.stringify(record.old_data[k]))
+      : [];
+
+    bodyHtml += `
+      ${changed.length ? `<p style="font-size:12px;color:#6b7280;margin-bottom:12px;">Changed fields: <strong>${changed.map(escAdmin).join(', ')}</strong></p>` : ''}
+      <div class="diff-grid">
+        <div class="diff-panel delete">
+          <h4>Before</h4>
+          <pre>${formatJson(record.old_data, changed)}</pre>
+        </div>
+        <div class="diff-panel insert">
+          <h4>After</h4>
+          <pre>${formatJson(record.new_data, changed)}</pre>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('audit-modal-body').innerHTML = bodyHtml;
+  document.getElementById('audit-detail-modal').style.display = 'flex';
+}
+
+function closeAuditModal(e) {
+  if (e && e.target !== document.getElementById('audit-detail-modal')) return;
+  document.getElementById('audit-detail-modal').style.display = 'none';
+}
+
+function formatJson(obj, highlightKeys = []) {
+  if (!obj) return '(none)';
+  try {
+    const str = JSON.stringify(obj, null, 2);
+    // Basic escaping for HTML display
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  } catch {
+    return String(obj);
+  }
+}
+
 // ── Schools ──────────────────────────────────────────────────────────────
 
 let _schools = [];  // cached list for selects
@@ -316,8 +530,15 @@ async function approveUser(userId) {
 
 // ── Dashboard data ──
 async function loadDashboard() {
+  // Default audit date range: last 30 days
+  const today    = new Date().toISOString().split('T')[0];
+  const thirtyAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+  document.getElementById('audit-from').value = thirtyAgo;
+  document.getElementById('audit-to').value   = today;
+
   await loadSchools();      // load schools first so approval dropdowns are populated
   loadPendingUsers();
+  loadAuditLog();
   const [sessionsRes, eventsRes] = await Promise.all([
     db.from('sessions').select('*').order('created_at', { ascending: false }),
     db.from('events').select('*').order('created_at', { ascending: false }),

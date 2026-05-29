@@ -117,6 +117,43 @@
     .school-sel { padding: 7px 10px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; font-family: inherit; outline: none; min-width: 160px; }
     .school-sel:focus { border-color: var(--blue); }
     .pending-school-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+
+    /* Audit log */
+    .audit-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: flex-end; }
+    .audit-filters select,
+    .audit-filters input[type=date] { padding: 7px 10px; border: 1px solid var(--gray-300); border-radius: 7px; font-size: 13px; font-family: inherit; outline: none; background: #fff; }
+    .audit-filters select:focus,
+    .audit-filters input[type=date]:focus { border-color: var(--blue); }
+    .audit-filters label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
+    .audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .audit-table th { text-align: left; padding: 8px 12px; background: var(--gray-50); color: var(--gray-500); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+    .audit-table td { padding: 9px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; color: var(--gray-700); }
+    .audit-table tr:last-child td { border-bottom: none; }
+    .audit-table tr:hover td { background: var(--gray-50); }
+    .action-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+    .action-insert { background: #dcfce7; color: #166534; }
+    .action-update { background: #e8f5f4; color: #1e6b63; }
+    .action-delete { background: #fee2e2; color: #991b1b; }
+    .table-chip { display: inline-block; background: var(--gray-100); color: var(--gray-700); border-radius: 4px; padding: 2px 7px; font-size: 11px; font-family: monospace; }
+    .audit-detail-btn { background: none; border: 1px solid var(--gray-300); border-radius: 5px; padding: 3px 9px; font-size: 11px; cursor: pointer; color: var(--gray-500); font-family: inherit; transition: all .12s; }
+    .audit-detail-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+    .audit-load-more { width: 100%; padding: 10px; margin-top: 12px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--gray-500); cursor: pointer; font-family: inherit; transition: background .12s; }
+    .audit-load-more:hover { background: var(--gray-100); }
+    /* Detail modal */
+    .audit-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.4); backdrop-filter: blur(2px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .audit-modal { background: #fff; border-radius: 12px; width: 100%; max-width: 680px; max-height: calc(100vh - 40px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+    .audit-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-200); }
+    .audit-modal-head h3 { font-size: 15px; font-weight: 700; }
+    .audit-modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .audit-modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); line-height: 1; }
+    .audit-modal-close:hover { color: var(--gray-700); }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .diff-panel h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-500); margin-bottom: 8px; }
+    .diff-panel pre { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 7px; padding: 12px; font-size: 11px; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+    .diff-panel.insert pre { border-color: #86efac; background: #f0fdf4; }
+    .diff-panel.delete pre { border-color: #fca5a5; background: #fff5f5; }
+    .audit-meta-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; font-size: 13px; color: var(--gray-500); }
+    .audit-meta-row strong { color: var(--gray-700); }
   </style>
 </head>
 <body>
@@ -204,6 +241,50 @@
       </table>
     </div>
 
+    <!-- Audit Log -->
+    <h2 style="margin-bottom:12px;margin-top:8px;">Audit Log</h2>
+    <div class="section-card" style="margin-bottom:32px;">
+      <h3>Data Access & Change History</h3>
+
+      <div class="audit-filters">
+        <div>
+          <label>Table</label>
+          <select id="audit-table-filter" onchange="loadAuditLog()">
+            <option value="">All tables</option>
+            <option value="cico_students">cico_students</option>
+            <option value="cico_checkins">cico_checkins</option>
+            <option value="cico_period_scores">cico_period_scores</option>
+            <option value="cico_incidents">cico_incidents</option>
+            <option value="profiles">profiles</option>
+          </select>
+        </div>
+        <div>
+          <label>Action</label>
+          <select id="audit-action-filter" onchange="loadAuditLog()">
+            <option value="">All actions</option>
+            <option value="INSERT">INSERT</option>
+            <option value="UPDATE">UPDATE</option>
+            <option value="DELETE">DELETE</option>
+          </select>
+        </div>
+        <div>
+          <label>From</label>
+          <input type="date" id="audit-from" onchange="loadAuditLog()" />
+        </div>
+        <div>
+          <label>To</label>
+          <input type="date" id="audit-to" onchange="loadAuditLog()" />
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn btn-outline btn-sm" onclick="clearAuditFilters()">Clear</button>
+        </div>
+      </div>
+
+      <div id="audit-log-wrap">
+        <p style="color:#9ca3af;font-size:13px;">Loading…</p>
+      </div>
+    </div>
+
     <!-- Schools -->
     <h2 style="margin-bottom:12px;margin-top:8px;">Schools</h2>
     <div class="section-card" style="margin-bottom:32px;">
@@ -232,6 +313,17 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Audit detail modal (populated by JS) -->
+<div id="audit-detail-modal" style="display:none;" class="audit-modal-overlay" onclick="closeAuditModal(event)">
+  <div class="audit-modal" onclick="event.stopPropagation()">
+    <div class="audit-modal-head">
+      <h3 id="audit-modal-title">Change Detail</h3>
+      <button class="audit-modal-close" onclick="closeAuditModal()">✕</button>
+    </div>
+    <div class="audit-modal-body" id="audit-modal-body"></div>
   </div>
 </div>
 
