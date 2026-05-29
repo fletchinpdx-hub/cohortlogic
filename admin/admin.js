@@ -395,6 +395,7 @@ async function addSchool() {
   const district = document.getElementById('new-school-district').value.trim();
   const state    = document.getElementById('new-school-state').value.trim();
   const alertEl  = document.getElementById('school-alert');
+  const btn      = document.querySelector('.add-school-row .btn');
 
   if (!name) {
     alertEl.textContent = 'School name is required.';
@@ -403,11 +404,17 @@ async function addSchool() {
     return;
   }
 
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+  alertEl.classList.add('hidden');
+
   const { data, error } = await db.from('schools')
     .insert({ name, district: district || null, state: state || null })
     .select().single();
 
+  if (btn) { btn.disabled = false; btn.textContent = '+ Add School'; }
+
   if (error) {
+    console.error('addSchool error:', error);
     alertEl.textContent = 'Error: ' + error.message;
     alertEl.className = 'alert alert-error';
     alertEl.classList.remove('hidden');
@@ -427,6 +434,113 @@ async function addSchool() {
 
 function escAdmin(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── All Users ─────────────────────────────────────────────────────────────
+
+async function loadAllUsers() {
+  const container = document.getElementById('all-users-list');
+
+  const { data: users, error } = await db
+    .from('profiles')
+    .select('id, full_name, school_id, school_name, approved, created_at')
+    .eq('approved', true)
+    .order('full_name', { ascending: true });
+
+  if (error) {
+    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load users: ${escAdmin(error.message)}</p>`;
+    return;
+  }
+
+  if (!users || !users.length) {
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No approved users yet.</p>';
+    return;
+  }
+
+  const schoolOptions = _schools.map(s =>
+    `<option value="${s.id}">${escAdmin(s.name)}</option>`
+  ).join('');
+
+  const rows = users.map(u => {
+    const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const assignedSchool = _schools.find(s => s.id === u.school_id);
+    const schoolLabel = assignedSchool ? escAdmin(assignedSchool.name) : '<span style="color:#9ca3af;">— unassigned —</span>';
+    return `
+      <tr id="user-row-${u.id}">
+        <td><strong>${escAdmin(u.full_name || '(no name)')}</strong></td>
+        <td style="color:#6b7280;">${escAdmin(u.school_name || '—')}</td>
+        <td>${schoolLabel}</td>
+        <td>
+          <div class="school-assign-row">
+            <select class="school-sel" id="reassign-sel-${u.id}">
+              <option value="">— None —</option>
+              ${schoolOptions}
+            </select>
+            <button class="reassign-btn" id="reassign-btn-${u.id}" onclick="reassignUserSchool('${u.id}')">Save</button>
+          </div>
+        </td>
+        <td style="font-size:11px;color:#9ca3af;">${date}</td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>School (at signup)</th>
+            <th>Assigned School</th>
+            <th>Reassign</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  // Pre-select current school in each dropdown
+  users.forEach(u => {
+    if (u.school_id) {
+      const sel = document.getElementById(`reassign-sel-${u.id}`);
+      if (sel) sel.value = u.school_id;
+    }
+  });
+}
+
+async function reassignUserSchool(userId) {
+  const sel     = document.getElementById(`reassign-sel-${userId}`);
+  const btn     = document.getElementById(`reassign-btn-${userId}`);
+  const schoolId = sel ? (sel.value || null) : null;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const { error } = await db
+    .from('profiles')
+    .update({ school_id: schoolId })
+    .eq('id', userId);
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+
+  if (error) {
+    alert('Error updating school: ' + error.message);
+    return;
+  }
+
+  // Update the displayed school name in the row
+  const assignedSchool = _schools.find(s => s.id === schoolId);
+  const row = document.getElementById(`user-row-${userId}`);
+  if (row) {
+    const schoolCell = row.cells[2];
+    schoolCell.innerHTML = assignedSchool
+      ? escAdmin(assignedSchool.name)
+      : '<span style="color:#9ca3af;">— unassigned —</span>';
+  }
+
+  if (btn) {
+    btn.textContent = '✓ Saved';
+    setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 2000);
+  }
 }
 
 // ── Pending users (with school assignment) ───────────────────────────────
@@ -538,6 +652,7 @@ async function loadDashboard() {
 
   await loadSchools();      // load schools first so approval dropdowns are populated
   loadPendingUsers();
+  loadAllUsers();
   loadAuditLog();
   const [sessionsRes, eventsRes] = await Promise.all([
     db.from('sessions').select('*').order('created_at', { ascending: false }),
