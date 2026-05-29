@@ -15,16 +15,32 @@ function generateSampleSpreadsheet() {
     'Hill','Flores','Green','Adams','Nelson','Baker','Hall','Rivera','Campbell','Mitchell'];
 
   const grades = ['K','1','2','3','4','5'];
-  const rows   = [];
+
+  // One set of homeroom teachers per grade (3–4 classes each)
+  const homeroomTeachers = {
+    'K': ['Ms. Patel',   'Mr. Thomas',  'Ms. Rivera',  'Mrs. Chen'],
+    '1': ['Mrs. Johnson','Ms. Williams','Mr. Garcia',   'Ms. Kim'],
+    '2': ['Mr. Davis',   'Mrs. Lopez',  'Ms. Anderson', 'Mr. Wilson'],
+    '3': ['Ms. Martinez','Mrs. Brown',  'Mr. Nguyen',   'Ms. Taylor'],
+    '4': ['Mrs. Harris', 'Mr. Clark',   'Ms. Robinson', 'Mr. Lewis'],
+    '5': ['Ms. Walker',  'Mrs. Allen',  'Mr. Scott',    'Ms. Torres'],
+  };
+
+  const rows = [];
+  let nextId = 10001; // sequential student IDs
 
   // ~500 students spread across 6 grades
   const perGrade = [80, 85, 82, 84, 83, 86];
 
   grades.forEach((grade, gi) => {
-    const n = perGrade[gi];
+    const n        = perGrade[gi];
+    const teachers = homeroomTeachers[grade];
     for (let i = 0; i < n; i++) {
       const first = firstNames[Math.floor(Math.random() * firstNames.length)];
       const last  = lastNames [Math.floor(Math.random() * lastNames.length)];
+
+      // Assign homeroom round-robin across the grade's teachers
+      const homeroom = teachers[i % teachers.length];
 
       // Scores: somewhat correlated (kids who are strong in one area tend to be strong in others)
       const base = 1 + Math.random() * 4;
@@ -35,9 +51,11 @@ function generateSampleSpreadsheet() {
       const iep = Math.random() < 0.12 ? 'Yes' : 'No'; // ~12% IEP rate
 
       rows.push({
+        'Student ID':     nextId++,
         'First Name':     first,
         'Last Name':      last,
         'Grade':          grade,
+        'Homeroom':       homeroom,
         'Math Score':     mathScore,
         'Reading Score':  readingScore,
         'Writing Score':  writingScore,
@@ -55,11 +73,10 @@ function generateSampleSpreadsheet() {
 
   const ws = XLSX.utils.json_to_sheet(rows);
 
-  // Column widths
+  // Column widths: Student ID, First, Last, Grade, Homeroom, Math, Reading, Writing, Attitude, IEP
   ws['!cols'] = [
-    { wch: 14 }, { wch: 14 }, { wch: 8 },
-    { wch: 12 }, { wch: 14 }, { wch: 14 },
-    { wch: 14 }, { wch: 6 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 18 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 6 },
   ];
 
   const wb = XLSX.utils.book_new();

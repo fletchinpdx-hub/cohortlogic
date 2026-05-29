@@ -65,13 +65,25 @@ body {
 /* ── Sidebar ── */
 #logo {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   padding: 20px 16px;
   border-bottom: 1px solid rgba(255,255,255,.1);
   font-size: 16px;
   font-weight: 700;
   color: #fff;
+}
+
+.app-product-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--teal);
+  background: rgba(42,157,143,.15);
+  padding: 3px 7px;
+  border-radius: 4px;
+  width: fit-content;
 }
 .logo-icon { font-size: 22px; }
 
@@ -602,6 +614,8 @@ body {
 
   #logo {
     flex: 1;
+    flex-direction: row;
+    align-items: center;
     border-bottom: none;
     padding: 0 0 0 14px;
     height: 56px;
@@ -609,6 +623,8 @@ body {
     justify-content: space-between;
     width: 100%;
   }
+
+  .app-product-badge { margin-top: 0; }
 
   #mobile-menu-btn { display: flex; }
 
