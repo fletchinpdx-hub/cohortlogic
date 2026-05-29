@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check-in / Check-out — Cohort Logic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    // Auth gate — must be logged in and approved
+    (async () => {
+      const { data: { session } } = await SupabaseClient.auth.getSession();
+      if (!session) { window.location.replace('login.html'); return; }
+      const { data: profile } = await SupabaseClient
+        .from('profiles').select('approved').eq('id', session.user.id).single();
+      if (!profile || !profile.approved) { window.location.replace('dashboard.html'); }
+    })();
+  </script>
+  <!-- SheetJS for Excel import/export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js for reports -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/checkin.css" />
+</head>
+<body>
+  <div id="cico-app">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside id="cico-sidebar">
+      <div id="cico-logo">
+        <a href="dashboard.html" class="logo-link">
+          <img src="images/logo.png" alt="Cohort Logic" style="height:26px;width:auto;filter:brightness(0) invert(1);" />
+        </a>
+        <span class="app-badge">Check-in / Check-out</span>
+        <button id="cico-mobile-btn" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+
+      <nav id="cico-nav">
+        <a class="cico-nav-item active" data-view="entry">
+          <span class="nav-icon">✅</span> Check-in Entry
+        </a>
+        <a class="cico-nav-item" data-view="history">
+          <span class="nav-icon">📋</span> History
+        </a>
+        <a class="cico-nav-item" data-view="students">
+          <span class="nav-icon">👥</span> Students
+        </a>
+        <a class="cico-nav-item" data-view="reports">
+          <span class="nav-icon">📊</span> Reports
+        </a>
+        <a class="cico-nav-item" data-view="settings">
+          <span class="nav-icon">⚙️</span> Settings
+        </a>
+      </nav>
+
+      <div id="cico-sidebar-footer">
+        <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
+      </div>
+    </aside>
+
+    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <main id="cico-main">
+
+      <!-- ── Toast notification ──────────────────────────────────────── -->
+      <div id="cico-toast" class="cico-toast hidden"></div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Check-in Entry
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-entry" class="cico-view active">
+        <div class="view-header">
+          <h1>Check-in Entry</h1>
+          <p class="view-subtitle">Record a student's period-by-period scores for the day.</p>
+        </div>
+
+        <!-- Student + Date row -->
+        <div class="entry-top-row">
+          <div class="field-group" style="flex:1;min-width:200px;">
+            <label class="field-label">Student</label>
+            <div class="student-search-wrap" id="student-search-wrap">
+              <input type="text" id="student-search-input" class="cico-input" placeholder="Search by name or ID…" autocomplete="off" />
+              <div id="student-dropdown" class="student-dropdown hidden"></div>
+              <input type="hidden" id="selected-student-id" />
+            </div>
+          </div>
+          <div class="field-group" style="width:180px;">
+            <label class="field-label">Date</label>
+            <input type="date" id="entry-date" class="cico-input" />
+          </div>
+          <div class="field-group" style="width:auto;align-self:flex-end;">
+            <button class="btn-cico btn-outline-cico btn-sm-cico" id="clear-entry-btn" title="Clear form">Clear</button>
+          </div>
+        </div>
+
+        <!-- Period grid (rendered by JS) -->
+        <div id="period-grid-wrap">
+          <div id="period-grid-placeholder" class="grid-placeholder">
+            <p>Select a student above to begin entering scores.</p>
+          </div>
+          <div id="period-grid" class="hidden"></div>
+        </div>
+
+        <!-- Entry notes -->
+        <div id="entry-notes-wrap" class="hidden">
+          <label class="field-label">Overall Notes <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+          <textarea id="entry-notes" class="cico-input" rows="2" placeholder="General notes for this check-in…"></textarea>
+        </div>
+
+        <!-- Save bar -->
+        <div id="entry-save-bar" class="entry-save-bar hidden">
+          <div id="entry-validation-msg" class="validation-msg hidden"></div>
+          <button class="btn-cico btn-primary-cico" id="save-checkin-btn" onclick="saveCheckin()">
+            💾 Save Check-in
+          </button>
+        </div>
+      </div>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: History
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-history" class="cico-view">
+        <div class="view-header">
+          <h1>History</h1>
+          <p class="view-subtitle">Browse and review past check-in records.</p>
+        </div>
+
+        <div class="history-filters">
+          <div class="field-group" style="flex:1;min-width:160px;">
+            <label class="field-label">Student</label>
+            <select id="history-student-filter" class="cico-input cico-select"></select>
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">From</label>
+            <input type="date" id="history-from" class="cico-input" />
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">To</label>
+            <input type="date" id="history-to" class="cico-input" />
+          </div>
+          <div class="field-group" style="align-self:flex-end;">
+            <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="loadHistory()">Search</button>
+          </div>
+        </div>
+
+        <div id="history-results">
+          <p class="empty-state">Select filters above and click Search.</p>
+        </div>
+      </div>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Students
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-students" class="cico-view">
+        <div class="view-header">
+          <h1>Students</h1>
+          <p class="view-subtitle">Manage the students tracked in Check-in / Check-out.</p>
+        </div>
+
+        <div class="students-toolbar">
+          <div class="field-group" style="flex:1;max-width:300px;">
+            <input type="text" id="students-search" class="cico-input" placeholder="Search students…" oninput="filterStudentList()" />
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="openAddStudentModal()">+ Add Student</button>
+            <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="openStudentImportModal()">⬆️ Import from Excel</button>
+          </div>
+        </div>
+
+        <div id="students-list-wrap">
+          <p class="empty-state" id="students-empty">No students yet. Add students above or import from Excel.</p>
+          <table id="students-table" class="cico-table hidden">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Grade</th>
+                <th>Homeroom</th>
+                <th>Student ID</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="students-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Reports
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-reports" class="cico-view">
+        <div class="view-header">
+          <h1>Reports</h1>
+          <p class="view-subtitle">Analyze trends and incident patterns.</p>
+        </div>
+
+        <div class="report-controls">
+          <div class="field-group" style="flex:1;min-width:160px;">
+            <label class="field-label">Student</label>
+            <select id="report-student-sel" class="cico-input cico-select" onchange="renderReports()"></select>
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">From</label>
+            <input type="date" id="report-from" class="cico-input" onchange="renderReports()" />
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">To</label>
+            <input type="date" id="report-to" class="cico-input" onchange="renderReports()" />
+          </div>
+        </div>
+
+        <div id="reports-body">
+          <p class="empty-state">Select a student to view their report.</p>
+        </div>
+      </div>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Settings
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-settings" class="cico-view">
+        <div class="view-header">
+          <h1>Settings</h1>
+          <p class="view-subtitle">Configure periods, scoring categories, and incident types.</p>
+        </div>
+
+        <div class="settings-sections">
+
+          <!-- Period count -->
+          <div class="settings-card">
+            <h2 class="settings-section-title">Periods per Day</h2>
+            <p class="settings-hint">How many periods does a typical school day have?</p>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+              <input type="number" id="period-count-input" class="cico-input" style="width:80px;" min="1" max="20" value="8" />
+              <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="savePeriodCount()">Save</button>
+            </div>
+          </div>
+
+          <!-- Categories -->
+          <div class="settings-card">
+            <h2 class="settings-section-title">Scoring Categories</h2>
+            <p class="settings-hint">Each category is scored 0, 1, or 2 per period (e.g., Safe, Respectful, Responsible).</p>
+            <div id="categories-list" class="config-list"></div>
+            <div class="add-config-row" style="margin-top:12px;">
+              <input type="text" id="new-category-name" class="cico-input" placeholder="New category name…" style="flex:1;" />
+              <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="addCategory()">+ Add</button>
+            </div>
+          </div>
+
+          <!-- Incident types -->
+          <div class="settings-card">
+            <h2 class="settings-section-title">Incident Types</h2>
+            <p class="settings-hint">Loggable events. Each has a short abbreviation and optional minute tracking.</p>
+            <div id="incident-types-list" class="config-list"></div>
+            <div class="add-config-row" style="margin-top:12px;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+              <input type="text" id="new-incident-abbr" class="cico-input" placeholder="Abbr (e.g. PD)" style="width:90px;" maxlength="8" />
+              <input type="text" id="new-incident-desc" class="cico-input" placeholder="Description (e.g. Property Destruction)" style="flex:1;min-width:160px;" />
+              <label class="checkbox-label" style="align-self:center;">
+                <input type="checkbox" id="new-incident-minutes" checked /> Track minutes
+              </label>
+              <button class="btn-cico btn-outline-cico btn-sm-cico" style="align-self:center;" onclick="addIncidentType()">+ Add</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       MODAL: Add/Edit Student
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="student-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop" onclick="closeStudentModal()"></div>
+    <div class="cico-modal-box">
+      <div class="cico-modal-header">
+        <h2 id="student-modal-title">Add Student</h2>
+        <button class="modal-close-btn" onclick="closeStudentModal()">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <input type="hidden" id="edit-student-id" />
+        <div class="modal-field-row">
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">First Name *</label>
+            <input type="text" id="student-first" class="cico-input" />
+          </div>
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Last Name *</label>
+            <input type="text" id="student-last" class="cico-input" />
+          </div>
+        </div>
+        <div class="modal-field-row">
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Grade</label>
+            <input type="text" id="student-grade" class="cico-input" placeholder="e.g. 3" />
+          </div>
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Homeroom Teacher</label>
+            <input type="text" id="student-homeroom" class="cico-input" placeholder="e.g. Ms. Smith" />
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Student ID <span style="opacity:.6;font-weight:400;">(optional)</span></label>
+          <input type="text" id="student-ref" class="cico-input" placeholder="e.g. 12345" />
+        </div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" onclick="closeStudentModal()">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="saveStudent()">Save Student</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       MODAL: Import Students
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="import-students-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop" onclick="closeStudentImportModal()"></div>
+    <div class="cico-modal-box" style="max-width:600px;">
+      <div class="cico-modal-header">
+        <h2>Import Students</h2>
+        <button class="modal-close-btn" onclick="closeStudentImportModal()">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <p style="margin-bottom:16px;font-size:14px;color:var(--ci-text-2);">Upload an Excel file with your student roster. The file should have columns for first name, last name, grade, homeroom, and optionally student ID.</p>
+
+        <!-- Step 1: File upload -->
+        <div id="import-step-1">
+          <div id="import-drop-zone" class="import-drop-zone">
+            <div class="drop-zone-inner">
+              <div style="font-size:32px;">📊</div>
+              <p style="margin:8px 0 4px;">Drop your Excel file here</p>
+              <p style="font-size:13px;opacity:.6;">or</p>
+              <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="document.getElementById('import-file-input').click()">Browse Files</button>
+            </div>
+            <input type="file" id="import-file-input" accept=".xlsx,.xls" hidden onchange="handleImportFile(event)" />
+          </div>
+        </div>
+
+        <!-- Step 2: Column mapping -->
+        <div id="import-step-2" class="hidden">
+          <p style="font-size:14px;font-weight:600;margin-bottom:12px;">Map your columns:</p>
+          <div id="import-column-map" class="import-col-map"></div>
+          <div id="import-preview" style="margin-top:16px;"></div>
+        </div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" onclick="closeStudentImportModal()">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico hidden" id="confirm-import-btn" onclick="confirmStudentImport()">Import Students</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       MODAL: Log Incident
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="incident-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop" onclick="closeIncidentModal()"></div>
+    <div class="cico-modal-box" style="max-width:440px;">
+      <div class="cico-modal-header" style="background:var(--ci-red-soft);">
+        <h2>Log Incident</h2>
+        <button class="modal-close-btn" onclick="closeIncidentModal()">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <p id="incident-context-label" style="font-size:13px;color:var(--ci-text-2);margin-bottom:12px;"></p>
+        <div class="field-group">
+          <label class="field-label">Incident Type</label>
+          <select id="incident-type-sel" class="cico-input cico-select"></select>
+        </div>
+        <div class="field-group" id="incident-minutes-group">
+          <label class="field-label">Minutes</label>
+          <input type="number" id="incident-minutes" class="cico-input" style="width:100px;" min="1" placeholder="0" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Notes <span style="opacity:.6;font-weight:400;">(optional)</span></label>
+          <textarea id="incident-notes" class="cico-input" rows="2" placeholder="Brief description…"></textarea>
+        </div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" onclick="closeIncidentModal()">Cancel</button>
+        <button class="btn-cico btn-danger-cico btn-sm-cico" onclick="confirmLogIncident()">Log Incident</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/checkin-state.js"></script>
+  <script src="js/checkin-entry.js"></script>
+  <script src="js/checkin-history.js"></script>
+  <script src="js/checkin-students.js"></script>
+  <script src="js/checkin-config.js"></script>
+  <script src="js/checkin-reports.js"></script>
+</body>
+</html>
