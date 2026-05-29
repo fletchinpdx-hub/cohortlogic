@@ -600,6 +600,37 @@ textarea.cico-input { resize: vertical; }
    REPORTS VIEW
    ══════════════════════════════════════════════════════════════════ */
 
+/* Report type tabs */
+.report-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--ci-hairline);
+  padding-bottom: 0;
+}
+
+.report-tab {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ci-text-2);
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 6px 6px 0 0;
+  transition: color .15s, background .15s;
+}
+
+.report-tab:hover { color: var(--ci-navy); background: var(--ci-bg); }
+
+.report-tab.active {
+  color: var(--ci-navy);
+  border-bottom-color: var(--ci-navy);
+}
+
 .report-controls {
   display: flex;
   flex-wrap: wrap;
@@ -657,6 +688,9 @@ textarea.cico-input { resize: vertical; }
   position: relative;
   height: 240px;
   width: 100%;
+}
+.chart-wrap.chart-tall {
+  height: 320px;
 }
 
 .incident-summary-table {

@@ -1,36 +1,107 @@
 /**
  * checkin-reports.js
- * Reports view: student trend chart + incident summary table.
+ * Four report modes: Student · By Teacher · By Grade · School-wide
  * Requires Chart.js loaded in the HTML.
  */
 
-let _trendChart = null;  // Chart.js instance, destroyed on re-render
+let _activeReportTab = 'student';
+let _chartInstances  = {};   // keyed by canvas id → Chart instance
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchReportTab(tab) {
+  _activeReportTab = tab;
+
+  document.querySelectorAll('.report-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.report === tab);
+  });
+
+  ['student','teacher','grade','school'].forEach(t => {
+    const el = document.getElementById(`rctrl-${t}`);
+    if (el) el.classList.toggle('hidden', t !== tab);
+  });
+
+  document.getElementById('reports-body').innerHTML =
+    '<p class="empty-state">Select filters above to run the report.</p>';
+
+  destroyAllCharts();
+  renderReports();
+}
 
 // ── Initialize Reports View ────────────────────────────────────────────────
 function initReportsView() {
   populateReportStudentSelect();
+  populateReportTeacherSelect();
+  populateReportGradeSelect();
   setDefaultReportDates();
-  renderReports();
+  // Don't auto-run — wait for a selection
 }
 
 function populateReportStudentSelect() {
   const sel = document.getElementById('report-student-sel');
+  if (!sel) return;
   sel.innerHTML = '<option value="">— Select a student —</option>' +
     CicoState.students.map(s =>
       `<option value="${s.id}">${escHtml(s.last_name)}, ${escHtml(s.first_name)}</option>`
     ).join('');
 }
 
-function setDefaultReportDates() {
-  const today = todayISO();
-  document.getElementById('report-to').value = today;
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  document.getElementById('report-from').value = d.toISOString().split('T')[0];
+function populateReportTeacherSelect() {
+  const sel = document.getElementById('report-teacher-sel');
+  if (!sel) return;
+  const teachers = [...new Set(
+    CicoState.students.map(s => s.homeroom).filter(Boolean)
+  )].sort();
+  sel.innerHTML = '<option value="">— Select a teacher —</option>' +
+    teachers.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('');
 }
 
-// ── Main render ────────────────────────────────────────────────────────────
+function populateReportGradeSelect() {
+  const sel = document.getElementById('report-grade-sel');
+  if (!sel) return;
+  const grades = [...new Set(
+    CicoState.students.map(s => s.grade).filter(Boolean)
+  )].sort((a,b) => gradeOrderCico(a) - gradeOrderCico(b));
+  sel.innerHTML = '<option value="">— Select a grade —</option>' +
+    grades.map(g => `<option value="${escHtml(g)}">Grade ${escHtml(g)}</option>`).join('');
+}
+
+function gradeOrderCico(g) {
+  const map = { 'TK': -1, 'K': 0 };
+  return map[g] !== undefined ? map[g] : (parseInt(g) || 99);
+}
+
+function setDefaultReportDates() {
+  const today = todayISO();
+  const thirtyAgo = (() => {
+    const d = new Date(); d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  })();
+
+  [['report-from','report-to'],
+   ['report-teacher-from','report-teacher-to'],
+   ['report-grade-from','report-grade-to'],
+   ['report-school-from','report-school-to']
+  ].forEach(([fromId, toId]) => {
+    const f = document.getElementById(fromId);
+    const t = document.getElementById(toId);
+    if (f) f.value = thirtyAgo;
+    if (t) t.value = today;
+  });
+}
+
+// ── Main dispatch ──────────────────────────────────────────────────────────
 async function renderReports() {
+  destroyAllCharts();
+  if      (_activeReportTab === 'student') await renderStudentReport();
+  else if (_activeReportTab === 'teacher') await renderTeacherReport();
+  else if (_activeReportTab === 'grade')   await renderGradeReport();
+  else if (_activeReportTab === 'school')  await renderSchoolReport();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// STUDENT REPORT (original)
+// ══════════════════════════════════════════════════════════════════════
+async function renderStudentReport() {
   const body      = document.getElementById('reports-body');
   const studentId = document.getElementById('report-student-sel').value;
   const from      = document.getElementById('report-from').value;
@@ -43,201 +114,464 @@ async function renderReports() {
 
   const student = CicoState.students.find(s => s.id === studentId);
   if (!student) return;
-
   body.innerHTML = '<p class="empty-state">Loading…</p>';
-  destroyChart();
 
   try {
-    let query = SupabaseClient
-      .from('cico_checkins')
-      .select(`
-        id,
-        check_in_date,
+    let q = SupabaseClient.from('cico_checkins').select(`
+        id, check_in_date, notes,
         cico_period_scores ( period_number, category_id, score ),
-        cico_incidents ( period_number, incident_type_id, minutes,
-          cico_incident_types ( abbreviation ) )
+        cico_incidents ( period_number, incident_type_id, minutes, notes,
+          cico_incident_types ( abbreviation, description ) )
       `)
       .eq('student_id', studentId)
       .order('check_in_date');
+    if (from) q = q.gte('check_in_date', from);
+    if (to)   q = q.lte('check_in_date', to);
 
-    if (from) query = query.gte('check_in_date', from);
-    if (to)   query = query.lte('check_in_date', to);
-
-    const { data, error } = await query;
+    const { data, error } = await q;
     if (error) throw error;
-
-    if (!data || !data.length) {
+    if (!data?.length) {
       body.innerHTML = `<p class="empty-state">No check-ins found for ${escHtml(student.first_name)} in this date range.</p>`;
       return;
     }
 
-    body.innerHTML = buildReportHTML(student, data);
-
-    // Render chart after DOM is ready
-    renderTrendChart(data);
-
+    body.innerHTML = buildStudentReportHTML(student, data);
+    renderTrendChart('trend-chart', data);
   } catch (err) {
-    console.error('Report error:', err);
+    console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
   }
 }
 
-// ── Build report HTML ──────────────────────────────────────────────────────
-function buildReportHTML(student, checkins) {
+function buildStudentReportHTML(student, checkins) {
   const name = `${student.first_name} ${student.last_name}`;
-
-  // Aggregate stats
-  let totalScore = 0, totalPossible = 0, totalIncidents = 0, totalMinutes = 0;
-  const incidentCounts = {};  // typeId → { abbr, count, minutes }
-
-  checkins.forEach(ci => {
-    const scores = ci.cico_period_scores || [];
-    scores.forEach(ps => {
-      if (ps.score !== null) {
-        totalScore    += ps.score;
-        totalPossible += 2;
-      }
-    });
-    const incidents = ci.cico_incidents || [];
-    incidents.forEach(inc => {
-      totalIncidents++;
-      if (inc.minutes) totalMinutes += inc.minutes;
-      const abbr = inc.cico_incident_types?.abbreviation || 'Unknown';
-      if (!incidentCounts[inc.incident_type_id]) {
-        incidentCounts[inc.incident_type_id] = { abbr, count: 0, minutes: 0 };
-      }
-      incidentCounts[inc.incident_type_id].count++;
-      if (inc.minutes) incidentCounts[inc.incident_type_id].minutes += inc.minutes;
-    });
-  });
-
+  const { totalScore, totalPossible, totalIncidents, totalMinutes, incidentCounts } = aggregateCheckins(checkins);
   const overallPct = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : null;
-
-  // Stat cards
-  const pctDisplay = overallPct !== null ? `${overallPct}%` : '—';
-  const pctColor   = overallPct === null ? 'var(--ci-text-2)'
-                   : overallPct >= 80 ? '#15803d'
-                   : overallPct >= 50 ? '#b45309' : '#b91c1c';
-
-  // Incident summary table
-  const incidentRows = Object.values(incidentCounts)
-    .sort((a,b) => b.count - a.count)
-    .map(i => `
-      <tr>
-        <td><strong>${escHtml(i.abbr)}</strong></td>
-        <td>${i.count}</td>
-        <td>${i.minutes || 0}</td>
-        <td>${i.count > 0 ? Math.round(i.minutes / i.count) : 0}</td>
-      </tr>
-    `).join('');
+  const pctColor   = scorePctColor(overallPct);
 
   return `
     <div class="report-section">
       <h3>${escHtml(name)} — Summary</h3>
-      <div class="report-stat-row">
-        <div class="report-stat">
-          <div class="report-stat-value">${checkins.length}</div>
-          <div class="report-stat-label">Check-ins</div>
-        </div>
-        <div class="report-stat">
-          <div class="report-stat-value" style="color:${pctColor};">${pctDisplay}</div>
-          <div class="report-stat-label">Overall Score</div>
-        </div>
-        <div class="report-stat">
-          <div class="report-stat-value" style="color:${totalIncidents > 0 ? 'var(--ci-red)' : 'inherit'};">${totalIncidents}</div>
-          <div class="report-stat-label">Incidents</div>
-        </div>
-        <div class="report-stat">
-          <div class="report-stat-value">${totalMinutes}</div>
-          <div class="report-stat-label">Incident Mins</div>
-        </div>
-      </div>
-
-      <!-- Trend chart -->
-      <div class="chart-wrap">
-        <canvas id="trend-chart"></canvas>
-      </div>
+      ${statCards([
+        { value: checkins.length, label: 'Check-ins' },
+        { value: overallPct !== null ? overallPct + '%' : '—', label: 'Avg Score', color: pctColor },
+        { value: totalIncidents, label: 'Incidents', color: totalIncidents > 0 ? 'var(--ci-red)' : null },
+        { value: totalMinutes,   label: 'Incident Mins' },
+      ])}
+      <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
     </div>
+    ${buildIncidentTable(incidentCounts)}
+    ${buildDailyDetailTable(checkins)}`;
+}
 
-    ${incidentRows ? `
+// ══════════════════════════════════════════════════════════════════════
+// TEACHER REPORT
+// ══════════════════════════════════════════════════════════════════════
+async function renderTeacherReport() {
+  const body    = document.getElementById('reports-body');
+  const teacher = document.getElementById('report-teacher-sel').value;
+  const from    = document.getElementById('report-teacher-from').value;
+  const to      = document.getElementById('report-teacher-to').value;
+
+  if (!teacher) {
+    body.innerHTML = '<p class="empty-state">Select a teacher to view their report.</p>';
+    return;
+  }
+  body.innerHTML = '<p class="empty-state">Loading…</p>';
+
+  try {
+    // Students in this homeroom
+    const homeroomStudents = CicoState.students.filter(s => s.homeroom === teacher);
+    if (!homeroomStudents.length) {
+      body.innerHTML = `<p class="empty-state">No students found for ${escHtml(teacher)}.</p>`;
+      return;
+    }
+    const studentIds = homeroomStudents.map(s => s.id);
+
+    let q = SupabaseClient.from('cico_checkins').select(`
+        id, check_in_date, student_id,
+        cico_period_scores ( period_number, category_id, score ),
+        cico_incidents ( period_number, incident_type_id, minutes,
+          cico_incident_types ( abbreviation, description ) )
+      `)
+      .in('student_id', studentIds)
+      .order('check_in_date');
+    if (from) q = q.gte('check_in_date', from);
+    if (to)   q = q.lte('check_in_date', to);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    body.innerHTML = buildGroupReportHTML({
+      title:    `${escHtml(teacher)} — Homeroom Report`,
+      subtitle: `${homeroomStudents.length} students · ${escHtml(from)} to ${escHtml(to)}`,
+      students: homeroomStudents,
+      checkins: data || [],
+      groupBy:  'student',
+      chartLabel: 'Avg Score % by Student',
+    });
+
+    renderGroupBarChart('group-bar-chart', buildStudentBarData(homeroomStudents, data || []));
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// GRADE REPORT
+// ══════════════════════════════════════════════════════════════════════
+async function renderGradeReport() {
+  const body  = document.getElementById('reports-body');
+  const grade = document.getElementById('report-grade-sel').value;
+  const from  = document.getElementById('report-grade-from').value;
+  const to    = document.getElementById('report-grade-to').value;
+
+  if (!grade) {
+    body.innerHTML = '<p class="empty-state">Select a grade to view its report.</p>';
+    return;
+  }
+  body.innerHTML = '<p class="empty-state">Loading…</p>';
+
+  try {
+    const gradeStudents = CicoState.students.filter(s => s.grade === grade);
+    if (!gradeStudents.length) {
+      body.innerHTML = `<p class="empty-state">No students found for Grade ${escHtml(grade)}.</p>`;
+      return;
+    }
+    const studentIds = gradeStudents.map(s => s.id);
+
+    let q = SupabaseClient.from('cico_checkins').select(`
+        id, check_in_date, student_id,
+        cico_period_scores ( period_number, category_id, score ),
+        cico_incidents ( period_number, incident_type_id, minutes,
+          cico_incident_types ( abbreviation, description ) )
+      `)
+      .in('student_id', studentIds)
+      .order('check_in_date');
+    if (from) q = q.gte('check_in_date', from);
+    if (to)   q = q.lte('check_in_date', to);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    body.innerHTML = buildGroupReportHTML({
+      title:    `Grade ${escHtml(grade)} — Report`,
+      subtitle: `${gradeStudents.length} students tracked · ${escHtml(from)} to ${escHtml(to)}`,
+      students: gradeStudents,
+      checkins: data || [],
+      groupBy:  'homeroom',
+      chartLabel: 'Avg Score % by Homeroom',
+    });
+
+    renderGroupBarChart('group-bar-chart', buildHomeroomBarData(gradeStudents, data || []));
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SCHOOL-WIDE REPORT
+// ══════════════════════════════════════════════════════════════════════
+async function renderSchoolReport() {
+  const body = document.getElementById('reports-body');
+  const from = document.getElementById('report-school-from').value;
+  const to   = document.getElementById('report-school-to').value;
+
+  body.innerHTML = '<p class="empty-state">Loading…</p>';
+
+  try {
+    let q = SupabaseClient.from('cico_checkins').select(`
+        id, check_in_date, student_id,
+        cico_period_scores ( period_number, category_id, score ),
+        cico_incidents ( period_number, incident_type_id, minutes,
+          cico_incident_types ( abbreviation, description ) )
+      `)
+      .order('check_in_date');
+    if (from) q = q.gte('check_in_date', from);
+    if (to)   q = q.lte('check_in_date', to);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    if (!data?.length) {
+      body.innerHTML = '<p class="empty-state">No check-ins found in this date range.</p>';
+      return;
+    }
+
+    // Count distinct students represented in checkins
+    const activeStudentIds = [...new Set(data.map(c => c.student_id))];
+
+    body.innerHTML = buildGroupReportHTML({
+      title:    'School-wide Report',
+      subtitle: `${activeStudentIds.length} students · ${escHtml(from)} to ${escHtml(to)}`,
+      students: CicoState.students,
+      checkins: data,
+      groupBy:  'grade',
+      chartLabel: 'Avg Score % by Grade',
+    });
+
+    renderGroupBarChart('group-bar-chart', buildGradeBarData(CicoState.students, data));
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SHARED HTML BUILDERS
+// ══════════════════════════════════════════════════════════════════════
+
+function buildGroupReportHTML({ title, subtitle, students, checkins, groupBy, chartLabel }) {
+  const { totalScore, totalPossible, totalIncidents, totalMinutes, incidentCounts } = aggregateCheckins(checkins);
+  const overallPct = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : null;
+  const activeIds  = new Set(checkins.map(c => c.student_id));
+
+  return `
+    <div class="report-section">
+      <h3>${title}</h3>
+      <p style="font-size:13px;color:var(--ci-text-2);margin-bottom:16px;">${subtitle}</p>
+      ${statCards([
+        { value: activeIds.size,   label: 'Students w/ Data' },
+        { value: checkins.length,  label: 'Total Check-ins' },
+        { value: overallPct !== null ? overallPct + '%' : '—', label: 'Avg Score', color: scorePctColor(overallPct) },
+        { value: totalIncidents,   label: 'Total Incidents', color: totalIncidents > 0 ? 'var(--ci-red)' : null },
+        { value: totalMinutes,     label: 'Incident Mins' },
+      ])}
+      <p style="font-size:12px;font-weight:700;color:var(--ci-text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">${escHtml(chartLabel)}</p>
+      <div class="chart-wrap chart-tall"><canvas id="group-bar-chart"></canvas></div>
+    </div>
+    ${buildIncidentTable(incidentCounts)}
+    ${buildStudentBreakdownTable(students, checkins, groupBy)}`;
+}
+
+// Stat cards row
+function statCards(cards) {
+  return `<div class="report-stat-row">` +
+    cards.map(c => `
+      <div class="report-stat">
+        <div class="report-stat-value" ${c.color ? `style="color:${c.color};"` : ''}>${c.value}</div>
+        <div class="report-stat-label">${c.label}</div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+// Incident summary table
+function buildIncidentTable(incidentCounts) {
+  const rows = Object.values(incidentCounts).sort((a,b) => b.count - a.count);
+  if (!rows.length) return '';
+  return `
     <div class="report-section">
       <h3>Incident Summary</h3>
       <table class="incident-summary-table">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Count</th>
-            <th>Total Mins</th>
-            <th>Avg Mins</th>
-          </tr>
-        </thead>
-        <tbody>${incidentRows}</tbody>
+        <thead><tr><th>Type</th><th>Count</th><th>Total Mins</th><th>Avg Mins</th></tr></thead>
+        <tbody>
+          ${rows.map(i => `
+            <tr>
+              <td><strong>${escHtml(i.abbr)}</strong><span style="color:var(--ci-text-2);margin-left:8px;font-size:12px;">${escHtml(i.desc || '')}</span></td>
+              <td>${i.count}</td>
+              <td>${i.minutes}</td>
+              <td>${i.count > 0 ? Math.round(i.minutes / i.count) : '—'}</td>
+            </tr>`).join('')}
+        </tbody>
       </table>
-    </div>` : ''}
+    </div>`;
+}
 
-    <!-- Per-day detail table -->
+// Per-student breakdown (teacher/grade/school views)
+function buildStudentBreakdownTable(students, checkins, groupBy) {
+  const studentMap = {};
+  students.forEach(s => { studentMap[s.id] = s; });
+
+  // Group checkins by student
+  const byStudent = {};
+  checkins.forEach(ci => {
+    if (!byStudent[ci.student_id]) byStudent[ci.student_id] = [];
+    byStudent[ci.student_id].push(ci);
+  });
+
+  // Only students with data
+  const rows = Object.entries(byStudent).map(([sid, cis]) => {
+    const s = studentMap[sid];
+    if (!s) return null;
+    const { totalScore, totalPossible, totalIncidents, totalMinutes } = aggregateCheckins(cis);
+    const pct = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : null;
+    const groupLabel = groupBy === 'homeroom' ? (s.homeroom || '—')
+                     : groupBy === 'grade'    ? (s.grade || '—')
+                     : null;
+    return { s, cis, pct, totalIncidents, totalMinutes, groupLabel };
+  }).filter(Boolean).sort((a,b) => {
+    if (a.groupLabel && b.groupLabel && a.groupLabel !== b.groupLabel)
+      return a.groupLabel.localeCompare(b.groupLabel);
+    return (a.pct === null ? -1 : a.pct) - (b.pct === null ? -1 : b.pct);
+  });
+
+  if (!rows.length) return '';
+
+  const groupHeader = groupBy !== 'student' ?
+    `<th>${groupBy === 'homeroom' ? 'Homeroom' : 'Grade'}</th>` : '';
+
+  return `
+    <div class="report-section">
+      <h3>Student Breakdown</h3>
+      <div style="overflow-x:auto;">
+        <table class="incident-summary-table">
+          <thead><tr>
+            <th>Student</th>
+            ${groupHeader}
+            <th>Check-ins</th>
+            <th>Avg Score</th>
+            <th>Incidents</th>
+            <th>Mins</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${escHtml(r.s.last_name)}, ${escHtml(r.s.first_name)}</td>
+                ${groupBy !== 'student' ? `<td style="color:var(--ci-text-2);">${escHtml(r.groupLabel)}</td>` : ''}
+                <td>${r.cis.length}</td>
+                <td>${r.pct !== null
+                  ? `<span style="font-weight:700;color:${scorePctColor(r.pct)};">${r.pct}%</span>`
+                  : '—'}</td>
+                <td>${r.totalIncidents > 0
+                  ? `<span style="color:var(--ci-red);font-weight:700;">${r.totalIncidents}</span>`
+                  : '—'}</td>
+                <td>${r.totalMinutes || '—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// Daily detail (student report only)
+function buildDailyDetailTable(checkins) {
+  return `
     <div class="report-section">
       <h3>Daily Detail</h3>
       <div style="overflow-x:auto;">
         <table class="incident-summary-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Score %</th>
-              <th>Incidents</th>
-              <th>Minutes</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Date</th><th>Score %</th><th>Incidents</th><th>Minutes</th></tr></thead>
           <tbody>
             ${checkins.map(ci => {
-              const scores  = ci.cico_period_scores || [];
-              const dayTotal    = scores.reduce((a, s) => s.score !== null ? a + s.score : a, 0);
-              const dayPossible = scores.filter(s => s.score !== null).length * 2;
-              const dayPct  = dayPossible > 0 ? `${Math.round((dayTotal/dayPossible)*100)}%` : '—';
-              const dayInc  = ci.cico_incidents || [];
-              const dayMins = dayInc.reduce((a, i) => a + (i.minutes || 0), 0);
-              const chips   = dayInc.map(i => {
-                const abbr = i.cico_incident_types?.abbreviation || '?';
-                return `<span class="incident-chip">${escHtml(abbr)}</span>`;
-              }).join('');
-              return `
-                <tr>
-                  <td>${escHtml(formatDate(ci.check_in_date))}</td>
-                  <td>${dayPct}</td>
-                  <td>${chips || '—'}</td>
-                  <td>${dayMins || '—'}</td>
-                </tr>`;
+              const scores   = ci.cico_period_scores || [];
+              const total    = scores.reduce((a,s) => s.score !== null ? a + s.score : a, 0);
+              const possible = scores.filter(s => s.score !== null).length * 2;
+              const pct      = possible > 0 ? Math.round((total/possible)*100) : null;
+              const incs     = ci.cico_incidents || [];
+              const mins     = incs.reduce((a,i) => a + (i.minutes||0), 0);
+              const chips    = incs.map(i =>
+                `<span class="incident-chip">${escHtml(i.cico_incident_types?.abbreviation||'?')}</span>`
+              ).join('');
+              return `<tr>
+                <td>${escHtml(formatDate(ci.check_in_date))}</td>
+                <td>${pct !== null ? `<span style="color:${scorePctColor(pct)};font-weight:700;">${pct}%</span>` : '—'}</td>
+                <td>${chips || '—'}</td>
+                <td>${mins || '—'}</td>
+              </tr>`;
             }).join('')}
           </tbody>
         </table>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-// ── Trend Chart ────────────────────────────────────────────────────────────
-function renderTrendChart(checkins) {
-  const canvas = document.getElementById('trend-chart');
+// ══════════════════════════════════════════════════════════════════════
+// BAR CHART DATA BUILDERS
+// ══════════════════════════════════════════════════════════════════════
+
+function buildStudentBarData(students, checkins) {
+  const byStudent = {};
+  checkins.forEach(ci => {
+    if (!byStudent[ci.student_id]) byStudent[ci.student_id] = [];
+    byStudent[ci.student_id].push(ci);
+  });
+
+  const items = students
+    .filter(s => byStudent[s.id])
+    .map(s => {
+      const { totalScore, totalPossible } = aggregateCheckins(byStudent[s.id]);
+      const pct = totalPossible > 0 ? Math.round((totalScore/totalPossible)*100) : 0;
+      return { label: `${s.last_name}, ${s.first_name.charAt(0)}.`, pct };
+    })
+    .sort((a,b) => b.pct - a.pct);
+
+  return { labels: items.map(i=>i.label), values: items.map(i=>i.pct) };
+}
+
+function buildHomeroomBarData(students, checkins) {
+  const studentMap = {};
+  students.forEach(s => { studentMap[s.id] = s; });
+
+  const byHomeroom = {};
+  checkins.forEach(ci => {
+    const s = studentMap[ci.student_id];
+    if (!s) return;
+    const key = s.homeroom || 'No Homeroom';
+    if (!byHomeroom[key]) byHomeroom[key] = [];
+    byHomeroom[key].push(ci);
+  });
+
+  const items = Object.entries(byHomeroom).map(([teacher, cis]) => {
+    const { totalScore, totalPossible } = aggregateCheckins(cis);
+    const pct = totalPossible > 0 ? Math.round((totalScore/totalPossible)*100) : 0;
+    return { label: teacher, pct };
+  }).sort((a,b) => b.pct - a.pct);
+
+  return { labels: items.map(i=>i.label), values: items.map(i=>i.pct) };
+}
+
+function buildGradeBarData(students, checkins) {
+  const studentMap = {};
+  students.forEach(s => { studentMap[s.id] = s; });
+
+  const byGrade = {};
+  checkins.forEach(ci => {
+    const s = studentMap[ci.student_id];
+    if (!s) return;
+    const key = s.grade ? `Grade ${s.grade}` : 'No Grade';
+    if (!byGrade[key]) byGrade[key] = [];
+    byGrade[key].push(ci);
+  });
+
+  const gradeOrder = ['TK','K','1','2','3','4','5','6','7','8'];
+  const items = Object.entries(byGrade).map(([grade, cis]) => {
+    const { totalScore, totalPossible } = aggregateCheckins(cis);
+    const pct = totalPossible > 0 ? Math.round((totalScore/totalPossible)*100) : 0;
+    return { label: grade, pct };
+  }).sort((a,b) => {
+    const ai = gradeOrder.indexOf(a.label.replace('Grade ',''));
+    const bi = gradeOrder.indexOf(b.label.replace('Grade ',''));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  return { labels: items.map(i=>i.label), values: items.map(i=>i.pct) };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CHART RENDERERS
+// ══════════════════════════════════════════════════════════════════════
+
+function renderTrendChart(canvasId, checkins) {
+  const canvas = document.getElementById(canvasId);
   if (!canvas || typeof Chart === 'undefined') return;
 
-  // Build daily score % array
-  const labels = [];
-  const scoreData = [];
+  const labels      = [];
+  const scoreData   = [];
   const incidentData = [];
 
   checkins.forEach(ci => {
-    const scores    = ci.cico_period_scores || [];
-    const total     = scores.reduce((a, s) => s.score !== null ? a + s.score : a, 0);
-    const possible  = scores.filter(s => s.score !== null).length * 2;
-    const pct       = possible > 0 ? Math.round((total / possible) * 100) : null;
-    labels.push(formatDate(ci.check_in_date).replace(/\w+, /, ''));  // trim weekday
+    const scores   = ci.cico_period_scores || [];
+    const total    = scores.reduce((a,s) => s.score !== null ? a+s.score : a, 0);
+    const possible = scores.filter(s => s.score !== null).length * 2;
+    const pct      = possible > 0 ? Math.round((total/possible)*100) : null;
+    labels.push(formatDate(ci.check_in_date).replace(/\w+, /,''));
     scoreData.push(pct);
-    incidentData.push((ci.cico_incidents || []).length);
+    incidentData.push((ci.cico_incidents||[]).length);
   });
 
-  destroyChart();
-
-  _trendChart = new Chart(canvas, {
+  _chartInstances[canvasId] = new Chart(canvas, {
     type: 'line',
     data: {
       labels,
@@ -249,12 +583,8 @@ function renderTrendChart(checkins) {
           backgroundColor: 'rgba(42,157,143,.1)',
           borderWidth: 2,
           pointBackgroundColor: scoreData.map(v =>
-            v === null ? '#94A3B8' : v >= 80 ? '#22C55E' : v >= 50 ? '#F59E0B' : '#EF4444'
-          ),
-          pointRadius: 5,
-          tension: .3,
-          fill: true,
-          yAxisID: 'y'
+            v === null ? '#94A3B8' : v >= 80 ? '#22C55E' : v >= 50 ? '#F59E0B' : '#EF4444'),
+          pointRadius: 5, tension: .3, fill: true, yAxisID: 'y'
         },
         {
           label: 'Incidents',
@@ -263,39 +593,101 @@ function renderTrendChart(checkins) {
           backgroundColor: 'transparent',
           borderWidth: 2,
           pointBackgroundColor: '#EF4444',
-          pointRadius: 4,
-          tension: .3,
-          borderDash: [4, 3],
-          yAxisID: 'y2'
+          pointRadius: 4, tension: .3,
+          borderDash: [4,3], yAxisID: 'y2'
         }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'top', labels: { font: { family: 'Nunito', size: 12 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              if (ctx.datasetIndex === 0) return `Score: ${ctx.raw !== null ? ctx.raw + '%' : 'n/a'}`;
-              return `Incidents: ${ctx.raw}`;
-            }
-          }
-        }
+        legend: { position: 'top', labels: { font: { family: 'Nunito', size: 12 } } }
       },
       scales: {
-        y:  { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#E2E8F0' } },
+        y:  { min: 0, max: 100, ticks: { callback: v => v+'%' }, grid: { color: '#E2E8F0' } },
         y2: { position: 'right', min: 0, ticks: { stepSize: 1 }, grid: { display: false } }
       }
     }
   });
 }
 
-function destroyChart() {
-  if (_trendChart) {
-    _trendChart.destroy();
-    _trendChart = null;
-  }
+function renderGroupBarChart(canvasId, { labels, values }) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined' || !labels.length) return;
+
+  const isHorizontal = labels.length > 6;
+  const barColors = values.map(v =>
+    v >= 80 ? 'rgba(34,197,94,.75)' : v >= 50 ? 'rgba(245,158,11,.75)' : 'rgba(239,68,68,.75)'
+  );
+
+  _chartInstances[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Avg Score %',
+        data: values,
+        backgroundColor: barColors,
+        borderColor: barColors.map(c => c.replace('.75','.9')),
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: isHorizontal ? 'y' : 'x',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `Score: ${ctx.raw}%` } }
+      },
+      scales: {
+        x: isHorizontal
+          ? { min: 0, max: 100, ticks: { callback: v => v+'%' }, grid: { color: '#E2E8F0' } }
+          : { grid: { display: false }, ticks: { font: { family: 'Nunito', size: 12 } } },
+        y: isHorizontal
+          ? { ticks: { font: { family: 'Nunito', size: 12 } }, grid: { display: false } }
+          : { min: 0, max: 100, ticks: { callback: v => v+'%' }, grid: { color: '#E2E8F0' } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SHARED HELPERS
+// ══════════════════════════════════════════════════════════════════════
+
+function aggregateCheckins(checkins) {
+  let totalScore = 0, totalPossible = 0, totalIncidents = 0, totalMinutes = 0;
+  const incidentCounts = {};
+
+  checkins.forEach(ci => {
+    (ci.cico_period_scores || []).forEach(ps => {
+      if (ps.score !== null) { totalScore += ps.score; totalPossible += 2; }
+    });
+    (ci.cico_incidents || []).forEach(inc => {
+      totalIncidents++;
+      if (inc.minutes) totalMinutes += inc.minutes;
+      const abbr = inc.cico_incident_types?.abbreviation || 'Unknown';
+      const desc = inc.cico_incident_types?.description  || '';
+      const key  = inc.incident_type_id || abbr;
+      if (!incidentCounts[key]) incidentCounts[key] = { abbr, desc, count: 0, minutes: 0 };
+      incidentCounts[key].count++;
+      if (inc.minutes) incidentCounts[key].minutes += inc.minutes;
+    });
+  });
+
+  return { totalScore, totalPossible, totalIncidents, totalMinutes, incidentCounts };
+}
+
+function scorePctColor(pct) {
+  if (pct === null) return 'var(--ci-text-2)';
+  if (pct >= 80) return '#15803d';
+  if (pct >= 50) return '#b45309';
+  return '#b91c1c';
+}
+
+function destroyAllCharts() {
+  Object.values(_chartInstances).forEach(c => { try { c.destroy(); } catch(e){} });
+  _chartInstances = {};
 }

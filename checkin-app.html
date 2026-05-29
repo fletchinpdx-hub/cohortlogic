@@ -196,10 +196,19 @@
       <div id="view-reports" class="cico-view">
         <div class="view-header">
           <h1>Reports</h1>
-          <p class="view-subtitle">Analyze trends and incident patterns.</p>
+          <p class="view-subtitle">Analyze behavior trends and incident patterns.</p>
         </div>
 
-        <div class="report-controls">
+        <!-- Report type tabs -->
+        <div class="report-tabs">
+          <button class="report-tab active" data-report="student" onclick="switchReportTab('student')">Student</button>
+          <button class="report-tab" data-report="teacher"  onclick="switchReportTab('teacher')">By Teacher</button>
+          <button class="report-tab" data-report="grade"    onclick="switchReportTab('grade')">By Grade</button>
+          <button class="report-tab" data-report="school"   onclick="switchReportTab('school')">School-wide</button>
+        </div>
+
+        <!-- Controls: Student -->
+        <div class="report-controls" id="rctrl-student">
           <div class="field-group" style="flex:1;min-width:160px;">
             <label class="field-label">Student</label>
             <select id="report-student-sel" class="cico-input cico-select" onchange="renderReports()"></select>
@@ -211,6 +220,53 @@
           <div class="field-group" style="width:160px;">
             <label class="field-label">To</label>
             <input type="date" id="report-to" class="cico-input" onchange="renderReports()" />
+          </div>
+        </div>
+
+        <!-- Controls: Teacher -->
+        <div class="report-controls hidden" id="rctrl-teacher">
+          <div class="field-group" style="flex:1;min-width:160px;">
+            <label class="field-label">Homeroom Teacher</label>
+            <select id="report-teacher-sel" class="cico-input cico-select" onchange="renderReports()"></select>
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">From</label>
+            <input type="date" id="report-teacher-from" class="cico-input" onchange="renderReports()" />
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">To</label>
+            <input type="date" id="report-teacher-to" class="cico-input" onchange="renderReports()" />
+          </div>
+        </div>
+
+        <!-- Controls: Grade -->
+        <div class="report-controls hidden" id="rctrl-grade">
+          <div class="field-group" style="flex:1;min-width:160px;">
+            <label class="field-label">Grade</label>
+            <select id="report-grade-sel" class="cico-input cico-select" onchange="renderReports()"></select>
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">From</label>
+            <input type="date" id="report-grade-from" class="cico-input" onchange="renderReports()" />
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">To</label>
+            <input type="date" id="report-grade-to" class="cico-input" onchange="renderReports()" />
+          </div>
+        </div>
+
+        <!-- Controls: School -->
+        <div class="report-controls hidden" id="rctrl-school">
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">From</label>
+            <input type="date" id="report-school-from" class="cico-input" onchange="renderReports()" />
+          </div>
+          <div class="field-group" style="width:160px;">
+            <label class="field-label">To</label>
+            <input type="date" id="report-school-to" class="cico-input" onchange="renderReports()" />
+          </div>
+          <div class="field-group" style="align-self:flex-end;">
+            <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="renderReports()">Run Report</button>
           </div>
         </div>
 
