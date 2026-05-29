@@ -108,6 +108,18 @@ body {
 .status-dot.green { background: var(--green); }
 .status-dot.blue  { background: var(--blue); }
 
+#sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+#back-to-dashboard {
+  font-size: 12px;
+  color: rgba(255,255,255,.45);
+  text-decoration: none;
+  transition: color .15s;
+}
+#back-to-dashboard:hover { color: rgba(255,255,255,.8); }
+
 /* ── Views ── */
 .view { display: none; }
 .view.active { display: block; }
@@ -601,11 +613,12 @@ body {
   #mobile-menu-btn { display: flex; }
 
   /* Nav items hidden until open */
-  #nav, #sidebar-status { display: none; width: 100%; }
+  #nav, #sidebar-status, #sidebar-footer { display: none; width: 100%; }
 
   /* Open state: drop nav below top bar */
-  #sidebar.menu-open #nav       { display: block; }
+  #sidebar.menu-open #nav            { display: block; }
   #sidebar.menu-open #sidebar-status { display: block; }
+  #sidebar.menu-open #sidebar-footer { display: block; }
 
   /* Main area */
   #main {
