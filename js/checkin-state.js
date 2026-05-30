@@ -8,7 +8,8 @@
 const CicoState = {
   currentUser: null,        // Supabase auth user object
   schoolId:    null,        // UUID of the user's school (null until assigned by admin)
-  settings:    { id: null, period_count: 8 },
+  schedules:   [],          // [{id, name, period_count, is_default}]
+  activeScheduleId: null,  // set in entry view; persisted per-student in localStorage
   categories:  [],          // [{id, name, display_order, active}]
   incidentTypes: [],        // [{id, abbreviation, description, tracks_minutes}]
   students:    [],          // [{id, first_name, last_name, grade, homeroom, student_ref, active}]
@@ -95,18 +96,20 @@ async function loadCicoData() {
     // The school_id filter on settings/categories/incident_types ensures
     // we get this school's config rather than another school's.
     const [settRes, catRes, incRes, studRes] = await Promise.all([
-      SupabaseClient.from('cico_settings').select('*').limit(1).maybeSingle(),
+      SupabaseClient.from('cico_settings').select('*').order('is_default', { ascending: false }).order('name'),
       SupabaseClient.from('cico_categories').select('*').eq('active', true).order('display_order'),
       SupabaseClient.from('cico_incident_types').select('*').eq('active', true).order('display_order'),
       SupabaseClient.from('cico_students').select('*').eq('active', true).order('last_name').order('first_name')
     ]);
 
-    if (settRes.data) {
-      CicoState.settings = settRes.data;
-    }
+    CicoState.schedules     = settRes.data || [];
     CicoState.categories    = catRes.data  || [];
     CicoState.incidentTypes = incRes.data  || [];
     CicoState.students      = studRes.data || [];
+
+    // Pick initial active schedule: default profile, or first available
+    const def = CicoState.schedules.find(s => s.is_default) || CicoState.schedules[0] || null;
+    CicoState.activeScheduleId = def ? def.id : null;
 
   } catch (err) {
     console.error('Failed to load CICO data:', err);
@@ -115,8 +118,13 @@ async function loadCicoData() {
 }
 
 // ── Initialize entry periods from settings ─────────────────────────────────
+function getActiveSchedule() {
+  return CicoState.schedules.find(s => s.id === CicoState.activeScheduleId) || null;
+}
+
 function initEntryPeriods() {
-  const count = CicoState.settings.period_count || 8;
+  const sched = getActiveSchedule();
+  const count = sched ? sched.period_count : 8;
   const periods = {};
   for (let p = 1; p <= count; p++) {
     const scores = {};

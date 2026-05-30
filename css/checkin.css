@@ -769,6 +769,38 @@ textarea.cico-input { resize: vertical; }
 }
 .config-row-delete:hover { color: var(--ci-red); background: var(--ci-red-soft); }
 
+.config-row-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ci-teal);
+  background: rgba(42,157,143,.12);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.config-row-action {
+  background: none;
+  border: 1px solid var(--ci-border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--ci-text-2);
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.config-row-action:hover { border-color: var(--ci-teal); color: var(--ci-teal); }
+
+/* Nav divider between config and daily-use sections */
+.nav-divider {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,.15);
+  margin: 6px 12px;
+}
+
+/* Schedule selector row in entry view */
+.entry-schedule-row {
+  margin-bottom: 4px;
+}
+
 .add-config-row {
   display: flex;
   gap: 8px;

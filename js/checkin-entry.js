@@ -20,11 +20,42 @@ function initEntryView() {
   // Wire clear button
   document.getElementById('clear-entry-btn').addEventListener('click', clearEntryForm);
 
+  // Populate schedule selector
+  populateEntryScheduleSelector();
+
   // Init student search
   initStudentSearch();
 
   // Init period grid (empty state until student selected)
   updateEntryGrid();
+}
+
+// ── Schedule Selector ──────────────────────────────────────────────────────
+function populateEntryScheduleSelector() {
+  const sel = document.getElementById('entry-schedule-sel');
+  if (!sel) return;
+
+  if (!CicoState.schedules.length) {
+    sel.innerHTML = '<option value="">No schedules configured</option>';
+    sel.disabled = true;
+    return;
+  }
+
+  sel.disabled = false;
+  sel.innerHTML = CicoState.schedules.map(s =>
+    `<option value="${s.id}">${escHtml(s.name)} (${s.period_count} periods)</option>`
+  ).join('');
+
+  sel.value = CicoState.activeScheduleId || '';
+}
+
+function onScheduleChange() {
+  const sel = document.getElementById('entry-schedule-sel');
+  CicoState.activeScheduleId = sel.value || null;
+  if (CicoState.entry.studentId) {
+    initEntryPeriods();
+    renderPeriodGrid();
+  }
 }
 
 // ── Student Search Dropdown ────────────────────────────────────────────────
@@ -69,6 +100,10 @@ function initStudentSearch() {
     hiddenId.value = s.id;
     input.value    = CicoState.entry.studentName;
     dropdown.classList.add('hidden');
+
+    // Recall last schedule used for this student
+    recallStudentSchedule(s.id);
+
     initEntryPeriods();
     updateEntryGrid();
   }
@@ -197,6 +232,27 @@ function renderPeriodGrid() {
 
   html += '</tbody></table>';
   grid.innerHTML = html;
+}
+
+// ── Schedule recall/persist per student ───────────────────────────────────
+function recallStudentSchedule(studentId) {
+  try {
+    const stored = JSON.parse(localStorage.getItem('cico_student_schedules') || '{}');
+    const lastId = stored[studentId];
+    if (lastId && CicoState.schedules.find(s => s.id === lastId)) {
+      CicoState.activeScheduleId = lastId;
+      const sel = document.getElementById('entry-schedule-sel');
+      if (sel) sel.value = lastId;
+    }
+  } catch (_) {}
+}
+
+function persistStudentSchedule(studentId) {
+  try {
+    const stored = JSON.parse(localStorage.getItem('cico_student_schedules') || '{}');
+    stored[studentId] = CicoState.activeScheduleId;
+    localStorage.setItem('cico_student_schedules', JSON.stringify(stored));
+  } catch (_) {}
 }
 
 // ── Score toggling ─────────────────────────────────────────────────────────
@@ -346,6 +402,7 @@ async function saveCheckin() {
       if (incErr) throw incErr;
     }
 
+    persistStudentSchedule(CicoState.entry.studentId);
     showToast('✅ Check-in saved!', 'success');
     clearEntryForm();
 

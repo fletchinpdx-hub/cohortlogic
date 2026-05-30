@@ -40,20 +40,21 @@
       </div>
 
       <nav id="cico-nav">
+        <a class="cico-nav-item" data-view="settings">
+          <span class="nav-icon">⚙️</span> Settings
+        </a>
+        <a class="cico-nav-item" data-view="students">
+          <span class="nav-icon">👥</span> Students
+        </a>
+        <hr class="nav-divider" />
         <a class="cico-nav-item active" data-view="entry">
           <span class="nav-icon">✅</span> Check-in Entry
         </a>
         <a class="cico-nav-item" data-view="history">
           <span class="nav-icon">📋</span> History
         </a>
-        <a class="cico-nav-item" data-view="students">
-          <span class="nav-icon">👥</span> Students
-        </a>
         <a class="cico-nav-item" data-view="reports">
           <span class="nav-icon">📊</span> Reports
-        </a>
-        <a class="cico-nav-item" data-view="settings">
-          <span class="nav-icon">⚙️</span> Settings
         </a>
       </nav>
 
@@ -75,6 +76,14 @@
         <div class="view-header">
           <h1>Check-in Entry</h1>
           <p class="view-subtitle">Record a student's period-by-period scores for the day.</p>
+        </div>
+
+        <!-- Schedule selector -->
+        <div class="entry-schedule-row">
+          <div class="field-group">
+            <label class="field-label">Schedule</label>
+            <select id="entry-schedule-sel" class="cico-input cico-select" onchange="onScheduleChange()" style="width:220px;"></select>
+          </div>
         </div>
 
         <!-- Student + Date row -->
@@ -282,25 +291,27 @@
       <div id="view-settings" class="cico-view">
         <div class="view-header">
           <h1>Settings</h1>
-          <p class="view-subtitle">Configure periods, scoring categories, and incident types.</p>
+          <p class="view-subtitle">Configure schedule profiles, scoring categories, and incident types.</p>
         </div>
 
         <div class="settings-sections">
 
-          <!-- Period count -->
+          <!-- Schedule profiles -->
           <div class="settings-card">
-            <h2 class="settings-section-title">Periods per Day</h2>
-            <p class="settings-hint">How many periods does a typical school day have?</p>
-            <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
-              <input type="number" id="period-count-input" class="cico-input" style="width:80px;" min="1" max="20" value="8" />
-              <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="savePeriodCount()">Save</button>
+            <h2 class="settings-section-title">Schedule Profiles</h2>
+            <p class="settings-hint">Create named schedules with different period counts. The default is used when no prior schedule is remembered for a student.</p>
+            <div id="schedules-list" class="config-list"></div>
+            <div class="add-config-row" style="margin-top:12px;">
+              <input type="text" id="new-schedule-name" class="cico-input" placeholder="Profile name (e.g. Short Day)…" style="flex:1;" />
+              <input type="number" id="new-schedule-periods" class="cico-input" style="width:80px;" min="1" max="20" placeholder="Periods" />
+              <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="addSchedule()">+ Add</button>
             </div>
           </div>
 
           <!-- Categories -->
           <div class="settings-card">
             <h2 class="settings-section-title">Scoring Categories</h2>
-            <p class="settings-hint">Each category is scored 0, 1, or 2 per period (e.g., Safe, Respectful, Responsible).</p>
+            <p class="settings-hint">Each category is scored 0, 1, or 2 per period. Apply to all schedule profiles.</p>
             <div id="categories-list" class="config-list"></div>
             <div class="add-config-row" style="margin-top:12px;">
               <input type="text" id="new-category-name" class="cico-input" placeholder="New category name…" style="flex:1;" />
