@@ -153,7 +153,7 @@ async function renderStudentReport() {
       month:  buildMonthBreakdown(data),
       dow:    buildDowBreakdown(data),
     };
-    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
 
     body.innerHTML = buildStudentReportHTML(student, data);
     renderTrendChart('trend-chart', data);
@@ -184,9 +184,9 @@ function buildStudentReportHTML(student, checkins) {
       <p class="chart-section-label">Score % by Day</p>
       <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
     </div>
-    ${buildBreakdownSectionHTML('period', 'By Period')}
-    ${buildBreakdownSectionHTML('month',  'By Month')}
-    ${buildBreakdownSectionHTML('dow',    'By Day of Week')}
+    ${buildBreakdownSectionHTML('period', 'By Period', 'total')}
+    ${buildBreakdownSectionHTML('month',  'By Month',  'category')}
+    ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'category')}
     ${buildIncidentTable(incidentCounts)}
     ${buildDailyDetailTable(checkins)}`;
 }
@@ -234,7 +234,7 @@ async function renderTeacherReport() {
       month:  buildMonthBreakdown(checkins),
       dow:    buildDowBreakdown(checkins),
     };
-    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    `${escHtml(teacher)} — Homeroom Report`,
@@ -298,7 +298,7 @@ async function renderGradeReport() {
       month:  buildMonthBreakdown(checkins),
       dow:    buildDowBreakdown(checkins),
     };
-    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    `Grade ${escHtml(grade)} — Report`,
@@ -355,7 +355,7 @@ async function renderSchoolReport() {
       month:  buildMonthBreakdown(checkins),
       dow:    buildDowBreakdown(checkins),
     };
-    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    'School-wide Report',
@@ -437,14 +437,16 @@ function buildDowBreakdown(checkins) {
 // BREAKDOWN CHART RENDERING
 // ══════════════════════════════════════════════════════════════════════
 
-function buildBreakdownSectionHTML(type, title) {
+function buildBreakdownSectionHTML(type, title, defaultMode = 'total') {
+  const totalActive    = defaultMode === 'total'    ? 'active' : '';
+  const categoryActive = defaultMode === 'category' ? 'active' : '';
   return `
     <div class="report-section">
       <div class="report-section-header">
         <h3>${title}</h3>
         <div class="breakdown-toggle">
-          <button class="breakdown-btn active" onclick="setBreakdownMode('${type}','total',this)">Total</button>
-          <button class="breakdown-btn" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
+          <button class="breakdown-btn ${totalActive}"    onclick="setBreakdownMode('${type}','total',this)">Total</button>
+          <button class="breakdown-btn ${categoryActive}" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="${type}-chart"></canvas></div>
@@ -576,9 +578,9 @@ function buildGroupReportHTML({ title, subtitle, students, checkins, groupBy, ch
       <p class="chart-section-label">${escHtml(chartLabel)}</p>
       <div class="chart-wrap chart-tall"><canvas id="group-bar-chart"></canvas></div>
     </div>
-    ${buildBreakdownSectionHTML('period', 'By Period')}
-    ${buildBreakdownSectionHTML('month',  'By Month')}
-    ${buildBreakdownSectionHTML('dow',    'By Day of Week')}
+    ${buildBreakdownSectionHTML('period', 'By Period', 'total')}
+    ${buildBreakdownSectionHTML('month',  'By Month',  'category')}
+    ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'category')}
     ${buildIncidentTable(incidentCounts)}
     ${buildStudentBreakdownTable(students, checkins, groupBy)}`;
 }

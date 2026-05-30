@@ -3,7 +3,7 @@
  * Settings view: schedule profiles, scoring categories, incident types.
  */
 
-const DEFAULT_CATEGORIES = ['Safe', 'Respectful', 'Kind', 'Responsible'];
+const DEFAULT_CATEGORIES = ['Safe', 'Kind', 'Responsible'];
 
 const DEFAULT_INCIDENT_TYPES = [
   { abbreviation: 'PD',    description: 'Property Destruction',              tracks_minutes: true },
