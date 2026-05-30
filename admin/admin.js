@@ -865,7 +865,7 @@ async function loadCicoStats() {
         ? s.lastCheckin.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : '—';
       const meta = [s.district, s.state].filter(Boolean).join(' · ');
-      return `<tr>
+      return `<tr id="cico-row-${s.id}">
         <td>
           <strong>${escAdmin(s.name)}</strong>
           ${meta ? `<br><span style="font-size:11px;color:#9ca3af;">${escAdmin(meta)}</span>` : ''}
@@ -873,6 +873,7 @@ async function loadCicoStats() {
         <td style="text-align:center;">${s.students}</td>
         <td style="text-align:center;font-weight:${s.checkins30d > 0 ? '700' : '400'};color:${s.checkins30d > 0 ? 'var(--green)' : '#9ca3af'};">${s.checkins30d}</td>
         <td style="font-size:12px;color:#6b7280;">${lastActivity}</td>
+        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="wipeSchoolData('${s.id}','${escAdmin(s.name)}',${s.students})">Wipe Data</button></td>
       </tr>`;
     }).join('');
 
@@ -884,10 +885,61 @@ async function loadCicoStats() {
           <th style="text-align:center;">Students</th>
           <th style="text-align:center;">Check-ins (30d)</th>
           <th>Last Activity</th>
+          <th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+}
+
+function wipeSchoolData(id, name, students) {
+  const row = document.getElementById(`cico-row-${id}`);
+  if (!row) return;
+  const studentLabel = `${students} student${students !== 1 ? 's' : ''}`;
+  row.innerHTML = `
+    <td colspan="5">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;flex-wrap:wrap;">
+        <div>
+          <strong>${escAdmin(name)}</strong>
+          <div style="font-size:12px;color:var(--red);margin-top:2px;">
+            Permanently delete all CICO data — ${escAdmin(studentLabel)}, all check-ins, settings, and categories. Cannot be undone.
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmWipeSchoolData('${id}','${escAdmin(name)}')">Yes, wipe all data</button>
+          <button class="reassign-btn" onclick="loadCicoStats()">Cancel</button>
+        </div>
+      </div>
+    </td>`;
+}
+
+async function confirmWipeSchoolData(id, name) {
+  const row = document.getElementById(`cico-row-${id}`);
+  if (row) row.innerHTML = `<td colspan="5" style="color:#9ca3af;font-size:13px;padding:12px;">Wiping data for ${escAdmin(name)}…</td>`;
+
+  // Delete child records first (cico_period_scores + cico_incidents reference checkin_id)
+  const { data: checkinRows } = await db.from('cico_checkins').select('id').eq('school_id', id);
+  const checkinIds = (checkinRows || []).map(c => c.id);
+  if (checkinIds.length) {
+    await Promise.all([
+      db.from('cico_period_scores').delete().in('checkin_id', checkinIds),
+      db.from('cico_incidents').delete().in('checkin_id', checkinIds),
+    ]);
+  }
+
+  // Delete all school-scoped tables in parallel
+  const results = await Promise.all([
+    db.from('cico_checkins').delete().eq('school_id', id),
+    db.from('cico_students').delete().eq('school_id', id),
+    db.from('cico_settings').delete().eq('school_id', id),
+    db.from('cico_categories').delete().eq('school_id', id),
+    db.from('cico_incident_types').delete().eq('school_id', id),
+  ]);
+
+  const errors = results.filter(r => r.error).map(r => r.error.message);
+  if (errors.length) alert('Some data could not be deleted:\n' + errors.join('\n'));
+
+  loadCicoStats();
 }
 
 async function loadAnalytics() {
