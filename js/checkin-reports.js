@@ -156,7 +156,7 @@ async function renderStudentReport() {
       month:  buildMonthBreakdown(data),
       dow:    buildDowBreakdown(data),
     };
-    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _breakdownMode = { period: 'total', month: 'combined', dow: 'combined' };
     _incidentData  = {
       period: buildIncidentBreakdown('period', data),
       month:  buildIncidentBreakdown('month',  data),
@@ -197,8 +197,8 @@ function buildStudentReportHTML(student, checkins) {
       <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
     </div>
     ${buildBreakdownSectionHTML('period', 'By Period', 'total')}
-    ${buildBreakdownSectionHTML('month',  'By Month',  'category')}
-    ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'category')}
+    ${buildBreakdownSectionHTML('month',  'By Month',  'combined')}
+    ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'combined')}
     ${buildIncidentSectionHTML('period', 'Incidents by Period')}
     ${buildIncidentSectionHTML('month',  'Incidents by Month')}
     ${buildIncidentSectionHTML('dow',    'Incidents by Day of Week')}
@@ -249,7 +249,7 @@ async function renderTeacherReport() {
       month:  buildMonthBreakdown(checkins),
       dow:    buildDowBreakdown(checkins),
     };
-    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _breakdownMode = { period: 'total', month: 'combined', dow: 'combined' };
     _incidentData  = {
       period: buildIncidentBreakdown('period', checkins),
       month:  buildIncidentBreakdown('month',  checkins),
@@ -322,7 +322,7 @@ async function renderGradeReport() {
       month:  buildMonthBreakdown(checkins),
       dow:    buildDowBreakdown(checkins),
     };
-    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _breakdownMode = { period: 'total', month: 'combined', dow: 'combined' };
     _incidentData  = {
       period: buildIncidentBreakdown('period', checkins),
       month:  buildIncidentBreakdown('month',  checkins),
@@ -388,7 +388,7 @@ async function renderSchoolReport() {
       month:  buildMonthBreakdown(checkins),
       dow:    buildDowBreakdown(checkins),
     };
-    _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _breakdownMode = { period: 'total', month: 'combined', dow: 'combined' };
     _incidentData  = {
       period: buildIncidentBreakdown('period', checkins),
       month:  buildIncidentBreakdown('month',  checkins),
@@ -483,26 +483,27 @@ function buildIncidentBreakdown(type, checkins) {
   const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const result = {};
 
+  function addIncident(key, inc) {
+    if (!result[key]) result[key] = { count: 0, minutes: 0, types: {} };
+    result[key].count++;
+    result[key].minutes += inc.minutes || 0;
+    const tid  = inc.incident_type_id || 'unknown';
+    const abbr = inc.cico_incident_types?.abbreviation || '?';
+    if (!result[key].types[tid]) result[key].types[tid] = { abbr, count: 0, minutes: 0 };
+    result[key].types[tid].count++;
+    result[key].types[tid].minutes += inc.minutes || 0;
+  }
+
   checkins.forEach(ci => {
     const incidents = ci.cico_incidents || [];
     if (!incidents.length) return;
-
     if (type === 'period') {
-      incidents.forEach(inc => {
-        const key = inc.period_number;
-        if (!result[key]) result[key] = { count: 0, minutes: 0 };
-        result[key].count++;
-        result[key].minutes += inc.minutes || 0;
-      });
+      incidents.forEach(inc => addIncident(inc.period_number, inc));
     } else {
       const key = type === 'month'
         ? ci.check_in_date.substring(0, 7)
         : DOW_NAMES[new Date(ci.check_in_date + 'T12:00:00').getDay()];
-      incidents.forEach(inc => {
-        if (!result[key]) result[key] = { count: 0, minutes: 0 };
-        result[key].count++;
-        result[key].minutes += inc.minutes || 0;
-      });
+      incidents.forEach(inc => addIncident(key, inc));
     }
   });
 
@@ -565,37 +566,43 @@ function renderIncidentSection(type) {
   if (!canvas || typeof Chart === 'undefined') return;
 
   const labels = orderedKeys.map(keyLabel);
-  const values = orderedKeys.map(k => data[k]?.[mode] || 0);
-  const color  = mode === 'count'
-    ? { bg: 'rgba(239,68,68,0.7)', border: 'rgba(239,68,68,0.9)' }
-    : { bg: 'rgba(245,158,11,0.7)', border: 'rgba(245,158,11,0.9)' };
+
+  // Collect all incident types present in the data (ordered by total count desc)
+  const typeMap = {};
+  orderedKeys.forEach(k => {
+    Object.entries(data[k]?.types || {}).forEach(([tid, info]) => {
+      if (!typeMap[tid]) typeMap[tid] = { abbr: info.abbr, total: 0 };
+      typeMap[tid].total += info.count;
+    });
+  });
+  const typeIds = Object.keys(typeMap).sort((a, b) => typeMap[b].total - typeMap[a].total);
+
+  const INC_COLORS = [
+    'rgba(239,68,68,0.8)',   'rgba(245,158,11,0.8)',  'rgba(59,130,246,0.8)',
+    'rgba(139,92,246,0.8)',  'rgba(34,197,94,0.8)',   'rgba(236,72,153,0.8)',
+    'rgba(20,184,166,0.8)',  'rgba(251,146,60,0.8)',  'rgba(99,102,241,0.8)',
+  ];
+
+  const datasets = typeIds.map((tid, i) => ({
+    label: typeMap[tid].abbr,
+    data:  orderedKeys.map(k => data[k]?.types?.[tid]?.[mode] || 0),
+    backgroundColor: INC_COLORS[i % INC_COLORS.length],
+    borderWidth: 0,
+    stack: 'inc',
+  }));
 
   _chartInstances[canvasId] = new Chart(canvas, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: mode === 'count' ? 'Incident Count' : 'Total Minutes',
-        data: values,
-        backgroundColor: color.bg,
-        borderColor: color.border,
-        borderWidth: 1,
-        borderRadius: 4,
-      }]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: {
-          label: ctx => mode === 'count'
-            ? `Incidents: ${ctx.raw}`
-            : `Minutes: ${ctx.raw}`
-        }}
+        legend: { display: true, position: 'top', labels: { font: { family: 'Nunito', size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}${mode === 'minutes' ? ' min' : ''}` } }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { family: 'Nunito', size: 12 } } },
-        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#E2E8F0' } }
+        x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'Nunito', size: 12 } } },
+        y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#E2E8F0' } }
       }
     }
   });
@@ -606,16 +613,15 @@ function renderIncidentSection(type) {
 // ══════════════════════════════════════════════════════════════════════
 
 function buildBreakdownSectionHTML(type, title, defaultMode = 'total') {
-  const totalActive    = defaultMode === 'total'    ? 'active' : '';
-  const categoryActive = defaultMode === 'category' ? 'active' : '';
+  const toggle = defaultMode === 'combined' ? '' : `
+        <div class="breakdown-toggle">
+          <button class="breakdown-btn ${defaultMode === 'total' ? 'active' : ''}"    onclick="setBreakdownMode('${type}','total',this)">Total</button>
+          <button class="breakdown-btn ${defaultMode === 'category' ? 'active' : ''}" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
+        </div>`;
   return `
     <div class="report-section">
       <div class="report-section-header">
-        <h3>${title}</h3>
-        <div class="breakdown-toggle">
-          <button class="breakdown-btn ${totalActive}"    onclick="setBreakdownMode('${type}','total',this)">Total</button>
-          <button class="breakdown-btn ${categoryActive}" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
-        </div>
+        <h3>${title}</h3>${toggle}
       </div>
       <div class="chart-wrap"><canvas id="${type}-chart"></canvas></div>
     </div>`;
@@ -665,6 +671,15 @@ function renderBreakdownChart(canvasId, data, orderedKeys, keyLabel, mode) {
 
   const labels = orderedKeys.map(keyLabel);
 
+  const catDatasets = CicoState.categories.map((cat, i) => {
+    const col = BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
+    const values = orderedKeys.map(k => {
+      const cd = data[k]?.cats?.[cat.id];
+      return cd && cd.possible > 0 ? Math.round((cd.score / cd.possible) * 100) : 0;
+    });
+    return { label: cat.name, data: values, backgroundColor: col.alpha, borderColor: col.solid, borderWidth: 1, borderRadius: 4 };
+  });
+
   let datasets;
   if (mode === 'total') {
     const values = orderedKeys.map(k => {
@@ -674,32 +689,18 @@ function renderBreakdownChart(canvasId, data, orderedKeys, keyLabel, mode) {
     const barColors = values.map(v =>
       v >= 80 ? 'rgba(34,197,94,0.75)' : v >= 50 ? 'rgba(245,158,11,0.75)' : 'rgba(239,68,68,0.75)'
     );
-    datasets = [{
-      label: 'Avg Score %',
-      data: values,
-      backgroundColor: barColors,
-      borderColor: barColors.map(c => c.replace('0.75','0.9')),
-      borderWidth: 1,
-      borderRadius: 4,
-    }];
-  } else {
-    // One dataset per category
-    datasets = CicoState.categories.map((cat, i) => {
-      const col = BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
-      const values = orderedKeys.map(k => {
-        const d  = data[k];
-        const cd = d?.cats?.[cat.id];
-        return cd && cd.possible > 0 ? Math.round((cd.score / cd.possible) * 100) : 0;
-      });
-      return {
-        label: cat.name,
-        data: values,
-        backgroundColor: col.alpha,
-        borderColor: col.solid,
-        borderWidth: 1,
-        borderRadius: 4,
-      };
+    datasets = [{ label: 'Avg Score %', data: values, backgroundColor: barColors, borderColor: barColors.map(c => c.replace('0.75','0.9')), borderWidth: 1, borderRadius: 4 }];
+  } else if (mode === 'combined') {
+    const totalValues = orderedKeys.map(k => {
+      const d = data[k];
+      return d && d.possible > 0 ? Math.round((d.total / d.possible) * 100) : 0;
     });
+    datasets = [
+      { label: 'Total', data: totalValues, backgroundColor: 'rgba(30,58,95,0.8)', borderColor: 'rgba(30,58,95,1)', borderWidth: 1, borderRadius: 4 },
+      ...catDatasets,
+    ];
+  } else {
+    datasets = catDatasets;
   }
 
   _chartInstances[canvasId] = new Chart(canvas, {
@@ -747,8 +748,8 @@ function buildGroupReportHTML({ title, subtitle, students, checkins, groupBy, ch
       <div class="chart-wrap chart-tall"><canvas id="group-bar-chart"></canvas></div>
     </div>
     ${buildBreakdownSectionHTML('period', 'By Period', 'total')}
-    ${buildBreakdownSectionHTML('month',  'By Month',  'category')}
-    ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'category')}
+    ${buildBreakdownSectionHTML('month',  'By Month',  'combined')}
+    ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'combined')}
     ${buildIncidentSectionHTML('period', 'Incidents by Period')}
     ${buildIncidentSectionHTML('month',  'Incidents by Month')}
     ${buildIncidentSectionHTML('dow',    'Incidents by Day of Week')}
