@@ -606,6 +606,7 @@ async function loadAllUsers() {
           </div>
         </td>
         <td style="font-size:11px;color:#9ca3af;">${date}</td>
+        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}','${escAdmin(u.full_name || 'this user')}')">Deactivate</button></td>
       </tr>`;
   }).join('');
 
@@ -619,6 +620,7 @@ async function loadAllUsers() {
             <th>Assigned School</th>
             <th>Reassign</th>
             <th>Joined</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -668,6 +670,35 @@ async function reassignUserSchool(userId) {
     setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 2000);
   }
 }
+
+function deactivateUser(id, name) {
+  const row = document.getElementById(`user-row-${id}`);
+  if (!row) return;
+  row.innerHTML = `
+    <td colspan="6">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
+        <span style="font-size:13px;">Deactivate <strong>${escAdmin(name)}</strong>? They'll lose access immediately.</span>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmDeactivateUser('${id}')">Yes, deactivate</button>
+          <button class="reassign-btn" onclick="cancelDeactivateUser('${id}')">Cancel</button>
+        </div>
+      </div>
+    </td>`;
+}
+
+async function confirmDeactivateUser(id) {
+  const { error } = await db.from('profiles').update({ approved: false }).eq('id', id);
+  if (error) { alert('Error: ' + error.message); return; }
+  const row = document.getElementById(`user-row-${id}`);
+  if (row) row.remove();
+  const container = document.getElementById('all-users-list');
+  const tbody = container ? container.querySelector('tbody') : null;
+  if (tbody && !tbody.querySelector('tr')) {
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No approved users yet.</p>';
+  }
+}
+
+function cancelDeactivateUser(id) { loadAllUsers(); }
 
 // ── Pending users (with school assignment) ───────────────────────────────
 
@@ -778,9 +809,85 @@ function loadDashboard() {
   loadSchools().then(() => {
     loadPendingUsers();
     loadAllUsers();
+    loadCicoStats();
   });
   loadAuditLog();
   loadAnalytics();
+}
+
+async function loadCicoStats() {
+  const thirtyAgo  = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+  const todayStart = new Date().toISOString().split('T')[0];
+
+  const [studentsRes, checkinsRes, todayRes] = await Promise.all([
+    db.from('cico_students').select('school_id'),
+    db.from('cico_checkins').select('school_id, created_at').gte('created_at', thirtyAgo),
+    db.from('cico_checkins').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+  ]);
+
+  const students   = studentsRes.data || [];
+  const checkins   = checkinsRes.data || [];
+  const todayCount = todayRes.count   ?? 0;
+
+  // Aggregate per school
+  const bySchool = {};
+  students.forEach(s => {
+    if (!bySchool[s.school_id]) bySchool[s.school_id] = { students: 0, checkins30d: 0, lastCheckin: null };
+    bySchool[s.school_id].students++;
+  });
+  checkins.forEach(c => {
+    if (!bySchool[c.school_id]) bySchool[c.school_id] = { students: 0, checkins30d: 0, lastCheckin: null };
+    bySchool[c.school_id].checkins30d++;
+    const ts = new Date(c.created_at);
+    if (!bySchool[c.school_id].lastCheckin || ts > bySchool[c.school_id].lastCheckin) {
+      bySchool[c.school_id].lastCheckin = ts;
+    }
+  });
+
+  const activeSchools = Object.values(bySchool).filter(s => s.checkins30d > 0).length;
+
+  document.getElementById('cico-stat-students').textContent = students.length;
+  document.getElementById('cico-stat-checkins').textContent = checkins.length;
+  document.getElementById('cico-stat-today').textContent    = todayCount;
+  document.getElementById('cico-stat-schools').textContent  = activeSchools;
+
+  const wrap = document.getElementById('cico-schools-table');
+  if (!_schools.length) {
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools configured yet.</p>';
+    return;
+  }
+
+  const rows = [..._schools]
+    .map(s => ({ ...s, ...(bySchool[s.id] || { students: 0, checkins30d: 0, lastCheckin: null }) }))
+    .sort((a, b) => b.checkins30d - a.checkins30d)
+    .map(s => {
+      const lastActivity  = s.lastCheckin
+        ? s.lastCheckin.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+      const meta = [s.district, s.state].filter(Boolean).join(' · ');
+      return `<tr>
+        <td>
+          <strong>${escAdmin(s.name)}</strong>
+          ${meta ? `<br><span style="font-size:11px;color:#9ca3af;">${escAdmin(meta)}</span>` : ''}
+        </td>
+        <td style="text-align:center;">${s.students}</td>
+        <td style="text-align:center;font-weight:${s.checkins30d > 0 ? '700' : '400'};color:${s.checkins30d > 0 ? 'var(--green)' : '#9ca3af'};">${s.checkins30d}</td>
+        <td style="font-size:12px;color:#6b7280;">${lastActivity}</td>
+      </tr>`;
+    }).join('');
+
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="event-table">
+        <thead><tr>
+          <th>School</th>
+          <th style="text-align:center;">Students</th>
+          <th style="text-align:center;">Check-ins (30d)</th>
+          <th>Last Activity</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 async function loadAnalytics() {
