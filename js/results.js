@@ -221,8 +221,27 @@ function exportResults() {
 
 // ── Regenerate ──
 document.getElementById('regenerate-btn').addEventListener('click', () => {
-  runBalancingAlgorithm();
-  renderResultsGrid();
+  const btn = document.getElementById('regenerate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Regenerating…';
+
+  // Slight delay so the button state renders before the (synchronous) algorithm runs
+  setTimeout(() => {
+    _balanceWithVariation = true;
+    runBalancingAlgorithm();
+    _balanceWithVariation = false;
+    renderResults();
+    btn.disabled = false;
+    btn.textContent = '🔄 Regenerate';
+
+    // Brief confirmation on the subtitle
+    const sub = document.querySelector('#view-results .view-subtitle');
+    if (sub) {
+      const orig = sub.textContent;
+      sub.textContent = '✓ Classes regenerated with a new arrangement.';
+      setTimeout(() => { sub.textContent = orig; }, 2500);
+    }
+  }, 30);
 });
 
 function countSepViolations() {

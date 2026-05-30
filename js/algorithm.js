@@ -91,9 +91,18 @@ function computeComposite(s) {
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5;
 }
 
+// When true, adds small random jitter so regenerate produces different arrangements
+let _balanceWithVariation = false;
+
 function sortByComposite(students) {
   return students
-    .map(s => ({ ...s, _composite: computeComposite(s) }))
+    .map(s => {
+      const base = computeComposite(s);
+      // Jitter is ±7.5% of the 0–1 scale — enough to shuffle similar students
+      // but not enough to move a strong student below a weak one
+      const jitter = _balanceWithVariation ? (Math.random() - 0.5) * 0.15 : 0;
+      return { ...s, _composite: base + jitter };
+    })
     .sort((a, b) => b._composite - a._composite);
 }
 
