@@ -16,6 +16,7 @@ const AppState = {
     { name: 'Behavior',  type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
     { name: 'IEP',       type: 'flag',     column: '' },
     { name: '504',       type: 'flag',     column: '' },
+    { name: 'Gender',    type: 'category', column: '' },
     { name: 'Ethnicity', type: 'category', column: '' },
   ],
   columnMap: {         // required field -> spreadsheet column

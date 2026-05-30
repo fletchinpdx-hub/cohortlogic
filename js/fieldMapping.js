@@ -93,6 +93,11 @@ function renderCompetencies() {
     if (dirEl) dirEl.addEventListener('change', e => { AppState.competencies[i].direction = e.target.value; });
     row.querySelector('.comp-column').addEventListener('change', e => {
       AppState.competencies[i].column = e.target.value;
+      // Auto-fill the name field if it's still blank
+      if (!AppState.competencies[i].name && e.target.value) {
+        AppState.competencies[i].name = e.target.value;
+        row.querySelector('.comp-name').value = e.target.value;
+      }
     });
     row.querySelector('.remove-btn').addEventListener('click', () => {
       AppState.competencies.splice(i, 1);

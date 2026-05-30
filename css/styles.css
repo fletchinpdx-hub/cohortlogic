@@ -326,6 +326,14 @@ body {
 
 #students-table-wrap { overflow-x: auto; background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); box-shadow: var(--shadow); }
 
+.next-step-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 28px; padding: 18px 24px;
+  background: var(--teal-light, #e8f5f4); border: 1px solid rgba(14,165,233,.2);
+  border-radius: var(--radius); gap: 16px;
+}
+.next-step-hint { font-size: 14px; color: var(--gray-700); margin: 0; }
+
 .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .data-table th {
   background: var(--gray-50);

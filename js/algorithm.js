@@ -213,22 +213,29 @@ function fixTogethers(classes) {
 }
 
 // ── Category balancing ──
+// For each pair of classes, finds the single best swap (most improvement)
+// and executes it before moving on. Counts are always fresh per pair.
 function balanceCategories(classes) {
   const catComps = AppState.competencies.filter(c => c.type === 'category' && c.name && c.column);
   if (!catComps.length || classes.length < 2) return;
 
-  for (let pass = 0; pass < 10; pass++) {
+  const getCounts = (cls, name) => {
+    const counts = {};
+    cls.forEach(s => { const v = s.scores[name]; if (v) counts[v] = (counts[v] || 0) + 1; });
+    return counts;
+  };
+
+  for (let pass = 0; pass < 20; pass++) {
     let improved = false;
     for (const comp of catComps) {
-      const getCounts = cls => {
-        const counts = {};
-        cls.forEach(s => { const v = s.scores[comp.name]; if (v) counts[v] = (counts[v] || 0) + 1; });
-        return counts;
-      };
       for (let ci = 0; ci < classes.length - 1; ci++) {
         for (let cj = ci + 1; cj < classes.length; cj++) {
-          const cI = getCounts(classes[ci]);
-          const cJ = getCounts(classes[cj]);
+          // Recompute fresh counts for this pair
+          const cI = getCounts(classes[ci], comp.name);
+          const cJ = getCounts(classes[cj], comp.name);
+
+          // Find the single swap that gives the most improvement
+          let bestDelta = 0, bestSi = -1, bestSj = -1;
           for (let si = 0; si < classes[ci].length; si++) {
             for (let sj = 0; sj < classes[cj].length; sj++) {
               const catI = classes[ci][si].scores[comp.name];
@@ -237,14 +244,17 @@ function balanceCategories(classes) {
               const before = Math.abs((cI[catI]||0) - (cJ[catI]||0)) + Math.abs((cI[catJ]||0) - (cJ[catJ]||0));
               const nI = { ...cI }; nI[catI]--; nI[catJ] = (nI[catJ]||0) + 1;
               const nJ = { ...cJ }; nJ[catJ]--; nJ[catI] = (nJ[catI]||0) + 1;
-              const after  = Math.abs((nI[catI]||0) - (nJ[catI]||0)) + Math.abs((nI[catJ]||0) - (nJ[catJ]||0));
-              if (after < before) {
-                const tmp = classes[ci][si];
-                classes[ci][si] = classes[cj][sj];
-                classes[cj][sj] = tmp;
-                improved = true;
-              }
+              const after = Math.abs((nI[catI]||0) - (nJ[catI]||0)) + Math.abs((nI[catJ]||0) - (nJ[catJ]||0));
+              const delta = before - after;
+              if (delta > bestDelta) { bestDelta = delta; bestSi = si; bestSj = sj; }
             }
+          }
+
+          if (bestSi >= 0) {
+            const tmp = classes[ci][bestSi];
+            classes[ci][bestSi] = classes[cj][bestSj];
+            classes[cj][bestSj] = tmp;
+            improved = true;
           }
         }
       }
