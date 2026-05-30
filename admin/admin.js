@@ -1043,3 +1043,52 @@ function parseUA(ua) {
   else if (ua.includes('Android')) os = 'Android';
   return [browser, os].filter(Boolean).join(' · ');
 }
+
+// ── Inactivity session timeout ─────────────────────────────────────────────
+(function () {
+  const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — adjust here if needed
+  const WARN_MS    =      60 * 1000; // warn 60 seconds before logout
+
+  const banner = document.createElement('div');
+  banner.id = 'session-timeout-banner';
+  banner.style.display = 'none';
+  banner.innerHTML = `
+    <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+                background:#1e3a5f;color:#fff;padding:14px 20px;border-radius:10px;
+                font-size:14px;font-family:inherit;box-shadow:0 4px 20px rgba(0,0,0,.3);
+                display:flex;align-items:center;gap:14px;z-index:9999;white-space:nowrap;">
+      <span>⏱ You'll be logged out in 60 seconds due to inactivity.</span>
+      <button onclick="window._resetAdminTimer();"
+              style="background:#2a9d8f;border:none;color:#fff;padding:6px 14px;
+                     border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">
+        Stay logged in
+      </button>
+    </div>`;
+  document.body.appendChild(banner);
+
+  let _warnTimer   = null;
+  let _logoutTimer = null;
+
+  window._resetAdminTimer = function () {
+    clearTimeout(_warnTimer);
+    clearTimeout(_logoutTimer);
+    banner.style.display = 'none';
+
+    _warnTimer = setTimeout(() => {
+      banner.style.display = 'block';
+    }, TIMEOUT_MS - WARN_MS);
+
+    _logoutTimer = setTimeout(() => doLogout(), TIMEOUT_MS);
+  };
+
+  ['click', 'keydown', 'touchstart', 'scroll'].forEach(evt =>
+    document.addEventListener(evt, window._resetAdminTimer, { passive: true })
+  );
+
+  // Only start timer when dashboard is visible (not on login screen)
+  if (db) {
+    db.auth.onAuthStateChange((event, session) => {
+      if (session) window._resetAdminTimer();
+    });
+  }
+})();
