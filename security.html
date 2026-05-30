@@ -98,24 +98,24 @@
     <div class="commitment-row">
       <div class="commitment-icon" style="background:var(--teal-soft);">🔒</div>
       <div>
-        <h4 style="margin-bottom:8px;">Student data stays in your browser</h4>
+        <h4 style="margin-bottom:8px;">Class Builder: student data stays in your browser</h4>
         <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Class Builder runs entirely client-side. When you import a spreadsheet or Google Sheet, the data lives only in your browser tab. Nothing is uploaded to Cohort Logic's servers. When you close the tab, it's gone. This is not a setting you configure — it's how the app is built.</p>
       </div>
     </div>
 
     <div class="commitment-row">
-      <div class="commitment-icon" style="background:var(--teal-soft);">🙈</div>
+      <div class="commitment-icon" style="background:var(--teal-soft);">📋</div>
       <div>
-        <h4 style="margin-bottom:8px;">We can't see your student data</h4>
-        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Because student data never reaches our servers, we genuinely cannot access it. There are no admin backdoors, no database queries, no logs. This is a deliberate architectural choice made to protect student privacy before we've earned the technical certifications that would justify a different approach.</p>
+        <h4 style="margin-bottom:8px;">CICO stores data securely — and we audit every change</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Check-in / Check-out stores student records server-side so multiple staff members can access them. That data is encrypted in transit and at rest, locked to your school by row-level security (users from other schools cannot access your data), and every insert, update, and delete is recorded in a FERPA-compliant audit log. We built this infrastructure before onboarding schools, not after.</p>
       </div>
     </div>
 
     <div class="commitment-row">
       <div class="commitment-icon" style="background:var(--teal-soft);">📢</div>
       <div>
-        <h4 style="margin-bottom:8px;">We'll tell you before anything changes</h4>
-        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">If we ever change the data architecture — adding server-side storage, syncing, or collaboration features — we'll announce it clearly and give you a meaningful opt-in choice. We won't move student data to servers without telling you it's happening and why.</p>
+        <h4 style="margin-bottom:8px;">We'll always tell you what's stored and where</h4>
+        <p style="font-size:15px;color:var(--text-2);line-height:1.65;">Class Builder stores nothing on our servers — that's a firm commitment. CICO stores student data to support multi-user access, and we say so clearly before you sign up. Any future product that stores student data server-side will disclose that explicitly. We will never move data to servers without telling you it's happening and why.</p>
       </div>
     </div>
 
@@ -209,8 +209,8 @@
             <span style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:#fff;">✓</span>
           </div>
           <div>
-            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Browser-only architecture</p>
-            <p style="font-size:14px;color:var(--text-2);">Student data never reaches our servers. Implemented now in Class Builder.</p>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Class Builder is browser-only</p>
+            <p style="font-size:14px;color:var(--text-2);">Student data in Class Builder never reaches our servers. When you close the tab, it's gone. This is the architecture, not a policy.</p>
           </div>
         </div>
         <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
@@ -218,8 +218,26 @@
             <span style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:#fff;">✓</span>
           </div>
           <div>
-            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Supabase row-level security</p>
-            <p style="font-size:14px;color:var(--text-2);">Account records locked to the authenticated user. No cross-account data access.</p>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">CICO: school-level data isolation</p>
+            <p style="font-size:14px;color:var(--text-2);">Row-level security ensures each school can only access its own student data. No cross-school data access is possible at the database level.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+            <span style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:#fff;">✓</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">FERPA audit log</p>
+            <p style="font-size:14px;color:var(--text-2);">Every insert, update, and delete on student records is logged with a timestamp and the user responsible. School administrators can review the full history.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+            <span style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:#fff;">✓</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Privacy policy published</p>
+            <p style="font-size:14px;color:var(--text-2);">Plain-language policy covering what each product collects, why, and what your rights are. <a href="privacy.html" style="color:var(--teal-deep);">Read it →</a></p>
           </div>
         </div>
         <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
@@ -227,17 +245,8 @@
             <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">→</span>
           </div>
           <div>
-            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Formal privacy policy &amp; DPA template</p>
-            <p style="font-size:14px;color:var(--text-2);">Written legal framework for school DPA agreements. On the roadmap.</p>
-          </div>
-        </div>
-        <div style="display:flex;gap:16px;padding:20px 0;border-bottom:1px solid var(--hairline);">
-          <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;background:#fff;">
-            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);">→</span>
-          </div>
-          <div>
-            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Encrypted server-side session storage</p>
-            <p style="font-size:14px;color:var(--text-2);">Required for save/load features. Will include at-rest encryption and explicit user consent before any data is stored.</p>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Formal DPA template for schools</p>
+            <p style="font-size:14px;color:var(--text-2);">A written Data Processing Agreement template schools can sign. On the roadmap — needed before formal FERPA compliance is complete.</p>
           </div>
         </div>
         <div style="display:flex;gap:16px;padding:20px 0;">
@@ -246,7 +255,7 @@
           </div>
           <div>
             <p style="font-weight:500;font-size:15px;margin-bottom:4px;">SOC 2 Type II audit</p>
-            <p style="font-size:14px;color:var(--text-2);">We'll pursue formal certification when we have the server-side footprint that warrants it. Not yet — and we won't claim it until it's real.</p>
+            <p style="font-size:14px;color:var(--text-2);">We'll pursue formal certification when the product footprint warrants it. Not yet — and we won't claim it until it's real.</p>
           </div>
         </div>
       </div>
