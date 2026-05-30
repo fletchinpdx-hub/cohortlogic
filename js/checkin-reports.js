@@ -12,6 +12,9 @@ let _chartInstances  = {};   // keyed by canvas id → Chart instance
 let _breakdownData = {};    // { period, month, dow } — keyed by type
 let _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
 
+let _incidentData = {};     // { period, month, dow } → { [key]: { count, minutes } }
+let _incidentMode = { period: 'count', month: 'count', dow: 'count' };
+
 const BREAKDOWN_COLORS = [
   { solid: '#2A9D8F', alpha: 'rgba(42,157,143,0.75)'  },
   { solid: '#3B82F6', alpha: 'rgba(59,130,246,0.75)'  },
@@ -154,12 +157,21 @@ async function renderStudentReport() {
       dow:    buildDowBreakdown(data),
     };
     _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _incidentData  = {
+      period: buildIncidentBreakdown('period', data),
+      month:  buildIncidentBreakdown('month',  data),
+      dow:    buildIncidentBreakdown('dow',    data),
+    };
+    _incidentMode = { period: 'count', month: 'count', dow: 'count' };
 
     body.innerHTML = buildStudentReportHTML(student, data);
     renderTrendChart('trend-chart', data);
     renderBreakdownSection('period');
     renderBreakdownSection('month');
     renderBreakdownSection('dow');
+    renderIncidentSection('period');
+    renderIncidentSection('month');
+    renderIncidentSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -187,6 +199,9 @@ function buildStudentReportHTML(student, checkins) {
     ${buildBreakdownSectionHTML('period', 'By Period', 'total')}
     ${buildBreakdownSectionHTML('month',  'By Month',  'category')}
     ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'category')}
+    ${buildIncidentSectionHTML('period', 'Incidents by Period')}
+    ${buildIncidentSectionHTML('month',  'Incidents by Month')}
+    ${buildIncidentSectionHTML('dow',    'Incidents by Day of Week')}
     ${buildIncidentTable(incidentCounts)}
     ${buildDailyDetailTable(checkins)}`;
 }
@@ -235,6 +250,12 @@ async function renderTeacherReport() {
       dow:    buildDowBreakdown(checkins),
     };
     _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _incidentData  = {
+      period: buildIncidentBreakdown('period', checkins),
+      month:  buildIncidentBreakdown('month',  checkins),
+      dow:    buildIncidentBreakdown('dow',    checkins),
+    };
+    _incidentMode = { period: 'count', month: 'count', dow: 'count' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    `${escHtml(teacher)} — Homeroom Report`,
@@ -249,6 +270,9 @@ async function renderTeacherReport() {
     renderBreakdownSection('period');
     renderBreakdownSection('month');
     renderBreakdownSection('dow');
+    renderIncidentSection('period');
+    renderIncidentSection('month');
+    renderIncidentSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -299,6 +323,12 @@ async function renderGradeReport() {
       dow:    buildDowBreakdown(checkins),
     };
     _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _incidentData  = {
+      period: buildIncidentBreakdown('period', checkins),
+      month:  buildIncidentBreakdown('month',  checkins),
+      dow:    buildIncidentBreakdown('dow',    checkins),
+    };
+    _incidentMode = { period: 'count', month: 'count', dow: 'count' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    `Grade ${escHtml(grade)} — Report`,
@@ -313,6 +343,9 @@ async function renderGradeReport() {
     renderBreakdownSection('period');
     renderBreakdownSection('month');
     renderBreakdownSection('dow');
+    renderIncidentSection('period');
+    renderIncidentSection('month');
+    renderIncidentSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -356,6 +389,12 @@ async function renderSchoolReport() {
       dow:    buildDowBreakdown(checkins),
     };
     _breakdownMode = { period: 'total', month: 'category', dow: 'category' };
+    _incidentData  = {
+      period: buildIncidentBreakdown('period', checkins),
+      month:  buildIncidentBreakdown('month',  checkins),
+      dow:    buildIncidentBreakdown('dow',    checkins),
+    };
+    _incidentMode = { period: 'count', month: 'count', dow: 'count' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    'School-wide Report',
@@ -370,6 +409,9 @@ async function renderSchoolReport() {
     renderBreakdownSection('period');
     renderBreakdownSection('month');
     renderBreakdownSection('dow');
+    renderIncidentSection('period');
+    renderIncidentSection('month');
+    renderIncidentSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -431,6 +473,132 @@ function buildDowBreakdown(checkins) {
     });
   });
   return dow;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INCIDENT BREAKDOWN DATA BUILDER
+// ══════════════════════════════════════════════════════════════════════
+
+function buildIncidentBreakdown(type, checkins) {
+  const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const result = {};
+
+  checkins.forEach(ci => {
+    const incidents = ci.cico_incidents || [];
+    if (!incidents.length) return;
+
+    if (type === 'period') {
+      incidents.forEach(inc => {
+        const key = inc.period_number;
+        if (!result[key]) result[key] = { count: 0, minutes: 0 };
+        result[key].count++;
+        result[key].minutes += inc.minutes || 0;
+      });
+    } else {
+      const key = type === 'month'
+        ? ci.check_in_date.substring(0, 7)
+        : DOW_NAMES[new Date(ci.check_in_date + 'T12:00:00').getDay()];
+      incidents.forEach(inc => {
+        if (!result[key]) result[key] = { count: 0, minutes: 0 };
+        result[key].count++;
+        result[key].minutes += inc.minutes || 0;
+      });
+    }
+  });
+
+  return result;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INCIDENT BREAKDOWN CHART RENDERING
+// ══════════════════════════════════════════════════════════════════════
+
+function buildIncidentSectionHTML(type, title) {
+  return `
+    <div class="report-section">
+      <div class="report-section-header">
+        <h3>${title}</h3>
+        <div class="breakdown-toggle">
+          <button class="breakdown-btn active" onclick="setIncidentMode('${type}','count',this)">Count</button>
+          <button class="breakdown-btn"        onclick="setIncidentMode('${type}','minutes',this)">Minutes</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="inc-${type}-chart"></canvas></div>
+    </div>`;
+}
+
+function setIncidentMode(type, mode, btn) {
+  _incidentMode[type] = mode;
+  btn.closest('.breakdown-toggle').querySelectorAll('.breakdown-btn')
+     .forEach(b => b.classList.toggle('active', b === btn));
+  renderIncidentSection(type);
+}
+
+function renderIncidentSection(type) {
+  const data     = _incidentData[type];
+  const mode     = _incidentMode[type];
+  const canvasId = `inc-${type}-chart`;
+
+  if (_chartInstances[canvasId]) {
+    _chartInstances[canvasId].destroy();
+    delete _chartInstances[canvasId];
+  }
+  if (!data || !Object.keys(data).length) return;
+
+  let orderedKeys, keyLabel;
+  if (type === 'period') {
+    orderedKeys = Object.keys(data).map(Number).sort((a, b) => a - b);
+    keyLabel    = k => `P${k}`;
+  } else if (type === 'month') {
+    orderedKeys = Object.keys(data).sort();
+    keyLabel    = k => {
+      const [y, m] = k.split('-');
+      return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+    };
+  } else {
+    const DOW_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    orderedKeys = DOW_ORDER.filter(k => data[k]);
+    keyLabel    = k => k;
+  }
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const labels = orderedKeys.map(keyLabel);
+  const values = orderedKeys.map(k => data[k]?.[mode] || 0);
+  const color  = mode === 'count'
+    ? { bg: 'rgba(239,68,68,0.7)', border: 'rgba(239,68,68,0.9)' }
+    : { bg: 'rgba(245,158,11,0.7)', border: 'rgba(245,158,11,0.9)' };
+
+  _chartInstances[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: mode === 'count' ? 'Incident Count' : 'Total Minutes',
+        data: values,
+        backgroundColor: color.bg,
+        borderColor: color.border,
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: ctx => mode === 'count'
+            ? `Incidents: ${ctx.raw}`
+            : `Minutes: ${ctx.raw}`
+        }}
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { family: 'Nunito', size: 12 } } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#E2E8F0' } }
+      }
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -581,6 +749,9 @@ function buildGroupReportHTML({ title, subtitle, students, checkins, groupBy, ch
     ${buildBreakdownSectionHTML('period', 'By Period', 'total')}
     ${buildBreakdownSectionHTML('month',  'By Month',  'category')}
     ${buildBreakdownSectionHTML('dow',    'By Day of Week', 'category')}
+    ${buildIncidentSectionHTML('period', 'Incidents by Period')}
+    ${buildIncidentSectionHTML('month',  'Incidents by Month')}
+    ${buildIncidentSectionHTML('dow',    'Incidents by Day of Week')}
     ${buildIncidentTable(incidentCounts)}
     ${buildStudentBreakdownTable(students, checkins, groupBy)}`;
 }
