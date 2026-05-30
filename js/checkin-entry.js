@@ -118,6 +118,8 @@ function initStudentSearch() {
   });
 
   input.addEventListener('focus', () => {
+    // Don't reopen if a student is already selected and the text matches
+    if (CicoState.entry.studentId && input.value === CicoState.entry.studentName) return;
     renderDropdown(getMatches(input.value));
   });
 
