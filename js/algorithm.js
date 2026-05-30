@@ -222,8 +222,9 @@ function fixTogethers(classes) {
 }
 
 // ── Category balancing ──
-// For each pair of classes, finds the single best swap (most improvement)
-// and executes it before moving on. Counts are always fresh per pair.
+// For each pair of classes, keeps swapping until that pair is fully
+// optimized before moving to the next pair. Outer passes repeat until
+// no pair needs further adjustment (handles cross-pair interactions).
 function balanceCategories(classes) {
   const catComps = AppState.competencies.filter(c => c.type === 'category' && c.name && c.column);
   if (!catComps.length || classes.length < 2) return;
@@ -234,37 +235,48 @@ function balanceCategories(classes) {
     return counts;
   };
 
-  for (let pass = 0; pass < 20; pass++) {
+  // Fully drain all improvements between a single pair of classes.
+  // Returns true if at least one swap was made.
+  const drainPair = (ci, cj, name) => {
+    let anySwap = false;
+    let pairImproved = true;
+    while (pairImproved) {
+      pairImproved = false;
+      const cI = getCounts(classes[ci], name);
+      const cJ = getCounts(classes[cj], name);
+      let bestDelta = 0, bestSi = -1, bestSj = -1;
+      for (let si = 0; si < classes[ci].length; si++) {
+        for (let sj = 0; sj < classes[cj].length; sj++) {
+          const catI = classes[ci][si].scores[name];
+          const catJ = classes[cj][sj].scores[name];
+          if (!catI || !catJ || catI === catJ) continue;
+          const before = Math.abs((cI[catI]||0) - (cJ[catI]||0)) + Math.abs((cI[catJ]||0) - (cJ[catJ]||0));
+          const nI = { ...cI }; nI[catI]--; nI[catJ] = (nI[catJ]||0) + 1;
+          const nJ = { ...cJ }; nJ[catJ]--; nJ[catI] = (nJ[catI]||0) + 1;
+          const after = Math.abs((nI[catI]||0) - (nJ[catI]||0)) + Math.abs((nI[catJ]||0) - (nJ[catJ]||0));
+          const delta = before - after;
+          if (delta > bestDelta) { bestDelta = delta; bestSi = si; bestSj = sj; }
+        }
+      }
+      if (bestSi >= 0) {
+        const tmp = classes[ci][bestSi];
+        classes[ci][bestSi] = classes[cj][bestSj];
+        classes[cj][bestSj] = tmp;
+        pairImproved = true;
+        anySwap = true;
+      }
+    }
+    return anySwap;
+  };
+
+  // Outer passes: repeat until no pair benefits from further swaps.
+  // Needed because fully draining (A,B) may create an opportunity in (A,C).
+  for (let pass = 0; pass < 30; pass++) {
     let improved = false;
     for (const comp of catComps) {
       for (let ci = 0; ci < classes.length - 1; ci++) {
         for (let cj = ci + 1; cj < classes.length; cj++) {
-          // Recompute fresh counts for this pair
-          const cI = getCounts(classes[ci], comp.name);
-          const cJ = getCounts(classes[cj], comp.name);
-
-          // Find the single swap that gives the most improvement
-          let bestDelta = 0, bestSi = -1, bestSj = -1;
-          for (let si = 0; si < classes[ci].length; si++) {
-            for (let sj = 0; sj < classes[cj].length; sj++) {
-              const catI = classes[ci][si].scores[comp.name];
-              const catJ = classes[cj][sj].scores[comp.name];
-              if (!catI || !catJ || catI === catJ) continue;
-              const before = Math.abs((cI[catI]||0) - (cJ[catI]||0)) + Math.abs((cI[catJ]||0) - (cJ[catJ]||0));
-              const nI = { ...cI }; nI[catI]--; nI[catJ] = (nI[catJ]||0) + 1;
-              const nJ = { ...cJ }; nJ[catJ]--; nJ[catI] = (nJ[catI]||0) + 1;
-              const after = Math.abs((nI[catI]||0) - (nJ[catI]||0)) + Math.abs((nI[catJ]||0) - (nJ[catJ]||0));
-              const delta = before - after;
-              if (delta > bestDelta) { bestDelta = delta; bestSi = si; bestSj = sj; }
-            }
-          }
-
-          if (bestSi >= 0) {
-            const tmp = classes[ci][bestSi];
-            classes[ci][bestSi] = classes[cj][bestSj];
-            classes[cj][bestSj] = tmp;
-            improved = true;
-          }
+          if (drainPair(ci, cj, comp.name)) improved = true;
         }
       }
     }
