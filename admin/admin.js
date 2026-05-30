@@ -732,26 +732,26 @@ async function loadPendingUsers() {
 
   container.innerHTML = pending.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    // Try to find a matching school by name for pre-selection
+    const daysSince = (Date.now() - new Date(u.created_at)) / (1000 * 60 * 60 * 24);
+    const isReturning = daysSince > 3;
     const matchedSchool = _schools.find(s =>
       s.name.toLowerCase() === (u.school_name || '').toLowerCase()
     );
-    const selectedVal = matchedSchool ? matchedSchool.id : '';
     return `
       <div class="pending-row" id="row-${u.id}">
         <div class="pending-info">
           <strong>${escAdmin(u.full_name || '(no name)')}</strong>
-          <div class="meta">${escAdmin(u.school_name || 'No school listed')} · Signed up ${date}</div>
+          ${isReturning ? '<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;">Previously active</span>' : ''}
+          <div class="meta">${escAdmin(u.school_name || 'No school listed')} · ${isReturning ? 'Deactivated' : 'Signed up'} ${date}</div>
           <div class="pending-school-row">
             <label style="font-size:12px;color:#6b7280;">Assign to school:</label>
             <select class="school-sel" id="school-sel-${u.id}">
               <option value="">— None / create below —</option>
               ${schoolOptions}
             </select>
-            ${selectedVal ? `<script>document.getElementById('school-sel-${u.id}').value='${selectedVal}';<\/script>` : ''}
           </div>
         </div>
-        <button class="approve-btn" onclick="approveUser('${u.id}')">Approve</button>
+        <button class="approve-btn" onclick="approveUser('${u.id}')">${isReturning ? 'Reactivate' : 'Approve'}</button>
       </div>
     `;
   }).join('');
