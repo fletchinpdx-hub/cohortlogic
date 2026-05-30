@@ -1,4 +1,41 @@
+document.getElementById('download-template-btn').addEventListener('click', generateTemplate);
 document.getElementById('download-sample-btn').addEventListener('click', generateSampleSpreadsheet);
+
+function generateTemplate() {
+  if (typeof trackEvent === 'function') trackEvent('template_downloaded');
+
+  // Column headers — one per default competency + required fields
+  // Users can delete any column they don't need
+  const headers = [
+    'Student ID',
+    'First Name',
+    'Last Name',
+    'Grade',
+    'Homeroom',
+    'Math Score',
+    'Reading Score',
+    'Writing Score',
+    'Behavior Score',
+    'IEP',
+    '504',
+    'Gender',
+    'Ethnicity',
+  ];
+
+  // Build a worksheet from headers only (no data rows)
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8  }, { wch: 18 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 6  },
+    { wch: 6  }, { wch: 10 }, { wch: 14 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Students');
+  XLSX.writeFile(wb, 'student-template.xlsx');
+}
 
 function generateSampleSpreadsheet() {
   if (typeof trackEvent === 'function') trackEvent('sample_downloaded');

@@ -105,8 +105,19 @@
         <!-- Sample data section -->
         <div class="sample-section">
           <h3>Don't have a file yet?</h3>
-          <p>Download our sample spreadsheet to see the expected format and test the tool.</p>
-          <button class="btn btn-outline" id="download-sample-btn">⬇️ Download Sample Spreadsheet</button>
+          <div class="sample-options">
+            <div class="sample-option">
+              <div class="sample-option-label">Start from a blank template</div>
+              <p class="sample-option-desc">A spreadsheet with all supported column headers and no data. Fill in your students and delete any columns you don't need.</p>
+              <button class="btn btn-primary btn-sm" id="download-template-btn">⬇️ Download Template</button>
+            </div>
+            <div class="sample-option-divider">or</div>
+            <div class="sample-option">
+              <div class="sample-option-label">Download a sample with example data</div>
+              <p class="sample-option-desc">500 pre-filled students across grades K–5. Useful for exploring the tool before using your own data.</p>
+              <button class="btn btn-outline btn-sm" id="download-sample-btn">⬇️ Download Sample</button>
+            </div>
+          </div>
         </div>
 
         <!-- Import status -->

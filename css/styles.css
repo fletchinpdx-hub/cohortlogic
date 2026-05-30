@@ -228,13 +228,17 @@ body {
   border: 1px solid #bfdbfe;
   border-radius: var(--radius);
   padding: 20px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
-.sample-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-.sample-section p { color: var(--gray-500); font-size: 13px; margin: 0; }
+.sample-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+.sample-options { display: flex; align-items: flex-start; gap: 0; }
+.sample-option { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.sample-option-label { font-size: 13px; font-weight: 700; color: var(--gray-800, var(--gray-900)); }
+.sample-option-desc { color: var(--gray-500); font-size: 13px; margin: 0; line-height: 1.5; }
+.sample-option-divider {
+  align-self: center; padding: 0 20px;
+  font-size: 12px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .05em;
+  flex-shrink: 0;
+}
 
 .import-status {
   margin-top: 20px;
