@@ -172,51 +172,95 @@ document.getElementById('results-grid').addEventListener('dragend', e => {
   if (pill) pill.classList.remove('dragging');
 });
 
-// ── Export to Excel ──
-document.getElementById('export-results-btn').addEventListener('click', exportResults);
+// ── Export helpers ──
+function buildStudentRow(s, gradeLabel, classNum, teacher, comps) {
+  const row = { 'Grade': gradeLabel, 'Class': classNum, 'Teacher': teacher, 'First Name': s.firstName, 'Last Name': s.lastName };
+  comps.forEach(c => { row[c.name] = s.scores[c.name] ?? ''; });
+  return row;
+}
 
-function exportResults() {
+function sortedByName(students) {
+  return [...students].sort((a, b) =>
+    a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)
+  );
+}
+
+// Ensure sheet name is ≤31 chars and unique within this workbook
+function uniqueSheetName(base, used) {
+  let name = base.slice(0, 31);
+  if (!used.has(name)) { used.add(name); return name; }
+  for (let n = 2; n < 999; n++) {
+    const suffix = ` (${n})`;
+    const candidate = base.slice(0, 31 - suffix.length) + suffix;
+    if (!used.has(candidate)) { used.add(candidate); return candidate; }
+  }
+  return name; // fallback (shouldn't happen)
+}
+
+// ── Export by Grade (one sheet per grade) ──
+document.getElementById('export-by-grade-btn').addEventListener('click', exportByGrade);
+
+function exportByGrade() {
   if (typeof trackEvent === 'function') trackEvent('export_results');
   const wb    = XLSX.utils.book_new();
   const comps = AppState.competencies.filter(c => c.name && c.column);
+  const used  = new Set();
 
-  const buildRows = (classes, gradeLabel, teachers) => {
-    const rows = [];
-    classes.forEach((cls, ci) => {
-      const teacher = (teachers && teachers[ci]) || `Class ${ci + 1}`;
-      cls.forEach(s => {
-        const row = { 'Grade': gradeLabel, 'Class': ci + 1, 'Teacher': teacher, 'First Name': s.firstName, 'Last Name': s.lastName };
-        comps.forEach(c => { row[c.name] = s.scores[c.name] ?? ''; });
-        rows.push(row);
-      });
-    });
-    return rows;
-  };
-
-  // Regular grades
   Object.keys(AppState.results).forEach(g => {
     const cfg  = AppState.gradeConfig[g] || { teachers: [] };
-    const rows = buildRows(AppState.results[g], g, cfg.teachers);
-    const ws   = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, `Grade ${g}`);
+    const rows = [];
+    AppState.results[g].forEach((cls, ci) => {
+      const teacher = cfg.teachers[ci] || `Class ${ci + 1}`;
+      sortedByName(cls).forEach(s => rows.push(buildStudentRow(s, g, ci + 1, teacher, comps)));
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(`Grade ${g}`, used));
   });
 
-  // Split classes
   if (AppState.splitResults.length) {
     const rows = [];
     AppState.splitResults.forEach((sr, i) => {
       const teacher = sr.teacher || `Split Class ${i + 1}`;
-      sr.students.forEach(s => {
-        const row = { 'Grade': sr.grades.join('/'), 'Class': `Split ${i + 1}`, 'Teacher': teacher, 'First Name': s.firstName, 'Last Name': s.lastName };
-        comps.forEach(c => { row[c.name] = s.scores[c.name] ?? ''; });
-        rows.push(row);
-      });
+      sortedByName(sr.students).forEach(s => rows.push(buildStudentRow(s, sr.grades.join('/'), `Split ${i + 1}`, teacher, comps)));
     });
     const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, 'Split Classes');
+    XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName('Split Classes', used));
   }
 
-  XLSX.writeFile(wb, 'class-lists.xlsx');
+  XLSX.writeFile(wb, 'class-lists-by-grade.xlsx');
+}
+
+// ── Export by Teacher (one sheet per teacher / class) ──
+document.getElementById('export-by-teacher-btn').addEventListener('click', exportByTeacher);
+
+function exportByTeacher() {
+  if (typeof trackEvent === 'function') trackEvent('export_results');
+  const wb    = XLSX.utils.book_new();
+  const comps = AppState.competencies.filter(c => c.name && c.column);
+  const used  = new Set();
+
+  // Regular grade classes
+  Object.keys(AppState.results).forEach(g => {
+    const cfg = AppState.gradeConfig[g] || { teachers: [] };
+    AppState.results[g].forEach((cls, ci) => {
+      const teacher   = cfg.teachers[ci] || '';
+      const sheetBase = teacher || `Grade ${g} - Class ${ci + 1}`;
+      const rows = sortedByName(cls).map(s => buildStudentRow(s, g, ci + 1, teacher || `Class ${ci + 1}`, comps));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(sheetBase, used));
+    });
+  });
+
+  // Split classes
+  AppState.splitResults.forEach((sr, i) => {
+    const teacher   = sr.teacher || '';
+    const sheetBase = teacher || `Gr ${sr.grades.join('/')} Split ${i + 1}`;
+    const rows = sortedByName(sr.students).map(s => buildStudentRow(s, sr.grades.join('/'), `Split ${i + 1}`, teacher || `Split ${i + 1}`, comps));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(sheetBase, used));
+  });
+
+  XLSX.writeFile(wb, 'class-lists-by-teacher.xlsx');
 }
 
 // ── Regenerate ──
