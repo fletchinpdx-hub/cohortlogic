@@ -654,6 +654,48 @@ textarea.cico-input { resize: vertical; }
   margin-bottom: 16px;
 }
 
+.report-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.report-section-header h3 { margin-bottom: 0; }
+
+.breakdown-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--ci-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.breakdown-btn {
+  background: none;
+  border: none;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ci-text-2);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.breakdown-btn + .breakdown-btn { border-left: 1px solid var(--ci-border); }
+.breakdown-btn.active {
+  background: var(--ci-navy);
+  color: #fff;
+}
+.breakdown-btn:not(.active):hover { background: var(--ci-bg); }
+
+.chart-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ci-text-2);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 10px;
+}
+
 .report-stat-row {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

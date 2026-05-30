@@ -1,11 +1,25 @@
 /**
  * checkin-reports.js
  * Four report modes: Student · By Teacher · By Grade · School-wide
+ * Each includes breakdown charts: by period, by month, by day of week.
  * Requires Chart.js loaded in the HTML.
  */
 
 let _activeReportTab = 'student';
 let _chartInstances  = {};   // keyed by canvas id → Chart instance
+
+// Breakdown state — reset each time a report loads
+let _breakdownData = {};    // { period, month, dow } — keyed by type
+let _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+
+const BREAKDOWN_COLORS = [
+  { solid: '#2A9D8F', alpha: 'rgba(42,157,143,0.75)'  },
+  { solid: '#3B82F6', alpha: 'rgba(59,130,246,0.75)'  },
+  { solid: '#8B5CF6', alpha: 'rgba(139,92,246,0.75)'  },
+  { solid: '#F59E0B', alpha: 'rgba(245,158,11,0.75)'  },
+  { solid: '#EC4899', alpha: 'rgba(236,72,153,0.75)'  },
+  { solid: '#EF4444', alpha: 'rgba(239,68,68,0.75)'   },
+];
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 function switchReportTab(tab) {
@@ -33,7 +47,6 @@ function initReportsView() {
   populateReportTeacherSelect();
   populateReportGradeSelect();
   setDefaultReportDates();
-  // Don't auto-run — wait for a selection
 }
 
 function populateReportStudentSelect() {
@@ -99,7 +112,7 @@ async function renderReports() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// STUDENT REPORT (original)
+// STUDENT REPORT
 // ══════════════════════════════════════════════════════════════════════
 async function renderStudentReport() {
   const body      = document.getElementById('reports-body');
@@ -135,8 +148,18 @@ async function renderStudentReport() {
       return;
     }
 
+    _breakdownData = {
+      period: buildPeriodBreakdown(data),
+      month:  buildMonthBreakdown(data),
+      dow:    buildDowBreakdown(data),
+    };
+    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+
     body.innerHTML = buildStudentReportHTML(student, data);
     renderTrendChart('trend-chart', data);
+    renderBreakdownSection('period');
+    renderBreakdownSection('month');
+    renderBreakdownSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -158,8 +181,12 @@ function buildStudentReportHTML(student, checkins) {
         { value: totalIncidents, label: 'Incidents', color: totalIncidents > 0 ? 'var(--ci-red)' : null },
         { value: totalMinutes,   label: 'Incident Mins' },
       ])}
+      <p class="chart-section-label">Score % by Day</p>
       <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
     </div>
+    ${buildBreakdownSectionHTML('period', 'By Period')}
+    ${buildBreakdownSectionHTML('month',  'By Month')}
+    ${buildBreakdownSectionHTML('dow',    'By Day of Week')}
     ${buildIncidentTable(incidentCounts)}
     ${buildDailyDetailTable(checkins)}`;
 }
@@ -180,7 +207,6 @@ async function renderTeacherReport() {
   body.innerHTML = '<p class="empty-state">Loading…</p>';
 
   try {
-    // Students in this homeroom
     const homeroomStudents = CicoState.students.filter(s => s.homeroom === teacher);
     if (!homeroomStudents.length) {
       body.innerHTML = `<p class="empty-state">No students found for ${escHtml(teacher)}.</p>`;
@@ -202,16 +228,27 @@ async function renderTeacherReport() {
     const { data, error } = await q;
     if (error) throw error;
 
+    const checkins = data || [];
+    _breakdownData = {
+      period: buildPeriodBreakdown(checkins),
+      month:  buildMonthBreakdown(checkins),
+      dow:    buildDowBreakdown(checkins),
+    };
+    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+
     body.innerHTML = buildGroupReportHTML({
       title:    `${escHtml(teacher)} — Homeroom Report`,
       subtitle: `${homeroomStudents.length} students · ${escHtml(from)} to ${escHtml(to)}`,
       students: homeroomStudents,
-      checkins: data || [],
+      checkins,
       groupBy:  'student',
       chartLabel: 'Avg Score % by Student',
     });
 
-    renderGroupBarChart('group-bar-chart', buildStudentBarData(homeroomStudents, data || []));
+    renderGroupBarChart('group-bar-chart', buildStudentBarData(homeroomStudents, checkins));
+    renderBreakdownSection('period');
+    renderBreakdownSection('month');
+    renderBreakdownSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -255,16 +292,27 @@ async function renderGradeReport() {
     const { data, error } = await q;
     if (error) throw error;
 
+    const checkins = data || [];
+    _breakdownData = {
+      period: buildPeriodBreakdown(checkins),
+      month:  buildMonthBreakdown(checkins),
+      dow:    buildDowBreakdown(checkins),
+    };
+    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
+
     body.innerHTML = buildGroupReportHTML({
       title:    `Grade ${escHtml(grade)} — Report`,
       subtitle: `${gradeStudents.length} students tracked · ${escHtml(from)} to ${escHtml(to)}`,
       students: gradeStudents,
-      checkins: data || [],
+      checkins,
       groupBy:  'homeroom',
       chartLabel: 'Avg Score % by Homeroom',
     });
 
-    renderGroupBarChart('group-bar-chart', buildHomeroomBarData(gradeStudents, data || []));
+    renderGroupBarChart('group-bar-chart', buildHomeroomBarData(gradeStudents, checkins));
+    renderBreakdownSection('period');
+    renderBreakdownSection('month');
+    renderBreakdownSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
@@ -300,23 +348,209 @@ async function renderSchoolReport() {
       return;
     }
 
-    // Count distinct students represented in checkins
-    const activeStudentIds = [...new Set(data.map(c => c.student_id))];
+    const checkins = data;
+    const activeStudentIds = [...new Set(checkins.map(c => c.student_id))];
+    _breakdownData = {
+      period: buildPeriodBreakdown(checkins),
+      month:  buildMonthBreakdown(checkins),
+      dow:    buildDowBreakdown(checkins),
+    };
+    _breakdownMode = { period: 'total', month: 'total', dow: 'total' };
 
     body.innerHTML = buildGroupReportHTML({
       title:    'School-wide Report',
       subtitle: `${activeStudentIds.length} students · ${escHtml(from)} to ${escHtml(to)}`,
       students: CicoState.students,
-      checkins: data,
+      checkins,
       groupBy:  'grade',
       chartLabel: 'Avg Score % by Grade',
     });
 
-    renderGroupBarChart('group-bar-chart', buildGradeBarData(CicoState.students, data));
+    renderGroupBarChart('group-bar-chart', buildGradeBarData(CicoState.students, checkins));
+    renderBreakdownSection('period');
+    renderBreakdownSection('month');
+    renderBreakdownSection('dow');
   } catch (err) {
     console.error(err);
     body.innerHTML = '<p class="empty-state" style="color:var(--ci-red);">Failed to load report.</p>';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// BREAKDOWN DATA BUILDERS
+// ══════════════════════════════════════════════════════════════════════
+
+function buildPeriodBreakdown(checkins) {
+  const periods = {};
+  checkins.forEach(ci => {
+    (ci.cico_period_scores || []).forEach(ps => {
+      if (ps.score === null) return;
+      if (!periods[ps.period_number]) periods[ps.period_number] = { total: 0, possible: 0, cats: {} };
+      periods[ps.period_number].total    += ps.score;
+      periods[ps.period_number].possible += 2;
+      const cats = periods[ps.period_number].cats;
+      if (!cats[ps.category_id]) cats[ps.category_id] = { score: 0, possible: 0 };
+      cats[ps.category_id].score    += ps.score;
+      cats[ps.category_id].possible += 2;
+    });
+  });
+  return periods;
+}
+
+function buildMonthBreakdown(checkins) {
+  const months = {};
+  checkins.forEach(ci => {
+    const key = ci.check_in_date.substring(0, 7);
+    if (!months[key]) months[key] = { total: 0, possible: 0, cats: {} };
+    (ci.cico_period_scores || []).forEach(ps => {
+      if (ps.score === null) return;
+      months[key].total    += ps.score;
+      months[key].possible += 2;
+      if (!months[key].cats[ps.category_id]) months[key].cats[ps.category_id] = { score: 0, possible: 0 };
+      months[key].cats[ps.category_id].score    += ps.score;
+      months[key].cats[ps.category_id].possible += 2;
+    });
+  });
+  return months;
+}
+
+function buildDowBreakdown(checkins) {
+  const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dow = {};
+  checkins.forEach(ci => {
+    const d   = new Date(ci.check_in_date + 'T12:00:00');
+    const key = DOW_NAMES[d.getDay()];
+    if (!dow[key]) dow[key] = { total: 0, possible: 0, cats: {} };
+    (ci.cico_period_scores || []).forEach(ps => {
+      if (ps.score === null) return;
+      dow[key].total    += ps.score;
+      dow[key].possible += 2;
+      if (!dow[key].cats[ps.category_id]) dow[key].cats[ps.category_id] = { score: 0, possible: 0 };
+      dow[key].cats[ps.category_id].score    += ps.score;
+      dow[key].cats[ps.category_id].possible += 2;
+    });
+  });
+  return dow;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// BREAKDOWN CHART RENDERING
+// ══════════════════════════════════════════════════════════════════════
+
+function buildBreakdownSectionHTML(type, title) {
+  return `
+    <div class="report-section">
+      <div class="report-section-header">
+        <h3>${title}</h3>
+        <div class="breakdown-toggle">
+          <button class="breakdown-btn active" onclick="setBreakdownMode('${type}','total',this)">Total</button>
+          <button class="breakdown-btn" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="${type}-chart"></canvas></div>
+    </div>`;
+}
+
+function setBreakdownMode(type, mode, btn) {
+  _breakdownMode[type] = mode;
+  btn.closest('.breakdown-toggle').querySelectorAll('.breakdown-btn')
+     .forEach(b => b.classList.toggle('active', b === btn));
+  renderBreakdownSection(type);
+}
+
+function renderBreakdownSection(type) {
+  const data     = _breakdownData[type];
+  const mode     = _breakdownMode[type];
+  const canvasId = `${type}-chart`;
+
+  if (_chartInstances[canvasId]) {
+    _chartInstances[canvasId].destroy();
+    delete _chartInstances[canvasId];
+  }
+  if (!data || !Object.keys(data).length) return;
+
+  let orderedKeys, keyLabel;
+
+  if (type === 'period') {
+    orderedKeys = Object.keys(data).map(Number).sort((a, b) => a - b);
+    keyLabel    = k => `P${k}`;
+  } else if (type === 'month') {
+    orderedKeys = Object.keys(data).sort();
+    keyLabel    = k => {
+      const [y, m] = k.split('-');
+      return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+    };
+  } else { // dow
+    const DOW_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    orderedKeys = DOW_ORDER.filter(k => data[k]);
+    keyLabel    = k => k;
+  }
+
+  renderBreakdownChart(canvasId, data, orderedKeys, keyLabel, mode);
+}
+
+function renderBreakdownChart(canvasId, data, orderedKeys, keyLabel, mode) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const labels = orderedKeys.map(keyLabel);
+
+  let datasets;
+  if (mode === 'total') {
+    const values = orderedKeys.map(k => {
+      const d = data[k];
+      return d && d.possible > 0 ? Math.round((d.total / d.possible) * 100) : 0;
+    });
+    const barColors = values.map(v =>
+      v >= 80 ? 'rgba(34,197,94,0.75)' : v >= 50 ? 'rgba(245,158,11,0.75)' : 'rgba(239,68,68,0.75)'
+    );
+    datasets = [{
+      label: 'Avg Score %',
+      data: values,
+      backgroundColor: barColors,
+      borderColor: barColors.map(c => c.replace('0.75','0.9')),
+      borderWidth: 1,
+      borderRadius: 4,
+    }];
+  } else {
+    // One dataset per category
+    datasets = CicoState.categories.map((cat, i) => {
+      const col = BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
+      const values = orderedKeys.map(k => {
+        const d  = data[k];
+        const cd = d?.cats?.[cat.id];
+        return cd && cd.possible > 0 ? Math.round((cd.score / cd.possible) * 100) : 0;
+      });
+      return {
+        label: cat.name,
+        data: values,
+        backgroundColor: col.alpha,
+        borderColor: col.solid,
+        borderWidth: 1,
+        borderRadius: 4,
+      };
+    });
+  }
+
+  _chartInstances[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: mode === 'category',
+          position: 'top',
+          labels: { font: { family: 'Nunito', size: 12 } }
+        },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}%` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { family: 'Nunito', size: 12 } } },
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#E2E8F0' } }
+      }
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -339,9 +573,12 @@ function buildGroupReportHTML({ title, subtitle, students, checkins, groupBy, ch
         { value: totalIncidents,   label: 'Total Incidents', color: totalIncidents > 0 ? 'var(--ci-red)' : null },
         { value: totalMinutes,     label: 'Incident Mins' },
       ])}
-      <p style="font-size:12px;font-weight:700;color:var(--ci-text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">${escHtml(chartLabel)}</p>
+      <p class="chart-section-label">${escHtml(chartLabel)}</p>
       <div class="chart-wrap chart-tall"><canvas id="group-bar-chart"></canvas></div>
     </div>
+    ${buildBreakdownSectionHTML('period', 'By Period')}
+    ${buildBreakdownSectionHTML('month',  'By Month')}
+    ${buildBreakdownSectionHTML('dow',    'By Day of Week')}
     ${buildIncidentTable(incidentCounts)}
     ${buildStudentBreakdownTable(students, checkins, groupBy)}`;
 }
@@ -384,14 +621,12 @@ function buildStudentBreakdownTable(students, checkins, groupBy) {
   const studentMap = {};
   students.forEach(s => { studentMap[s.id] = s; });
 
-  // Group checkins by student
   const byStudent = {};
   checkins.forEach(ci => {
     if (!byStudent[ci.student_id]) byStudent[ci.student_id] = [];
     byStudent[ci.student_id].push(ci);
   });
 
-  // Only students with data
   const rows = Object.entries(byStudent).map(([sid, cis]) => {
     const s = studentMap[sid];
     if (!s) return null;
@@ -478,7 +713,7 @@ function buildDailyDetailTable(checkins) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// BAR CHART DATA BUILDERS
+// BAR CHART DATA BUILDERS (group reports)
 // ══════════════════════════════════════════════════════════════════════
 
 function buildStudentBarData(students, checkins) {
@@ -487,7 +722,6 @@ function buildStudentBarData(students, checkins) {
     if (!byStudent[ci.student_id]) byStudent[ci.student_id] = [];
     byStudent[ci.student_id].push(ci);
   });
-
   const items = students
     .filter(s => byStudent[s.id])
     .map(s => {
@@ -496,14 +730,12 @@ function buildStudentBarData(students, checkins) {
       return { label: `${s.last_name}, ${s.first_name.charAt(0)}.`, pct };
     })
     .sort((a,b) => b.pct - a.pct);
-
   return { labels: items.map(i=>i.label), values: items.map(i=>i.pct) };
 }
 
 function buildHomeroomBarData(students, checkins) {
   const studentMap = {};
   students.forEach(s => { studentMap[s.id] = s; });
-
   const byHomeroom = {};
   checkins.forEach(ci => {
     const s = studentMap[ci.student_id];
@@ -512,20 +744,17 @@ function buildHomeroomBarData(students, checkins) {
     if (!byHomeroom[key]) byHomeroom[key] = [];
     byHomeroom[key].push(ci);
   });
-
   const items = Object.entries(byHomeroom).map(([teacher, cis]) => {
     const { totalScore, totalPossible } = aggregateCheckins(cis);
     const pct = totalPossible > 0 ? Math.round((totalScore/totalPossible)*100) : 0;
     return { label: teacher, pct };
   }).sort((a,b) => b.pct - a.pct);
-
   return { labels: items.map(i=>i.label), values: items.map(i=>i.pct) };
 }
 
 function buildGradeBarData(students, checkins) {
   const studentMap = {};
   students.forEach(s => { studentMap[s.id] = s; });
-
   const byGrade = {};
   checkins.forEach(ci => {
     const s = studentMap[ci.student_id];
@@ -534,7 +763,6 @@ function buildGradeBarData(students, checkins) {
     if (!byGrade[key]) byGrade[key] = [];
     byGrade[key].push(ci);
   });
-
   const gradeOrder = ['TK','K','1','2','3','4','5','6','7','8'];
   const items = Object.entries(byGrade).map(([grade, cis]) => {
     const { totalScore, totalPossible } = aggregateCheckins(cis);
@@ -545,12 +773,11 @@ function buildGradeBarData(students, checkins) {
     const bi = gradeOrder.indexOf(b.label.replace('Grade ',''));
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
-
   return { labels: items.map(i=>i.label), values: items.map(i=>i.pct) };
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// CHART RENDERERS
+// EXISTING CHART RENDERERS
 // ══════════════════════════════════════════════════════════════════════
 
 function renderTrendChart(canvasId, checkins) {
