@@ -118,9 +118,13 @@ function initStudentSearch() {
   });
 
   input.addEventListener('focus', () => {
-    // Don't reopen if a student is already selected and the text matches
     if (CicoState.entry.studentId && input.value === CicoState.entry.studentName) return;
     renderDropdown(getMatches(input.value));
+  });
+
+  input.addEventListener('blur', () => {
+    // Delay so mousedown on a dropdown option fires first
+    setTimeout(() => dropdown.classList.add('hidden'), 150);
   });
 
   input.addEventListener('keydown', e => {
@@ -147,12 +151,6 @@ function initStudentSearch() {
     if (opt) selectStudent(opt.dataset.id);
   });
 
-  // Close on outside click
-  document.addEventListener('click', e => {
-    if (!document.getElementById('student-search-wrap').contains(e.target)) {
-      dropdown.classList.add('hidden');
-    }
-  });
 }
 
 // ── Period Grid ────────────────────────────────────────────────────────────
