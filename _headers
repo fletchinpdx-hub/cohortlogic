@@ -3,4 +3,4 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdn.sheetjs.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' https://dlqnzlwuzktcljxxxlit.supabase.co; img-src 'self' data:; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdn.sheetjs.com; style-src 'self' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' https://dlqnzlwuzktcljxxxlit.supabase.co; img-src 'self' data:; frame-ancestors 'none'
