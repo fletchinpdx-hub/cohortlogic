@@ -44,26 +44,37 @@ function importFromSheets() {
   const url = document.getElementById('sheets-url').value.trim();
   if (!url) { showImportStatus('Please paste a Google Sheets URL.', 'error'); return; }
 
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!match) { showImportStatus('That doesn\'t look like a valid Google Sheets URL.', 'error'); return; }
+  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!idMatch) { showImportStatus('That doesn\'t look like a valid Google Sheets URL.', 'error'); return; }
 
-  const id = match[1];
-  const exportUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
+  const id     = idMatch[1];
+  const gidMatch = url.match(/[#&?]gid=(\d+)/);
+  const gid    = gidMatch ? gidMatch[1] : '0';
+
+  // The /export?format=xlsx endpoint blocks cross-origin requests (CORS).
+  // The gviz/tq CSV endpoint is designed for programmatic access and works
+  // for any sheet shared as "Anyone with the link can view."
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}`;
   showImportStatus('Fetching Google Sheet…', 'info');
 
-  fetch(exportUrl)
+  fetch(csvUrl)
     .then(res => {
-      if (!res.ok) throw new Error('Could not fetch sheet. Make sure it is shared as "Anyone with the link can view."');
-      return res.arrayBuffer();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
     })
-    .then(buf => {
-      const wb = XLSX.read(buf, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+    .then(csv => {
+      const wb   = XLSX.read(csv, { type: 'string' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
       if (!rows.length) { showImportStatus('The sheet appears to be empty.', 'error'); return; }
       loadRawData(rows, 'Google Sheet');
     })
-    .catch(err => showImportStatus(err.message, 'error'));
+    .catch(() => {
+      showImportStatus(
+        'Could not load the sheet. Make sure it is shared as "Anyone with the link can view" and try again.',
+        'error'
+      );
+    });
 }
 
 // ── Process raw import ──
