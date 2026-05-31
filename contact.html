@@ -239,65 +239,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script src="js/marketing-chrome.js"></script>
-<script>
-  // Pre-select product from URL param: contact.html?interest=schedule
-  (function() {
-    const params = new URLSearchParams(window.location.search);
-    const interest = params.get('interest');
-    if (interest === 'schedule') document.getElementById('p-schedule').checked = true;
-    if (interest === 'checkin')  document.getElementById('p-checkin').checked  = true;
-    if (interest === 'iep')      { /* no checkbox yet */ }
-  })();
-
-  document.getElementById('contact-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('contact-submit');
-    const errEl = document.getElementById('contact-error');
-    errEl.classList.remove('visible');
-
-    const name  = document.getElementById('c-name').value.trim();
-    const email = document.getElementById('c-email').value.trim();
-
-    if (!name || !email) {
-      errEl.textContent = 'Please fill in your name and email address.';
-      errEl.classList.add('visible');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errEl.textContent = 'Please enter a valid email address.';
-      errEl.classList.add('visible');
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
-
-    // Collect form data
-    const products = Array.from(document.querySelectorAll('.check-option:checked')).map(el => el.value);
-    const enrollment = (document.querySelector('input[name="enrollment"]:checked') || {}).value || '';
-    const payload = {
-      name,
-      email,
-      role:       document.getElementById('c-role').value,
-      school:     document.getElementById('c-school').value.trim(),
-      enrollment,
-      products:   products.join(', '),
-      timing:     document.getElementById('c-timing').value,
-      message:    document.getElementById('c-message').value.trim(),
-      submitted:  new Date().toISOString(),
-    };
-
-    // Try to log to Supabase if available; always show success either way
-    try {
-      if (typeof SupabaseClient !== 'undefined') {
-        await SupabaseClient.from('contact_submissions').insert([payload]);
-      }
-    } catch(_) { /* silent — form still shows success */ }
-
-    // Show success state
-    document.getElementById('contact-form-wrap').classList.add('hidden');
-    document.getElementById('contact-success').classList.remove('hidden');
-  });
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/contact.js"></script>
 </body>
 </html>

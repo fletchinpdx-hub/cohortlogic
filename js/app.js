@@ -47,6 +47,9 @@ document.querySelectorAll('.nav-item').forEach(item => {
   });
 });
 
+const _setupClassesBtn = document.getElementById('setup-classes-btn');
+if (_setupClassesBtn) _setupClassesBtn.addEventListener('click', () => navigateTo('classes'));
+
 // Mobile sidebar toggle
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 if (mobileMenuBtn) {

@@ -8,16 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-config.js"></script>
-  <script>
-    // Auth gate — must be logged in and approved
-    (async () => {
-      const { data: { session } } = await SupabaseClient.auth.getSession();
-      if (!session) { window.location.replace('login.html'); return; }
-      const { data: profile } = await SupabaseClient
-        .from('profiles').select('approved').eq('id', session.user.id).single();
-      if (!profile || !profile.approved) { window.location.replace('dashboard.html'); }
-    })();
-  </script>
+  <script src="js/auth-gate.js"></script>
   <!-- SheetJS for Excel import/export -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <!-- Chart.js for reports -->
@@ -82,7 +73,7 @@
         <div class="entry-schedule-row">
           <div class="field-group">
             <label class="field-label">Schedule</label>
-            <select id="entry-schedule-sel" class="cico-input cico-select" onchange="onScheduleChange()" style="width:220px;"></select>
+            <select id="entry-schedule-sel" class="cico-input cico-select" style="width:220px;"></select>
           </div>
         </div>
 
@@ -122,7 +113,7 @@
         <!-- Save bar -->
         <div id="entry-save-bar" class="entry-save-bar hidden">
           <div id="entry-validation-msg" class="validation-msg hidden"></div>
-          <button class="btn-cico btn-primary-cico" id="save-checkin-btn" onclick="saveCheckin()">
+          <button class="btn-cico btn-primary-cico" id="save-checkin-btn">
             💾 Save Check-in
           </button>
         </div>
@@ -152,7 +143,7 @@
             <input type="date" id="history-to" class="cico-input" />
           </div>
           <div class="field-group" style="align-self:flex-end;">
-            <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="loadHistory()">Search</button>
+            <button class="btn-cico btn-primary-cico btn-sm-cico" id="history-search-btn">Search</button>
           </div>
         </div>
 
@@ -173,11 +164,11 @@
 
         <div class="students-toolbar">
           <div class="field-group" style="flex:1;max-width:300px;">
-            <input type="text" id="students-search" class="cico-input" placeholder="Search students…" oninput="filterStudentList()" />
+            <input type="text" id="students-search" class="cico-input" placeholder="Search students…" />
           </div>
           <div class="toolbar-actions">
-            <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="openAddStudentModal()">+ Add Student</button>
-            <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="openStudentImportModal()">⬆️ Import from Excel</button>
+            <button class="btn-cico btn-outline-cico btn-sm-cico" id="add-student-btn">+ Add Student</button>
+            <button class="btn-cico btn-outline-cico btn-sm-cico" id="import-excel-btn">⬆️ Import from Excel</button>
           </div>
         </div>
 
@@ -210,25 +201,25 @@
 
         <!-- Report type tabs -->
         <div class="report-tabs">
-          <button class="report-tab active" data-report="student" onclick="switchReportTab('student')">Student</button>
-          <button class="report-tab" data-report="teacher"  onclick="switchReportTab('teacher')">By Teacher</button>
-          <button class="report-tab" data-report="grade"    onclick="switchReportTab('grade')">By Grade</button>
-          <button class="report-tab" data-report="school"   onclick="switchReportTab('school')">School-wide</button>
+          <button class="report-tab active" data-report="student">Student</button>
+          <button class="report-tab" data-report="teacher">By Teacher</button>
+          <button class="report-tab" data-report="grade">By Grade</button>
+          <button class="report-tab" data-report="school">School-wide</button>
         </div>
 
         <!-- Controls: Student -->
         <div class="report-controls" id="rctrl-student">
           <div class="field-group" style="flex:1;min-width:160px;">
             <label class="field-label">Student</label>
-            <select id="report-student-sel" class="cico-input cico-select" onchange="renderReports()"></select>
+            <select id="report-student-sel" class="cico-input cico-select"></select>
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">From</label>
-            <input type="date" id="report-from" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-from" class="cico-input" />
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">To</label>
-            <input type="date" id="report-to" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-to" class="cico-input" />
           </div>
         </div>
 
@@ -236,15 +227,15 @@
         <div class="report-controls hidden" id="rctrl-teacher">
           <div class="field-group" style="flex:1;min-width:160px;">
             <label class="field-label">Homeroom Teacher</label>
-            <select id="report-teacher-sel" class="cico-input cico-select" onchange="renderReports()"></select>
+            <select id="report-teacher-sel" class="cico-input cico-select"></select>
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">From</label>
-            <input type="date" id="report-teacher-from" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-teacher-from" class="cico-input" />
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">To</label>
-            <input type="date" id="report-teacher-to" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-teacher-to" class="cico-input" />
           </div>
         </div>
 
@@ -252,15 +243,15 @@
         <div class="report-controls hidden" id="rctrl-grade">
           <div class="field-group" style="flex:1;min-width:160px;">
             <label class="field-label">Grade</label>
-            <select id="report-grade-sel" class="cico-input cico-select" onchange="renderReports()"></select>
+            <select id="report-grade-sel" class="cico-input cico-select"></select>
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">From</label>
-            <input type="date" id="report-grade-from" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-grade-from" class="cico-input" />
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">To</label>
-            <input type="date" id="report-grade-to" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-grade-to" class="cico-input" />
           </div>
         </div>
 
@@ -268,14 +259,14 @@
         <div class="report-controls hidden" id="rctrl-school">
           <div class="field-group" style="width:160px;">
             <label class="field-label">From</label>
-            <input type="date" id="report-school-from" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-school-from" class="cico-input" />
           </div>
           <div class="field-group" style="width:160px;">
             <label class="field-label">To</label>
-            <input type="date" id="report-school-to" class="cico-input" onchange="renderReports()" />
+            <input type="date" id="report-school-to" class="cico-input" />
           </div>
           <div class="field-group" style="align-self:flex-end;">
-            <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="renderReports()">Run Report</button>
+            <button class="btn-cico btn-primary-cico btn-sm-cico" id="run-report-btn">Run Report</button>
           </div>
         </div>
 
@@ -304,7 +295,7 @@
             <div class="add-config-row" style="margin-top:12px;">
               <input type="text" id="new-schedule-name" class="cico-input" placeholder="Profile name (e.g. Short Day)…" style="flex:1;" />
               <input type="number" id="new-schedule-periods" class="cico-input" style="width:80px;" min="1" max="20" placeholder="Periods" />
-              <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="addSchedule()">+ Add</button>
+              <button class="btn-cico btn-outline-cico btn-sm-cico" id="add-schedule-btn">+ Add</button>
             </div>
           </div>
 
@@ -315,7 +306,7 @@
             <div id="categories-list" class="config-list"></div>
             <div class="add-config-row" style="margin-top:12px;">
               <input type="text" id="new-category-name" class="cico-input" placeholder="New category name…" style="flex:1;" />
-              <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="addCategory()">+ Add</button>
+              <button class="btn-cico btn-outline-cico btn-sm-cico" id="add-category-btn">+ Add</button>
             </div>
           </div>
 
@@ -330,7 +321,7 @@
               <label class="checkbox-label" style="align-self:center;">
                 <input type="checkbox" id="new-incident-minutes" checked /> Track minutes
               </label>
-              <button class="btn-cico btn-outline-cico btn-sm-cico" style="align-self:center;" onclick="addIncidentType()">+ Add</button>
+              <button class="btn-cico btn-outline-cico btn-sm-cico" style="align-self:center;" id="add-incident-type-btn">+ Add</button>
             </div>
           </div>
 
@@ -344,11 +335,11 @@
        MODAL: Add/Edit Student
        ═══════════════════════════════════════════════════════════════════ -->
   <div id="student-modal" class="cico-modal hidden">
-    <div class="cico-modal-backdrop" onclick="closeStudentModal()"></div>
+    <div class="cico-modal-backdrop"></div>
     <div class="cico-modal-box">
       <div class="cico-modal-header">
         <h2 id="student-modal-title">Add Student</h2>
-        <button class="modal-close-btn" onclick="closeStudentModal()">✕</button>
+        <button class="modal-close-btn" id="student-modal-close">✕</button>
       </div>
       <div class="cico-modal-body">
         <input type="hidden" id="edit-student-id" />
@@ -378,8 +369,8 @@
         </div>
       </div>
       <div class="cico-modal-footer">
-        <button class="btn-cico btn-ghost-cico btn-sm-cico" onclick="closeStudentModal()">Cancel</button>
-        <button class="btn-cico btn-primary-cico btn-sm-cico" onclick="saveStudent()">Save Student</button>
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="student-modal-cancel">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico" id="student-modal-save">Save Student</button>
       </div>
     </div>
   </div>
@@ -388,11 +379,11 @@
        MODAL: Import Students
        ═══════════════════════════════════════════════════════════════════ -->
   <div id="import-students-modal" class="cico-modal hidden">
-    <div class="cico-modal-backdrop" onclick="closeStudentImportModal()"></div>
+    <div class="cico-modal-backdrop"></div>
     <div class="cico-modal-box" style="max-width:600px;">
       <div class="cico-modal-header">
         <h2>Import Students</h2>
-        <button class="modal-close-btn" onclick="closeStudentImportModal()">✕</button>
+        <button class="modal-close-btn" id="import-modal-close">✕</button>
       </div>
       <div class="cico-modal-body">
         <p style="margin-bottom:16px;font-size:14px;color:var(--ci-text-2);">Upload an Excel file with your student roster. The file should have columns for first name, last name, grade, homeroom, and optionally student ID.</p>
@@ -404,9 +395,9 @@
               <div style="font-size:32px;">📊</div>
               <p style="margin:8px 0 4px;">Drop your Excel file here</p>
               <p style="font-size:13px;opacity:.6;">or</p>
-              <button class="btn-cico btn-outline-cico btn-sm-cico" onclick="document.getElementById('import-file-input').click()">Browse Files</button>
+              <button class="btn-cico btn-outline-cico btn-sm-cico" id="browse-files-btn">Browse Files</button>
             </div>
-            <input type="file" id="import-file-input" accept=".xlsx,.xls" hidden onchange="handleImportFile(event)" />
+            <input type="file" id="import-file-input" accept=".xlsx,.xls" hidden />
           </div>
         </div>
 
@@ -418,8 +409,8 @@
         </div>
       </div>
       <div class="cico-modal-footer">
-        <button class="btn-cico btn-ghost-cico btn-sm-cico" onclick="closeStudentImportModal()">Cancel</button>
-        <button class="btn-cico btn-primary-cico btn-sm-cico hidden" id="confirm-import-btn" onclick="confirmStudentImport()">Import Students</button>
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="import-modal-cancel">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico hidden" id="confirm-import-btn">Import Students</button>
       </div>
     </div>
   </div>
@@ -428,11 +419,11 @@
        MODAL: Log Incident
        ═══════════════════════════════════════════════════════════════════ -->
   <div id="incident-modal" class="cico-modal hidden">
-    <div class="cico-modal-backdrop" onclick="closeIncidentModal()"></div>
+    <div class="cico-modal-backdrop"></div>
     <div class="cico-modal-box" style="max-width:440px;">
       <div class="cico-modal-header" style="background:var(--ci-red-soft);">
         <h2>Log Incident</h2>
-        <button class="modal-close-btn" onclick="closeIncidentModal()">✕</button>
+        <button class="modal-close-btn" id="incident-modal-close">✕</button>
       </div>
       <div class="cico-modal-body">
         <p id="incident-context-label" style="font-size:13px;color:var(--ci-text-2);margin-bottom:12px;"></p>
@@ -450,8 +441,8 @@
         </div>
       </div>
       <div class="cico-modal-footer">
-        <button class="btn-cico btn-ghost-cico btn-sm-cico" onclick="closeIncidentModal()">Cancel</button>
-        <button class="btn-cico btn-danger-cico btn-sm-cico" onclick="confirmLogIncident()">Log Incident</button>
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="incident-modal-cancel">Cancel</button>
+        <button class="btn-cico btn-danger-cico btn-sm-cico" id="log-incident-btn">Log Incident</button>
       </div>
     </div>
   </div>

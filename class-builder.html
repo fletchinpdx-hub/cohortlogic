@@ -513,42 +513,42 @@
       </div>
       <div id="faq-list">
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">
+          <div class="faq-q">
             Does my student data go to your servers?
             <span class="faq-icon">+</span>
           </div>
           <div class="faq-a">No. Class Builder runs entirely in your browser. Your student data is never uploaded to or stored on Cohort Logic's servers. When you close the tab, it's gone. This is by design, not just policy.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">
+          <div class="faq-q">
             What file formats does it accept?
             <span class="faq-icon">+</span>
           </div>
           <div class="faq-a">Excel files (.xlsx and .xls) via drag-and-drop or file browse. Public Google Sheets via paste-a-link. The app auto-detects column names and suggests mappings. You can adjust before proceeding.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">
+          <div class="faq-q">
             How does the balancing algorithm work?
             <span class="faq-icon">+</span>
           </div>
           <div class="faq-a">Class Builder uses a snake-draft approach: students are sorted by composite score and assigned to classrooms in a 1-2-3-3-2-1 pattern to ensure even distribution. A second pass enforces separation and together constraints by swapping students between rooms. Category fields (like ethnicity) are balanced in a third pass. No black-box AI — every placement has a reason.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">
+          <div class="faq-q">
             What if I need to make manual changes?
             <span class="faq-icon">+</span>
           </div>
           <div class="faq-a">The results view has drag-and-drop. You can move any student to a different class. Constraint violations are flagged the moment they occur. You can also regenerate at any time — your constraints and class configuration are preserved.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">
+          <div class="faq-q">
             Does it work for multi-grade (split) classes?
             <span class="faq-icon">+</span>
           </div>
           <div class="faq-a">Yes. You can configure split classes that draw from two grade levels (e.g. a 3/4 split). Class Builder pulls approximately 50% from each grade. You set how many split classes you need and which grades they span.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">
+          <div class="faq-q">
             Is it really free?
             <span class="faq-icon">+</span>
           </div>
@@ -617,13 +617,5 @@
 </footer>
 
 <script src="js/marketing-chrome.js"></script>
-<script>
-function toggleFaq(el) {
-  const item = el.closest('.faq-item');
-  const isOpen = item.classList.contains('open');
-  document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-  if (!isOpen) item.classList.add('open');
-}
-</script>
 </body>
 </html>

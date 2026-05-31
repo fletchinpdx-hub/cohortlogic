@@ -134,6 +134,59 @@ function initEntryPeriods() {
   CicoState.entry.periods = periods;
 }
 
+// ── Event binding (replaces inline onclick/onchange/oninput attributes) ──────
+function bindEvents() {
+  // Entry view
+  document.getElementById('save-checkin-btn').addEventListener('click', saveCheckin);
+  document.getElementById('entry-schedule-sel').addEventListener('change', onScheduleChange);
+
+  // History view
+  document.getElementById('history-search-btn').addEventListener('click', loadHistory);
+
+  // Students view
+  document.getElementById('add-student-btn').addEventListener('click', openAddStudentModal);
+  document.getElementById('import-excel-btn').addEventListener('click', openStudentImportModal);
+  document.getElementById('students-search').addEventListener('input', filterStudentList);
+
+  // Reports view — tabs
+  document.querySelectorAll('.report-tab').forEach(tab => {
+    tab.addEventListener('click', function () { switchReportTab(this.dataset.report); });
+  });
+  // Reports view — controls (all report selects/dates trigger renderReports)
+  [
+    'report-student-sel', 'report-from', 'report-to',
+    'report-teacher-sel', 'report-teacher-from', 'report-teacher-to',
+    'report-grade-sel',   'report-grade-from',   'report-grade-to',
+    'report-school-from', 'report-school-to',
+  ].forEach(id => document.getElementById(id).addEventListener('change', renderReports));
+  document.getElementById('run-report-btn').addEventListener('click', renderReports);
+
+  // Settings view
+  document.getElementById('add-schedule-btn').addEventListener('click', addSchedule);
+  document.getElementById('add-category-btn').addEventListener('click', addCategory);
+  document.getElementById('add-incident-type-btn').addEventListener('click', addIncidentType);
+
+  // Student modal
+  document.querySelector('#student-modal .cico-modal-backdrop').addEventListener('click', closeStudentModal);
+  document.getElementById('student-modal-close').addEventListener('click', closeStudentModal);
+  document.getElementById('student-modal-cancel').addEventListener('click', closeStudentModal);
+  document.getElementById('student-modal-save').addEventListener('click', saveStudent);
+
+  // Import modal
+  document.querySelector('#import-students-modal .cico-modal-backdrop').addEventListener('click', closeStudentImportModal);
+  document.getElementById('import-modal-close').addEventListener('click', closeStudentImportModal);
+  document.getElementById('browse-files-btn').addEventListener('click', () => document.getElementById('import-file-input').click());
+  document.getElementById('import-file-input').addEventListener('change', handleImportFile);
+  document.getElementById('import-modal-cancel').addEventListener('click', closeStudentImportModal);
+  document.getElementById('confirm-import-btn').addEventListener('click', confirmStudentImport);
+
+  // Incident modal
+  document.querySelector('#incident-modal .cico-modal-backdrop').addEventListener('click', closeIncidentModal);
+  document.getElementById('incident-modal-close').addEventListener('click', closeIncidentModal);
+  document.getElementById('incident-modal-cancel').addEventListener('click', closeIncidentModal);
+  document.getElementById('log-incident-btn').addEventListener('click', confirmLogIncident);
+}
+
 // ── App bootstrap ──────────────────────────────────────────────────────────
 async function initApp() {
   // Confirm auth
@@ -143,6 +196,9 @@ async function initApp() {
 
   // Load data
   await loadCicoData();
+
+  // Bind all event listeners (replaces inline HTML event attributes)
+  bindEvents();
 
   // Boot the entry view
   initEntryView();

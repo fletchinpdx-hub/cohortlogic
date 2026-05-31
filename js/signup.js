@@ -1,0 +1,85 @@
+document.addEventListener('DOMContentLoaded', () => {
+  // ── Password strength indicator ──
+  document.getElementById('password').addEventListener('input', function () {
+    const pw  = this.value;
+    const bar = document.getElementById('pw-bar');
+    const lbl = document.getElementById('pw-label');
+    if (!pw) { bar.style.width = '0'; lbl.textContent = ''; return; }
+    let score = 0;
+    if (pw.length >= 8)           score++;
+    if (pw.length >= 12)          score++;
+    if (/[0-9]/.test(pw))         score++;
+    if (/[^a-zA-Z0-9]/.test(pw)) score++;
+    const cfg = [
+      { w: '20%',  bg: '#ef4444', text: 'Too short' },
+      { w: '40%',  bg: '#f97316', text: 'Weak' },
+      { w: '65%',  bg: '#eab308', text: 'Fair' },
+      { w: '85%',  bg: '#22c55e', text: 'Good' },
+      { w: '100%', bg: '#16a34a', text: 'Strong' },
+    ][Math.min(score, 4)];
+    bar.style.width      = cfg.w;
+    bar.style.background = cfg.bg;
+    lbl.style.color      = cfg.bg;
+    lbl.textContent      = cfg.text;
+  });
+
+  // ── Sign up form ──
+  document.getElementById('signup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn       = document.getElementById('submit-btn');
+    const errorEl   = document.getElementById('auth-error');
+    const successEl = document.getElementById('auth-success');
+    const fullName   = document.getElementById('full-name').value.trim();
+    const email      = document.getElementById('email').value.trim();
+    const schoolName = document.getElementById('school-name').value.trim();
+    const password   = document.getElementById('password').value;
+
+    errorEl.classList.remove('visible');
+    successEl.classList.remove('visible');
+
+    if (!fullName || !email || !schoolName) {
+      errorEl.textContent = 'Please fill in all fields.';
+      errorEl.classList.add('visible');
+      return;
+    }
+    if (password.length < 8) {
+      errorEl.textContent = 'Password must be at least 8 characters.';
+      errorEl.classList.add('visible');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account…';
+
+    // Create Supabase auth user — profile is auto-created by DB trigger
+    const { data, error } = await SupabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName, school_name: schoolName },
+        emailRedirectTo: 'https://cohortlogic.com/login.html',
+      }
+    });
+
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.add('visible');
+      btn.disabled = false;
+      btn.innerHTML = 'Create account <span class="arrow">→</span>';
+      return;
+    }
+
+    // Show two-step pending message
+    document.getElementById('signup-form').style.display = 'none';
+    successEl.innerHTML = `
+      <div class="pending-card">
+        <div class="pending-icon">📬</div>
+        <strong style="font-size:16px;color:var(--navy-deep);">One more step — check your email</strong>
+        <p style="color:var(--text-2);">We sent a confirmation link to <strong>${email}</strong>. Click it to verify your address.</p>
+        <p style="color:var(--text-2);margin-top:8px;">Once verified, your account will be reviewed for approval. We'll reach out when you're all set.</p>
+        <p style="font-size:13px;color:var(--text-3);margin-top:10px;">Didn't get it? Check your spam folder.</p>
+      </div>
+    `;
+    successEl.classList.add('visible');
+  });
+});

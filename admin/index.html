@@ -23,7 +23,7 @@
     <input type="password" id="password-input" class="form-input" placeholder="Your password" />
     <button class="btn btn-primary" id="signin-btn">Sign In</button>
     <div style="text-align:center;margin-top:16px;">
-      <button onclick="toggleMagicLink()" style="background:none;border:none;font-size:13px;color:#6b7280;cursor:pointer;text-decoration:underline;padding:0;">Forgot password? Send a sign-in link instead</button>
+      <button id="toggle-magic-link-btn" style="background:none;border:none;font-size:13px;color:#6b7280;cursor:pointer;text-decoration:underline;padding:0;">Forgot password? Send a sign-in link instead</button>
     </div>
 
     <!-- Magic link fallback (hidden by default) -->
@@ -41,7 +41,7 @@
     <div class="topbar-right">
       <span class="topbar-email" id="admin-email"></span>
       <button class="topbar-btn" id="change-pw-btn">Change Password</button>
-      <button class="topbar-btn" id="logout-btn" onclick="doLogout()">Sign Out</button>
+      <button class="topbar-btn" id="logout-btn">Sign Out</button>
     </div>
   </div>
 
@@ -121,7 +121,7 @@
       <div class="audit-filters">
         <div>
           <label>Table</label>
-          <select id="audit-table-filter" onchange="loadAuditLog()">
+          <select id="audit-table-filter">
             <option value="">All tables</option>
             <option value="cico_students">cico_students</option>
             <option value="cico_checkins">cico_checkins</option>
@@ -132,7 +132,7 @@
         </div>
         <div>
           <label>Action</label>
-          <select id="audit-action-filter" onchange="loadAuditLog()">
+          <select id="audit-action-filter">
             <option value="">All actions</option>
             <option value="INSERT">INSERT</option>
             <option value="UPDATE">UPDATE</option>
@@ -141,14 +141,14 @@
         </div>
         <div>
           <label>From</label>
-          <input type="date" id="audit-from" onchange="loadAuditLog()" />
+          <input type="date" id="audit-from" />
         </div>
         <div>
           <label>To</label>
-          <input type="date" id="audit-to" onchange="loadAuditLog()" />
+          <input type="date" id="audit-to" />
         </div>
         <div style="align-self:flex-end;">
-          <button class="btn btn-outline btn-sm" onclick="clearAuditFilters()">Clear</button>
+          <button class="btn btn-outline btn-sm" id="clear-audit-filters-btn">Clear</button>
         </div>
       </div>
 
@@ -166,7 +166,7 @@
         <input type="text" id="new-school-name"     placeholder="School name *" />
         <input type="text" id="new-school-district" placeholder="District (optional)" />
         <input type="text" id="new-school-state"    placeholder="State (optional)" style="max-width:90px;" />
-        <button class="btn btn-primary btn-sm" onclick="addSchool()">+ Add School</button>
+        <button class="btn btn-primary btn-sm" id="add-school-btn">+ Add School</button>
       </div>
       <div id="school-alert" class="alert hidden" style="margin-top:10px;"></div>
     </div>
@@ -189,11 +189,11 @@
 </div>
 
 <!-- Audit detail modal (populated by JS) -->
-<div id="audit-detail-modal" style="display:none;" class="audit-modal-overlay" onclick="closeAuditModal(event)">
-  <div class="audit-modal" onclick="event.stopPropagation()">
+<div id="audit-detail-modal" style="display:none;" class="audit-modal-overlay">
+  <div class="audit-modal">
     <div class="audit-modal-head">
       <h3 id="audit-modal-title">Change Detail</h3>
-      <button class="audit-modal-close" onclick="closeAuditModal()">✕</button>
+      <button class="audit-modal-close">✕</button>
     </div>
     <div class="audit-modal-body" id="audit-modal-body"></div>
   </div>

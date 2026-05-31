@@ -130,6 +130,23 @@ async function doLogout() {
   window.location.href = window.location.href.split('#')[0];
 }
 document.getElementById('logout-btn').addEventListener('click', doLogout);
+document.getElementById('toggle-magic-link-btn').addEventListener('click', toggleMagicLink);
+
+// ── Audit filters ──
+document.getElementById('audit-table-filter').addEventListener('change', loadAuditLog);
+document.getElementById('audit-action-filter').addEventListener('change', loadAuditLog);
+document.getElementById('audit-from').addEventListener('change', loadAuditLog);
+document.getElementById('audit-to').addEventListener('change', loadAuditLog);
+document.getElementById('clear-audit-filters-btn').addEventListener('click', clearAuditFilters);
+
+// ── Schools ──
+document.getElementById('add-school-btn').addEventListener('click', addSchool);
+
+// ── Audit detail modal ──
+const _auditOverlay = document.getElementById('audit-detail-modal');
+_auditOverlay.addEventListener('click', closeAuditModal);
+_auditOverlay.querySelector('.audit-modal').addEventListener('click', e => e.stopPropagation());
+_auditOverlay.querySelector('.audit-modal-close').addEventListener('click', closeAuditModal);
 
 // ── Change password ──
 document.getElementById('change-pw-btn').addEventListener('click', () => {

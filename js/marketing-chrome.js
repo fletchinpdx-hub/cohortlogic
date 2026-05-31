@@ -65,4 +65,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Close when clicking outside
   document.addEventListener('click', () => navWrap.classList.remove('nav-open'));
   navWrap.addEventListener('click', e => e.stopPropagation());
+
+  // ── FAQ accordion (class-builder.html) ──────────────────────────────────
+  document.querySelectorAll('.faq-q').forEach(el => {
+    el.addEventListener('click', function () {
+      const item = this.closest('.faq-item');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!isOpen) item.classList.add('open');
+    });
+  });
 });

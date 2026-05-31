@@ -22,7 +22,7 @@
   </a>
   <div style="display:flex;align-items:center;gap:16px;">
     <span class="dash-greeting" id="user-greeting"></span>
-    <button class="btn btn-ghost btn-sm" onclick="doSignOut()">Sign out</button>
+    <button class="btn btn-ghost btn-sm sign-out-btn">Sign out</button>
   </div>
 </nav>
 
@@ -33,7 +33,7 @@
     <h2 style="font-size:24px;">Your account is pending approval</h2>
     <p style="color:var(--text-2);">We review each account before granting access. We'll send you an email when you're approved, usually within one business day.</p>
     <p style="font-size:13px;color:var(--text-3);">Questions? Reply to your signup confirmation email.</p>
-    <button class="btn btn-ghost btn-sm" style="margin:0 auto;" onclick="doSignOut()">Sign out</button>
+    <button class="btn btn-ghost btn-sm sign-out-btn" style="margin:0 auto;">Sign out</button>
   </div>
 </div>
 
@@ -119,37 +119,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
-<script>
-  async function init() {
-    const { data: { session } } = await SupabaseClient.auth.getSession();
-    if (!session) { window.location.href = 'login.html'; return; }
-
-    const { data: profile } = await SupabaseClient
-      .from('profiles')
-      .select('full_name, school_name, approved')
-      .eq('id', session.user.id)
-      .single();
-
-    // Update greeting
-    const firstName = profile?.full_name?.split(' ')[0] || session.user.email;
-    document.getElementById('user-greeting').textContent = firstName;
-
-    if (!profile || !profile.approved) {
-      document.getElementById('pending-state').style.display = 'flex';
-    } else {
-      document.getElementById('dashboard-state').style.display = 'block';
-      if (profile.school_name) {
-        document.getElementById('school-line').textContent = profile.school_name;
-      }
-    }
-  }
-
-  async function doSignOut() {
-    await SupabaseClient.auth.signOut();
-    window.location.href = 'index.html';
-  }
-
-  init();
-</script>
+<script src="js/dashboard.js"></script>
 </body>
 </html>
