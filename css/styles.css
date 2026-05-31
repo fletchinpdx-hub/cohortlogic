@@ -215,12 +215,14 @@ body {
 .drop-zone p { margin-bottom: 4px; color: var(--gray-500); }
 .drop-sub { font-size: 12px !important; }
 
-.sheets-input-group {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+.sheets-steps {
+  margin: 0 0 14px 18px;
+  padding: 0;
+  color: var(--gray-600, var(--gray-700));
+  font-size: 13.5px;
+  line-height: 1.8;
 }
-.sheets-input-group .input { flex: 1; }
+.sheets-steps li { margin-bottom: 2px; }
 .hint { font-size: 12px !important; color: var(--gray-400) !important; }
 
 .sample-section {

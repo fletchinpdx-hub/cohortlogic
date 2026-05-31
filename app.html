@@ -69,36 +69,38 @@
       <div id="view-import" class="view active">
         <div class="view-header">
           <h1>Import Student Data</h1>
-          <p class="view-subtitle">Upload an Excel file or connect a Google Sheet to get started.</p>
+          <p class="view-subtitle">Upload an Excel or CSV file to get started. Your data stays in your browser and is never sent to a server.</p>
         </div>
 
         <div class="import-options">
-          <!-- Excel upload -->
+          <!-- File upload (Excel or CSV) -->
           <div class="import-card" id="excel-card">
             <div class="import-card-icon">📊</div>
-            <h2>Excel File</h2>
-            <p>Drag and drop your .xlsx file, or click to browse.</p>
+            <h2>Upload a File</h2>
+            <p>Excel (.xlsx) or CSV — drag and drop or click to browse.</p>
             <div id="drop-zone" class="drop-zone">
               <div class="drop-zone-inner">
                 <div class="drop-icon">⬆️</div>
-                <p>Drop your Excel file here</p>
+                <p>Drop your file here</p>
                 <p class="drop-sub">or</p>
                 <button class="btn btn-secondary" id="browse-btn">Browse Files</button>
               </div>
-              <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
+              <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden />
             </div>
           </div>
 
-          <!-- Google Sheets -->
+          <!-- Google Sheets instructions -->
           <div class="import-card" id="sheets-card">
             <div class="import-card-icon">📋</div>
-            <h2>Google Sheets</h2>
-            <p>Paste the link to a publicly shared Google Sheet.</p>
-            <div class="sheets-input-group">
-              <input type="text" id="sheets-url" class="input" placeholder="https://docs.google.com/spreadsheets/d/..." />
-              <button class="btn btn-primary" id="sheets-import-btn">Import</button>
-            </div>
-            <p class="hint">The sheet must be shared as "Anyone with the link can view."</p>
+            <h2>Using Google Sheets?</h2>
+            <p>Export your sheet as a file and upload it above — no sharing required.</p>
+            <ol class="sheets-steps">
+              <li>Open your Google Sheet</li>
+              <li>Click <strong>File → Download</strong></li>
+              <li>Choose <strong>Excel (.xlsx)</strong> or <strong>CSV</strong></li>
+              <li>Upload the downloaded file here</li>
+            </ol>
+            <p class="hint">Your data stays on your device and is never sent to a server.</p>
           </div>
         </div>
 

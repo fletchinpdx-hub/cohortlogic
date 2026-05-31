@@ -1,7 +1,7 @@
-// ── Excel drag & drop ──
-const dropZone   = document.getElementById('drop-zone');
-const fileInput  = document.getElementById('file-input');
-const browseBtn  = document.getElementById('browse-btn');
+// ── File upload (Excel + CSV) ──
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const browseBtn = document.getElementById('browse-btn');
 
 browseBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
@@ -17,64 +17,41 @@ dropZone.addEventListener('drop', e => {
 
 function handleFile(file) {
   if (!file) return;
-  if (!/\.(xlsx|xls)$/i.test(file.name)) {
-    showImportStatus('Please upload an Excel file (.xlsx or .xls)', 'error');
+
+  const isCSV   = /\.csv$/i.test(file.name);
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+
+  if (!isCSV && !isExcel) {
+    showImportStatus('Please upload an Excel (.xlsx) or CSV (.csv) file.', 'error');
     return;
   }
+
   showImportStatus('Reading file…', 'info');
   const reader = new FileReader();
+
   reader.onload = e => {
     try {
-      const wb = XLSX.read(e.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (!rows.length) { showImportStatus('The spreadsheet appears to be empty.', 'error'); return; }
-      loadRawData(rows, file.name);
-    } catch (err) {
-      showImportStatus('Could not read the file. Make sure it is a valid Excel spreadsheet.', 'error');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-// ── Google Sheets import ──
-document.getElementById('sheets-import-btn').addEventListener('click', importFromSheets);
-
-function importFromSheets() {
-  const url = document.getElementById('sheets-url').value.trim();
-  if (!url) { showImportStatus('Please paste a Google Sheets URL.', 'error'); return; }
-
-  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!idMatch) { showImportStatus('That doesn\'t look like a valid Google Sheets URL.', 'error'); return; }
-
-  const id     = idMatch[1];
-  const gidMatch = url.match(/[#&?]gid=(\d+)/);
-  const gid    = gidMatch ? gidMatch[1] : '0';
-
-  // The /export?format=xlsx endpoint blocks cross-origin requests (CORS).
-  // The gviz/tq CSV endpoint is designed for programmatic access and works
-  // for any sheet shared as "Anyone with the link can view."
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}`;
-  showImportStatus('Fetching Google Sheet…', 'info');
-
-  fetch(csvUrl)
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    })
-    .then(csv => {
-      const wb   = XLSX.read(csv, { type: 'string' });
+      let wb;
+      if (isCSV) {
+        // SheetJS reads CSV as a string
+        wb = XLSX.read(e.target.result, { type: 'string' });
+      } else {
+        wb = XLSX.read(e.target.result, { type: 'array' });
+      }
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (!rows.length) { showImportStatus('The sheet appears to be empty.', 'error'); return; }
-      loadRawData(rows, 'Google Sheet');
-    })
-    .catch(() => {
-      showImportStatus(
-        'Could not load the sheet. Make sure it is shared as "Anyone with the link can view" and try again.',
-        'error'
-      );
-    });
+      if (!rows.length) { showImportStatus('The file appears to be empty.', 'error'); return; }
+      loadRawData(rows, file.name);
+    } catch (err) {
+      showImportStatus('Could not read the file. Make sure it is a valid Excel or CSV file.', 'error');
+    }
+  };
+
+  if (isCSV) {
+    reader.readAsText(file);
+  } else {
+    reader.readAsArrayBuffer(file);
+  }
 }
 
 // ── Process raw import ──
@@ -85,8 +62,7 @@ function loadRawData(rows, sourceName) {
     `✓ Loaded ${rows.length} rows from "${sourceName}". Now go to Field Mapping to configure columns.`,
     'success'
   );
-  const evtName = sourceName === 'Google Sheet' ? 'import_sheets' : 'import_excel';
-  if (typeof trackEvent === 'function') trackEvent(evtName, { rows: rows.length });
+  if (typeof trackEvent === 'function') trackEvent('import_excel', { rows: rows.length });
   // Auto-guess column mappings
   autoGuessMapping();
   // Render field mapping view immediately
