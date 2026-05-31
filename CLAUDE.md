@@ -10,9 +10,10 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 **Hosting:** Netlify (auto-deploys on push to `main`). Switching to Cloudflare Pages in ~3 weeks.
 
 ## Git workflow
-- Claude commits; **user runs `git push origin main` from their terminal**
-- Remote is SSH: `git@github.com:fletchinpdx-hub/cohortlogic.git`
-- Claude Code sandbox cannot access macOS Keychain or ssh-agent — pushes must come from user's terminal
+- Claude commits **and pushes** — no action needed from user
+- Fetch/pull uses SSH (`git@github.com:fletchinpdx-hub/cohortlogic.git`)
+- Push uses HTTPS with a token stored in `.git/config` (push URL set via `git remote set-url --push`)
+- If push ever fails (expired token), regenerate a `repo`-scoped PAT on GitHub and run: `git remote set-url --push origin https://NEW_TOKEN@github.com/fletchinpdx-hub/cohortlogic.git`
 
 ---
 
@@ -92,17 +93,26 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 
 ## File structure
 ```
-index.html              — Marketing/landing page (Class Builder demo gate)
+index.html              — Marketing/landing page
 dashboard.html          — Product dashboard (links to both products)
 app.html                — Class Builder app
 checkin-app.html        — Check-in / Check-out app
 login.html              — Shared login for CICO
+privacy.html            — Privacy policy (FERPA)
+security.html           — Security & privacy marketing page
+pricing.html            — Pricing page
+contact.html            — Contact page
+class-builder.html      — Class Builder marketing/product page
+resources.html          — Resources (coming soon)
+_headers                — Netlify security headers (CSP, X-Frame-Options, etc.)
 admin/
   index.html            — Admin panel
   admin.js              — All admin logic
+  admin.css             — Admin panel styles
 css/
   styles.css            — Class Builder styles (--navy, --teal, --gold)
   checkin.css           — CICO styles (--ci-navy, --ci-teal, --ci-gold)
+  marketing.css         — Marketing site design system (all marketing pages share this)
 js/
   app.js                — Class Builder: AppState, navigation, utilities
   import.js             — File import (Excel + CSV); Google Sheets = export then upload
@@ -152,7 +162,7 @@ supabase/migrations/
 ---
 
 ## Deployment
-- `git push origin main` (from user terminal) → Netlify auto-deploys
+- Claude pushes to `main` → Netlify auto-deploys (no manual step needed)
 - DNS at Porkbun: A → 75.2.60.5, CNAME www → gleeful-banoffee-050c62.netlify.app
 - Plan: switch to Cloudflare Pages in ~3 weeks
 
@@ -165,14 +175,15 @@ supabase/migrations/
 | School data isolation (RLS) | ✅ Done |
 | FERPA audit log | ✅ Done |
 | Google Sheets URL import removed | ✅ Done (privacy concern) |
-| Privacy policy page | ⏳ Pending |
-| Content Security Policy headers | ⏳ Pending (Netlify `_headers` file) |
+| Privacy policy page | ✅ Done (`privacy.html`) |
+| Netlify `_headers` — security headers + CSP | ✅ Done |
+| CSP `style-src` without `unsafe-inline` | ✅ Done (all styles externalised) |
+| CSP `script-src` without `unsafe-inline` | ⏳ Pending — requires migrating `onclick=` to `addEventListener` (Safari quirk, test carefully) |
 | Supabase Pro + DPA | ⏳ Pending (needed for formal FERPA) |
 | Demo access code in client JS | ⚠️ Known limitation (v1 intentional) |
 
 ## Pending / to do
-- **Privacy policy page** on marketing site (FERPA requirement)
-- **Content Security Policy** via Netlify `_headers` file
+- **CSP script-src unsafe-inline** — migrate `onclick=` attributes to `addEventListener` across all HTML files; test on Safari before shipping
 - **Teacher-level RLS** — teachers see only their homeroom students in CICO
 - **Supabase Pro + DPA** — formal FERPA compliance
 - **Data retention policy** — process decision
