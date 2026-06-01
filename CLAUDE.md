@@ -9,6 +9,15 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 **Local dev:** http://localhost:3456 (run via `npx serve -l 3456 .`)  
 **Hosting:** Netlify (auto-deploys on push to `main`). Switching to Cloudflare Pages soon.
 
+## Compact Instructions
+When compacting this conversation, preserve:
+- All modified files and what changed in each
+- Key architectural decisions and why they were made
+- Any pending tasks or known issues
+- Test commands that verify the work
+
+---
+
 ## Git workflow
 - Claude commits **and pushes** — no action needed from user
 - Always ask to commit when a feature feels done
