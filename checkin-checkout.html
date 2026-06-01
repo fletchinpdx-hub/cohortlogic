@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check-in / Check-out — PBIS Behavioral Tracker for K-12 Schools | Cohort Logic</title>
+  <meta name="description" content="Track daily PBIS behavioral check-ins across your school. Period-by-period scores, student trends, incident logging, and building-wide reports — all in one place." />
+  <link rel="canonical" href="https://cohortlogic.com/checkin-checkout.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Check-in / Check-out — PBIS Behavioral Tracker for K-12 Schools | Cohort Logic" />
+  <meta property="og:description" content="Track daily PBIS behavioral check-ins across your school. Period-by-period scores, student trends, incident logging, and building-wide reports — all in one place." />
+  <meta property="og:url" content="https://cohortlogic.com/checkin-checkout.html" />
+  <meta property="og:site_name" content="Cohort Logic" />
+  <meta property="og:image" content="https://cohortlogic.com/images/og-card.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Check-in / Check-out — PBIS Behavioral Tracker for K-12 Schools" />
+  <meta name="twitter:description" content="Track daily PBIS behavioral check-ins across your school. Period-by-period scores, student trends, and building-wide reports." />
+  <link rel="stylesheet" href="css/marketing.css" />
+</head>
+<body class="page-enter">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="products.html">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="resources.html">Resources</a>
+      <a href="security.html">Security</a>
+    </div>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Start free <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="hero-section">
+  <div class="hairline-grid" style="position:absolute;inset:0;mask-image:linear-gradient(180deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,0) 75%);-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,0) 75%);pointer-events:none;"></div>
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="tag tag--teal"><span class="tag-dot"></span>Available now · Free</span>
+          <a href="products.html" style="font-size:12px;color:var(--text-3);font-family:var(--font-mono);">← All products</a>
+        </div>
+        <h1>Check-in / Check-out.</h1>
+        <p class="lede">A PBIS behavioral support tracker built for school administrators. Log daily check-ins by period, monitor student trends, and see school-wide data — all in one place.</p>
+        <div class="hero-actions">
+          <a href="signup.html" class="btn btn-primary">Sign up for free access <span class="arrow">→</span></a>
+          <a href="#how-it-works" class="btn btn-ghost">See how it works</a>
+        </div>
+        <div class="trust-pills">
+          <span class="trust-pill">No credit card</span>
+          <span class="trust-pill">School-isolated data</span>
+          <span class="trust-pill">Built for administrators</span>
+        </div>
+      </div>
+
+      <!-- CICO viz mockup -->
+      <div class="hero-viz">
+        <div style="background:#fff;border:1px solid var(--hairline);border-radius:20px;padding:22px;box-shadow:var(--shadow-lg);max-width:380px;width:100%;">
+          <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:16px;display:flex;justify-content:space-between;">
+            <span>Today's check-ins</span>
+            <span style="color:var(--teal-deep);">June 1</span>
+          </div>
+          <!-- Student rows -->
+          <div style="display:grid;gap:10px;">
+            <div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:10px 12px;background:var(--light-gray);border-radius:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:28px;height:28px;border-radius:8px;background:#2A9D8F;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">M</span>
+                <div>
+                  <div style="font-size:13px;font-weight:500;color:var(--navy-deep);">Marcus T.</div>
+                  <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono);">4 periods · avg 1.8</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">1</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:10px 12px;background:var(--light-gray);border-radius:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:28px;height:28px;border-radius:8px;background:#E9B949;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">A</span>
+                <div>
+                  <div style="font-size:13px;font-weight:500;color:var(--navy-deep);">Aaliyah R.</div>
+                  <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono);">4 periods · avg 1.0</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">1</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#EF4444;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">0</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">1</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">1</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:10px 12px;background:var(--light-gray);border-radius:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:28px;height:28px;border-radius:8px;background:#4FA8E0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">D</span>
+                <div>
+                  <div style="font-size:13px;font-weight:500;color:var(--navy-deep);">Devon K.</div>
+                  <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono);">4 periods · avg 2.0</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+                <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</span>
+              </div>
+            </div>
+          </div>
+          <!-- Score legend -->
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--hairline);display:flex;gap:12px;">
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);"><span style="width:10px;height:10px;border-radius:3px;background:#22C55E;display:inline-block;"></span>2 · Meeting</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);"><span style="width:10px;height:10px;border-radius:3px;background:#F59E0B;display:inline-block;"></span>1 · Developing</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);"><span style="width:10px;height:10px;border-radius:3px;background:#EF4444;display:inline-block;"></span>0 · Needs support</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── The problem ───────────────────────────────────────────────────────── -->
+<section class="section section--soft">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start;">
+      <div>
+        <span class="eyebrow">The problem</span>
+        <h2 style="margin-top:14px;">PBIS check-ins still live on paper and in spreadsheets.</h2>
+        <p class="lede" style="margin-top:16px;font-size:16px;">Most schools run CICO programs with printed forms, spreadsheet logs, or notes passed between teachers. It works until you need to spot a trend, respond to a pattern, or show the district what's happening across 30 students.</p>
+      </div>
+      <div style="display:grid;gap:16px;padding-top:48px;">
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+          <div style="width:32px;height:32px;border-radius:8px;background:#FEF2F2;border:1px solid #fecaca;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:14px;">✕</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">No building-wide visibility</p>
+            <p style="font-size:14px;color:var(--text-2);">Each teacher tracks their own students in isolation. Administrators have no real-time view of what's happening across the building.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+          <div style="width:32px;height:32px;border-radius:8px;background:#FEF2F2;border:1px solid #fecaca;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:14px;">✕</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Trends are invisible until it's too late</p>
+            <p style="font-size:14px;color:var(--text-2);">Paper logs and scattered spreadsheets make it nearly impossible to see a student's trajectory week over week before a situation escalates.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+          <div style="width:32px;height:32px;border-radius:8px;background:#FEF2F2;border:1px solid #fecaca;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:14px;">✕</span>
+          </div>
+          <div>
+            <p style="font-weight:500;font-size:15px;margin-bottom:4px;">Reporting takes hours</p>
+            <p style="font-size:14px;color:var(--text-2);">Pulling data for a team meeting or a parent conversation means manually compiling check-in sheets that were never designed to be aggregated.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ───────────────────────────────────────────────────────── -->
+<section class="section" id="how-it-works">
+  <div class="container">
+    <div style="margin-bottom:56px;">
+      <span class="eyebrow">How it works</span>
+      <h2 style="margin-top:14px;">Set up once. Run every day.</h2>
+    </div>
+    <div class="workflow-steps">
+
+      <!-- Step 1: Setup -->
+      <div class="workflow-step">
+        <div class="step-text" style="display:grid;gap:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="step-num">01</span>
+            <span style="font-size:13px;color:var(--text-3);font-family:var(--font-mono);">Setup</span>
+          </div>
+          <h3 style="font-size:26px;">Add your students and configure your program.</h3>
+          <p style="color:var(--text-2);font-size:15px;line-height:1.6;">Enter students manually or import from a spreadsheet. Set how many check-in periods your school runs, define your scoring categories, and configure the incident types your staff will log.</p>
+          <ul style="list-style:none;padding:0;margin:0;display:grid;gap:8px;">
+            <li style="font-size:14px;color:var(--text-2);">→ Add students individually or via Excel import</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Configure the number of check-in periods per day</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Define custom scoring categories and incident types</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Each school's data is completely isolated</li>
+          </ul>
+        </div>
+        <div class="step-viz">
+          <div style="background:#fff;border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md);">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--hairline);">
+              <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);">Students · 24 enrolled</span>
+            </div>
+            <div style="padding:16px 18px;display:grid;gap:8px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--light-gray);border-radius:8px;">
+                <span style="width:24px;height:24px;border-radius:6px;background:#2A9D8F;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">M</span>
+                <span style="font-size:13px;color:var(--navy-deep);">Marcus T.</span>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-3);">Grade 6</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--light-gray);border-radius:8px;">
+                <span style="width:24px;height:24px;border-radius:6px;background:#E9B949;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">A</span>
+                <span style="font-size:13px;color:var(--navy-deep);">Aaliyah R.</span>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-3);">Grade 5</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--light-gray);border-radius:8px;">
+                <span style="width:24px;height:24px;border-radius:6px;background:#4FA8E0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">D</span>
+                <span style="font-size:13px;color:var(--navy-deep);">Devon K.</span>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-3);">Grade 6</span>
+              </div>
+              <div style="text-align:center;padding:6px;font-family:var(--font-mono);font-size:10px;color:var(--text-3);">+ 21 more</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Check in -->
+      <div class="workflow-step flip">
+        <div class="step-text" style="display:grid;gap:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="step-num">02</span>
+            <span style="font-size:13px;color:var(--text-3);font-family:var(--font-mono);">Daily Entry</span>
+          </div>
+          <h3 style="font-size:26px;">Log check-ins period by period.</h3>
+          <p style="color:var(--text-2);font-size:15px;line-height:1.6;">Each day, staff score students by period on a 0–2 scale. Zero means needs support, one is developing, two is meeting expectations. Log incidents alongside scores when something happens that warrants documentation.</p>
+          <ul style="list-style:none;padding:0;margin:0;display:grid;gap:8px;">
+            <li style="font-size:14px;color:var(--text-2);">→ Score per period: 0 (needs support), 1 (developing), 2 (meeting expectations)</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Log incidents with type and notes</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Search students by name for fast daily entry</li>
+          </ul>
+        </div>
+        <div class="step-viz">
+          <div style="background:#fff;border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md);">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--hairline);">
+              <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);">Check-in Entry · Marcus T.</span>
+            </div>
+            <div style="padding:16px 18px;display:grid;gap:10px;">
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);white-space:nowrap;">Period 1</span>
+                <div style="display:flex;gap:6px;">
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #EF4444;background:#FEF2F2;font-size:12px;font-weight:700;color:#EF4444;cursor:default;">0</button>
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #F59E0B;background:#FFFBEB;font-size:12px;font-weight:700;color:#F59E0B;cursor:default;">1</button>
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #22C55E;background:#22C55E;font-size:12px;font-weight:700;color:#fff;cursor:default;">2</button>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);white-space:nowrap;">Period 2</span>
+                <div style="display:flex;gap:6px;">
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #EF4444;background:#FEF2F2;font-size:12px;font-weight:700;color:#EF4444;cursor:default;">0</button>
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #F59E0B;background:#FFFBEB;font-size:12px;font-weight:700;color:#F59E0B;cursor:default;">1</button>
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #22C55E;background:#22C55E;font-size:12px;font-weight:700;color:#fff;cursor:default;">2</button>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);white-space:nowrap;">Period 3</span>
+                <div style="display:flex;gap:6px;">
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #EF4444;background:#FEF2F2;font-size:12px;font-weight:700;color:#EF4444;cursor:default;">0</button>
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #F59E0B;background:#F59E0B;font-size:12px;font-weight:700;color:#fff;cursor:default;">1</button>
+                  <button style="flex:1;padding:8px;border-radius:6px;border:2px solid #22C55E;background:#F0FDF4;font-size:12px;font-weight:700;color:#22C55E;cursor:default;">2</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Track -->
+      <div class="workflow-step">
+        <div class="step-text" style="display:grid;gap:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="step-num">03</span>
+            <span style="font-size:13px;color:var(--text-3);font-family:var(--font-mono);">History</span>
+          </div>
+          <h3 style="font-size:26px;">See patterns before they become problems.</h3>
+          <p style="color:var(--text-2);font-size:15px;line-height:1.6;">The history view shows a student's check-in record over time — day by day, color-coded by score. A downward trend is visible at a glance. Filter by date range or student to pull exactly what you need for a team meeting or family conversation.</p>
+          <ul style="list-style:none;padding:0;margin:0;display:grid;gap:8px;">
+            <li style="font-size:14px;color:var(--text-2);">→ Day-by-day check-in history per student</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Color-coded scores for at-a-glance trends</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Incident log linked to each check-in</li>
+            <li style="font-size:14px;color:var(--text-2);">→ Filter by student or date range</li>
+          </ul>
+        </div>
+        <div class="step-viz">
+          <div style="background:#fff;border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md);">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--hairline);">
+              <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);">History · Aaliyah R. · Last 5 days</span>
+            </div>
+            <div style="padding:16px 18px;display:grid;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);width:36px;">May 28</span>
+                <div style="display:flex;gap:3px;">
+                  <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">2</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">2</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">2</span>
+                </div>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--teal-deep);">1.75</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);width:36px;">May 29</span>
+                <div style="display:flex;gap:3px;">
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">2</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                </div>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-2);">1.25</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);width:36px;">Jun 1</span>
+                <div style="display:flex;gap:3px;">
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#EF4444;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">0</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                  <span style="width:22px;height:22px;border-radius:5px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;">1</span>
+                </div>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-2);">0.75</span>
+              </div>
+              <div style="margin-top:4px;padding:8px 10px;background:#FEF2F2;border-radius:8px;font-size:12px;color:#a23b3b;">↓ Trend declining — review recommended</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Report -->
+      <div class="workflow-step flip">
+        <div class="step-text" style="display:grid;gap:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="step-num">04</span>
+            <span style="font-size:13px;color:var(--text-3);font-family:var(--font-mono);">Reports</span>
+          </div>
+          <h3 style="font-size:26px;">School-wide data without the manual work.</h3>
+          <p style="color:var(--text-2);font-size:15px;line-height:1.6;">The reports view gives you four lenses on your CICO data: student trend over time, by homeroom teacher, by grade, and school-wide aggregate. Every view updates automatically from daily check-ins — no compiling required.</p>
+          <ul style="list-style:none;padding:0;margin:0;display:grid;gap:8px;">
+            <li style="font-size:14px;color:var(--text-2);">→ Student trend — score trajectory over time</li>
+            <li style="font-size:14px;color:var(--text-2);">→ By teacher — compare across homerooms</li>
+            <li style="font-size:14px;color:var(--text-2);">→ By grade — grade-level patterns</li>
+            <li style="font-size:14px;color:var(--text-2);">→ School-wide — aggregate view for leadership</li>
+          </ul>
+        </div>
+        <div class="step-viz">
+          <div style="background:#fff;border:1px solid var(--hairline);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md);">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--hairline);display:flex;gap:8px;">
+              <span style="padding:4px 10px;border-radius:6px;background:var(--teal-soft);font-family:var(--font-mono);font-size:10px;color:var(--teal-deep);">School-wide</span>
+              <span style="padding:4px 10px;border-radius:6px;background:var(--light-gray);font-family:var(--font-mono);font-size:10px;color:var(--text-3);">By Grade</span>
+              <span style="padding:4px 10px;border-radius:6px;background:var(--light-gray);font-family:var(--font-mono);font-size:10px;color:var(--text-3);">By Teacher</span>
+            </div>
+            <div style="padding:16px 18px;display:grid;gap:10px;">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+                <div style="padding:12px 8px;background:var(--teal-soft);border-radius:10px;">
+                  <div style="font-size:20px;font-weight:700;color:var(--teal-deep);">24</div>
+                  <div style="font-size:10px;color:var(--text-3);font-family:var(--font-mono);margin-top:3px;">students</div>
+                </div>
+                <div style="padding:12px 8px;background:var(--light-gray);border-radius:10px;">
+                  <div style="font-size:20px;font-weight:700;color:var(--navy-deep);">1.4</div>
+                  <div style="font-size:10px;color:var(--text-3);font-family:var(--font-mono);margin-top:3px;">avg score</div>
+                </div>
+                <div style="padding:12px 8px;background:var(--light-gray);border-radius:10px;">
+                  <div style="font-size:20px;font-weight:700;color:var(--navy-deep);">89%</div>
+                  <div style="font-size:10px;color:var(--text-3);font-family:var(--font-mono);margin-top:3px;">checked in</div>
+                </div>
+              </div>
+              <div style="display:grid;gap:6px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:11px;color:var(--text-3);width:60px;">Grade 5</span>
+                  <div style="flex:1;height:5px;background:var(--hairline);border-radius:99px;"><div style="width:72%;height:100%;background:#22C55E;border-radius:99px;"></div></div>
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-2);">1.6</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:11px;color:var(--text-3);width:60px;">Grade 6</span>
+                  <div style="flex:1;height:5px;background:var(--hairline);border-radius:99px;"><div style="width:55%;height:100%;background:#F59E0B;border-radius:99px;"></div></div>
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-2);">1.2</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ──────────────────────────────────────────────────────────── -->
+<section class="section section--soft">
+  <div class="container">
+    <div style="margin-bottom:48px;">
+      <span class="eyebrow">Features</span>
+      <h2 style="margin-top:14px;max-width:480px;">Built for the way PBIS actually works.</h2>
+    </div>
+    <div class="grid grid-3" style="gap:20px;">
+      <div class="card">
+        <div style="font-size:22px;margin-bottom:12px;">📋</div>
+        <h4 style="margin-bottom:8px;">Period-by-period scoring</h4>
+        <p style="font-size:14px;color:var(--text-2);">Score students on a 0–2 scale for each check-in period. Configure as many periods as your school runs.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px;margin-bottom:12px;">⚠️</div>
+        <h4 style="margin-bottom:8px;">Incident logging</h4>
+        <p style="font-size:14px;color:var(--text-2);">Log behavioral incidents alongside check-in scores. Define custom incident types that match your school's framework.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px;margin-bottom:12px;">📈</div>
+        <h4 style="margin-bottom:8px;">Student trend reports</h4>
+        <p style="font-size:14px;color:var(--text-2);">See a student's score trajectory over time with color-coded history. Spot a downward trend before a situation escalates.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px;margin-bottom:12px;">🏫</div>
+        <h4 style="margin-bottom:8px;">School-wide visibility</h4>
+        <p style="font-size:14px;color:var(--text-2);">Aggregate reports across all students, by grade, and by homeroom teacher — updated automatically from daily check-ins.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px;margin-bottom:12px;">🔒</div>
+        <h4 style="margin-bottom:8px;">School-isolated data</h4>
+        <p style="font-size:14px;color:var(--text-2);">Each school's student data is strictly isolated. No cross-school data access, by design. Encrypted in transit and at rest.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px;margin-bottom:12px;">👥</div>
+        <h4 style="margin-bottom:8px;">Multi-user, admin-approved</h4>
+        <p style="font-size:14px;color:var(--text-2);">Staff sign up and are approved by your school admin before accessing any data. You control who has access.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ──────────────────────────────────────────────────────────────── -->
+<section class="section">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:80px;align-items:start;">
+      <div>
+        <span class="eyebrow">FAQ</span>
+        <h2 style="margin-top:14px;">Common questions.</h2>
+        <p style="margin-top:16px;font-size:15px;color:var(--text-2);">Didn't find what you're looking for?</p>
+        <a href="contact.html" class="btn btn-ghost btn-sm" style="margin-top:12px;">Ask us directly →</a>
+      </div>
+      <div id="faq-list">
+        <div class="faq-item">
+          <div class="faq-q">
+            Who uses Check-in / Check-out?
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-a">Primarily school administrators — principals and assistant principals — who need building-wide visibility into behavioral support. Teachers and counselors who conduct daily check-ins also use the entry view to log scores and incidents.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">
+            What is the scoring system?
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-a">Students are scored on a 0–2 scale for each check-in period: 0 means needs support (shown in red), 1 means developing (amber), and 2 means meeting expectations (green). You can configure how many periods your school uses.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">
+            How do I add students?
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-a">You can add students one at a time through the Students view, or import a roster from an Excel file. Students are associated with your school and only visible to staff at your school.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">
+            Is student data secure?
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-a">Yes. Student data is encrypted in transit and at rest, and each school's data is strictly isolated — no other school can access it. Staff must be approved by your school admin before gaining access. See our security page for the full picture.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">
+            Is it really free?
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-a">Yes. Check-in / Check-out is free for any school through September 2026. No credit card required. We'll give you advance notice before any pricing changes.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Security note ─────────────────────────────────────────────────────── -->
+<section class="section section--tight">
+  <div class="container">
+    <div style="background:var(--gold-soft);border:1px solid rgba(233,185,73,.3);border-radius:16px;padding:32px 36px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;">
+      <div>
+        <span class="eyebrow plain" style="color:#8a6a18;">Honest note on security</span>
+        <p style="margin-top:10px;font-size:15px;color:var(--text-2);">We're not yet SOC 2 audited or part of formal DPA programs. We won't claim we are until we are. What we can say: student data is encrypted, isolated to your school, and never shared or sold. <a href="security.html" style="color:var(--teal-deep);">See the full picture →</a></p>
+      </div>
+      <a href="security.html" class="btn btn-ghost btn-sm" style="white-space:nowrap;">Learn more</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Final CTA ─────────────────────────────────────────────────────────── -->
+<section class="section section--tight">
+  <div class="container">
+    <div class="final-cta">
+      <span class="eyebrow plain" style="justify-content:center;margin-bottom:14px;">Free through September 2026</span>
+      <h2>Try Check-in / Check-out with your students.</h2>
+      <p class="lede" style="margin:12px auto 0;max-width:480px;text-align:center;">Sign up for free access. Add your students, configure your periods, and start logging check-ins today.</p>
+      <div class="final-cta-actions">
+        <a href="signup.html" class="btn btn-primary">Sign up free <span class="arrow">→</span></a>
+        <a href="contact.html" class="btn btn-ghost">Talk to us first</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div><h4>Product</h4><ul>
+        <li><a href="class-builder.html">Class Builder</a></li>
+        <li><a href="checkin-checkout.html">Check-in / Check-out</a></li>
+        <li><a href="products.html">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="products.html">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="security.html">Security &amp; privacy</a></li>
+        <li><a href="resources.html">Resources</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul></div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-bottom:16px;">Free through September 2026. No credit card.</p>
+        <a href="signup.html" class="btn btn-accent btn-sm">Start free <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span>© <span class="footer-year">2026</span> Cohort Logic · Built for schools</span>
+      <div class="footer-copy-links"><a href="privacy.html">Privacy</a><a href="#">Terms</a><a href="security.html">Security</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/marketing-chrome.js"></script>
+</body>
+</html>

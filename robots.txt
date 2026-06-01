@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /app.html
+Disallow: /checkin-app.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /signup.html
+
+Sitemap: https://cohortlogic.com/sitemap.xml
