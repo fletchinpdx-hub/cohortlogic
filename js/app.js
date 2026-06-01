@@ -13,10 +13,10 @@ const AppState = {
     { name: 'Math',      type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
     { name: 'Reading',   type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
     { name: 'Writing',   type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
-    { name: 'Behavior',  type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },
+    { name: 'Behavior',  type: 'score',    column: '', min: 1, max: 5, direction: 'asc', priority: true },
     { name: 'IEP',       type: 'flag',     column: '' },
     { name: '504',       type: 'flag',     column: '' },
-    { name: 'Gender',    type: 'category', column: '' },
+    { name: 'Gender',    type: 'category', column: '', priority: true },
     { name: 'Ethnicity', type: 'category', column: '' },
   ],
   columnMap: {         // required field -> spreadsheet column

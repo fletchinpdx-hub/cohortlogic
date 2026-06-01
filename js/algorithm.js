@@ -75,20 +75,22 @@ function runBalancingAlgorithm() {
 
 // ── Composite score (normalized 0–1 across any range) ──
 function computeComposite(s) {
-  const vals = AppState.competencies
+  let weightedSum = 0, totalWeight = 0;
+  AppState.competencies
     .filter(c => c.type === 'score' && c.name && c.column)
-    .map(c => {
+    .forEach(c => {
       const v = s.scores[c.name];
-      if (v === null || v === undefined) return null;
+      if (v === null || v === undefined) return;
       const min = c.min ?? 1;
       const max = c.max ?? 5;
-      if (max <= min) return 0.5;
+      if (max <= min) return;
       const norm = (v - min) / (max - min);
-      // 'desc' means low value = better, so invert so higher composite = better
-      return (c.direction === 'desc') ? 1 - norm : norm;
-    })
-    .filter(v => v !== null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5;
+      const normalized = (c.direction === 'desc') ? 1 - norm : norm;
+      const weight = c.priority ? 3 : 1;
+      weightedSum += normalized * weight;
+      totalWeight += weight;
+    });
+  return totalWeight ? weightedSum / totalWeight : 0.5;
 }
 
 // When true, adds small random jitter so regenerate produces different arrangements
@@ -269,19 +271,28 @@ function balanceCategories(classes) {
     return anySwap;
   };
 
-  // Outer passes: repeat until no pair benefits from further swaps.
-  // Needed because fully draining (A,B) may create an opportunity in (A,C).
-  for (let pass = 0; pass < 30; pass++) {
-    let improved = false;
-    for (const comp of catComps) {
-      for (let ci = 0; ci < classes.length - 1; ci++) {
-        for (let cj = ci + 1; cj < classes.length; cj++) {
-          if (drainPair(ci, cj, comp.name)) improved = true;
+  const priorityCats = catComps.filter(c => c.priority);
+  const regularCats  = catComps.filter(c => !c.priority);
+
+  // Priority categories get dedicated passes first so they are never sacrificed
+  // for lower-priority fields (e.g. gender and behavior are locked in before
+  // ethnicity swaps can disturb them).
+  const runPasses = (comps, maxPasses) => {
+    for (let pass = 0; pass < maxPasses; pass++) {
+      let improved = false;
+      for (const comp of comps) {
+        for (let ci = 0; ci < classes.length - 1; ci++) {
+          for (let cj = ci + 1; cj < classes.length; cj++) {
+            if (drainPair(ci, cj, comp.name)) improved = true;
+          }
         }
       }
+      if (!improved) break;
     }
-    if (!improved) break;
-  }
+  };
+
+  runPasses(priorityCats, 30);
+  runPasses(regularCats, 30);
 }
 
 // ── Class averages (scores) + category distributions ──

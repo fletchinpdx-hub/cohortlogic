@@ -67,6 +67,9 @@ function renderCompetencies() {
           <option value="">— column —</option>
           ${headers.map(h => `<option value="${h}" ${c.column === h ? 'selected' : ''}>${h}</option>`).join('')}
         </select>
+        <label class="comp-priority-label" title="Prioritize this field in balancing">
+          <input type="checkbox" class="comp-priority" ${c.priority ? 'checked' : ''} /> Priority
+        </label>
         <button class="remove-btn" title="Remove">×</button>
       </div>
     `;
@@ -98,6 +101,9 @@ function renderCompetencies() {
         AppState.competencies[i].name = e.target.value;
         row.querySelector('.comp-name').value = e.target.value;
       }
+    });
+    row.querySelector('.comp-priority').addEventListener('change', e => {
+      AppState.competencies[i].priority = e.target.checked;
     });
     row.querySelector('.remove-btn').addEventListener('click', () => {
       AppState.competencies.splice(i, 1);
