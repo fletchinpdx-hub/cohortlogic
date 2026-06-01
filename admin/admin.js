@@ -845,6 +845,49 @@ function loadDashboard() {
   });
   loadAuditLog();
   loadAnalytics();
+  loadFeedback();
+}
+
+async function loadFeedback() {
+  const container = document.getElementById('feedback-list');
+  const { data, error } = await db.from('feedback')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !data?.length) {
+    container.innerHTML = `<p style="color:#9ca3af;font-size:13px;">${error ? 'Error loading feedback.' : 'No feedback submitted yet.'}</p>`;
+    return;
+  }
+
+  const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const productLabel = p => p === 'class_builder' ? 'Class Builder' : 'CICO';
+
+  container.innerHTML = `
+    <table class="event-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Product</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>School</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(f => `
+          <tr>
+            <td style="white-space:nowrap">${fmt(f.created_at)}</td>
+            <td><span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#e0f2fe;color:#0369a1">${productLabel(f.product)}</span></td>
+            <td>${f.name || '<span style="color:#9ca3af">—</span>'}</td>
+            <td>${f.email ? `<a href="mailto:${f.email}">${f.email}</a>` : '<span style="color:#9ca3af">—</span>'}</td>
+            <td>${f.school_name || '<span style="color:#9ca3af">—</span>'}</td>
+            <td style="max-width:340px;white-space:pre-wrap">${f.message}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 async function loadCicoStats() {

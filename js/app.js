@@ -103,6 +103,45 @@ function gradeOrder(g) {
   return parseInt(g) || 99;
 }
 
+// ── Feedback modal ──
+function openFeedbackModal() {
+  document.getElementById('feedback-overlay').classList.remove('hidden');
+  document.getElementById('feedback-form').classList.remove('hidden');
+  document.getElementById('feedback-thanks').classList.add('hidden');
+  document.getElementById('fb-error').classList.add('hidden');
+}
+function closeFeedbackModal() {
+  document.getElementById('feedback-overlay').classList.add('hidden');
+}
+async function submitFeedback() {
+  const message = document.getElementById('fb-message').value.trim();
+  const errEl   = document.getElementById('fb-error');
+  if (!message) {
+    errEl.textContent = 'Please enter your feedback before submitting.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  const btn = document.querySelector('#feedback-form .feedback-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  const { error } = await SupabaseClient.from('feedback').insert({
+    product: 'class_builder',
+    name:    document.getElementById('fb-name').value.trim()  || null,
+    email:   document.getElementById('fb-email').value.trim() || null,
+    message,
+  });
+  btn.disabled = false;
+  btn.textContent = 'Submit Feedback';
+  if (error) {
+    errEl.textContent = 'Something went wrong. Please try again.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('feedback-form').classList.add('hidden');
+  document.getElementById('feedback-thanks').classList.remove('hidden');
+}
+
 // Returns the display label for a student based on the current displayMode.
 // Falls back to studentId when no name is available (ID-only datasets).
 function studentLabel(s) {
