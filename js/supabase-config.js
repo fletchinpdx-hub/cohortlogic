@@ -14,19 +14,25 @@ function getSessionToken() {
 
 async function trackSession() {
   try {
-    await SupabaseClient.from('sessions').upsert(
+    const { error } = await SupabaseClient.from('sessions').upsert(
       { session_token: getSessionToken(), user_agent: navigator.userAgent },
       { onConflict: 'session_token' }
     );
-  } catch (e) {}
+    if (error) console.warn('[CL tracking] session:', error.message);
+  } catch (e) {
+    console.warn('[CL tracking] session exception:', e.message);
+  }
 }
 
 async function trackEvent(name, data = {}) {
   try {
-    await SupabaseClient.from('events').insert({
+    const { error } = await SupabaseClient.from('events').insert({
       session_token: getSessionToken(),
       event_name: name,
       event_data: data,
     });
-  } catch (e) {}
+    if (error) console.warn('[CL tracking] event:', error.message);
+  } catch (e) {
+    console.warn('[CL tracking] event exception:', e.message);
+  }
 }
