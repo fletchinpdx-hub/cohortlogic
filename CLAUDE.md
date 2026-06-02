@@ -106,6 +106,7 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 - **Schools** — Add, edit (inline), and delete schools; deletion blocked if users are assigned
 
 ### Key functions in admin.js
+- `verifyAndLoad(session, event)` — async; called fire-and-forget from onAuthStateChange; checks `profiles.is_admin`, signs out non-admins, then calls showDashboard + loadDashboard
 - `loadDashboard()` — synchronous dispatcher: fires loadSchools → loadPendingUsers + loadAllUsers + loadCicoStats in parallel; loadAuditLog and loadAnalytics independently
 - `loadAnalytics()` — async: queries sessions + events tables for Class Builder stats
 - `loadCicoStats()` — async: queries cico_students + cico_checkins for CICO stat cards and per-school table
