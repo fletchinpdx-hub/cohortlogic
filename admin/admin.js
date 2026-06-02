@@ -29,8 +29,10 @@ const EVENT_LABELS = {
 };
 
 // ── Auth state ──
-// Handler must be synchronous — awaiting inside onAuthStateChange deadlocks
-// Supabase's internal auth processing, causing silent login freezes on refresh.
+// ⚠️  DO NOT make this handler async or add await inside it.
+//     Supabase cannot finish processing auth state while the handler is blocked.
+//     The symptom is a silent login freeze on page refresh — no error, just hangs.
+//     All async work must go in verifyAndLoad() below, called fire-and-forget.
 if (db) {
   db.auth.onAuthStateChange((event, session) => {
     if (!session) { showLogin(); return; }

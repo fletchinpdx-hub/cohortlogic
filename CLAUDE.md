@@ -178,6 +178,13 @@ supabase/migrations/
 
 ---
 
+## Critical constraints — do not violate
+
+### Admin `onAuthStateChange` must stay synchronous
+`db.auth.onAuthStateChange(...)` in `admin/admin.js` **must not be `async`** and must not `await` anything inside the handler body. Supabase cannot finish processing auth state while the callback is blocked — the symptom is a completely silent login freeze on page refresh (no error, button stays on "Signing in…"). All async work goes in `verifyAndLoad()`, which is called fire-and-forget from the handler. This has been broken and fixed twice. Do not revert it.
+
+---
+
 ## Brand & tech
 - **Colors:** navy (#0a2240), teal (#0ea5e9 / --ci-teal: #2a9d8f), gold (#f59e0b)
 - **Font:** Nunito (Google Fonts)
