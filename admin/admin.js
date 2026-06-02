@@ -605,7 +605,7 @@ async function loadAllUsers() {
 
   const { data: users, error } = await db
     .from('profiles')
-    .select('id, full_name, school_id, school_name, approved, created_at')
+    .select('id, full_name, email, school_id, school_name, approved, created_at')
     .eq('approved', true)
     .order('full_name', { ascending: true });
 
@@ -629,7 +629,10 @@ async function loadAllUsers() {
     const schoolLabel = assignedSchool ? escAdmin(assignedSchool.name) : '<span style="color:#9ca3af;">— unassigned —</span>';
     return `
       <tr id="user-row-${u.id}">
-        <td><strong>${escAdmin(u.full_name || '(no name)')}</strong></td>
+        <td>
+          <strong>${escAdmin(u.full_name || '(no name)')}</strong>
+          ${u.email ? `<br><a href="mailto:${escAdmin(u.email)}" style="font-size:11px;color:#6b7280;">${escAdmin(u.email)}</a>` : ''}
+        </td>
         <td style="color:#6b7280;">${escAdmin(u.school_name || '—')}</td>
         <td>${schoolLabel}</td>
         <td>
@@ -744,7 +747,7 @@ async function loadPendingUsers() {
 
   const { data: pending, error } = await db
     .from('profiles')
-    .select('id, full_name, school_name, created_at')
+    .select('id, full_name, email, school_name, created_at')
     .eq('approved', false)
     .order('created_at', { ascending: true });
 
@@ -778,6 +781,7 @@ async function loadPendingUsers() {
         <div class="pending-info">
           <strong>${escAdmin(u.full_name || '(no name)')}</strong>
           ${isReturning ? '<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;">Previously active</span>' : ''}
+          ${u.email ? `<a href="mailto:${escAdmin(u.email)}" style="font-size:12px;color:#6b7280;display:block;margin-top:2px;">${escAdmin(u.email)}</a>` : ''}
           <div class="meta">${escAdmin(u.school_name || 'No school listed')} · ${isReturning ? 'Deactivated' : 'Signed up'} ${date}</div>
           <div class="pending-school-row">
             <label style="font-size:12px;color:#6b7280;">Assign to school:</label>
