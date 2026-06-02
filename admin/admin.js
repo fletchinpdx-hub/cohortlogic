@@ -29,36 +29,38 @@ const EVENT_LABELS = {
 };
 
 // ── Auth state ──
+// Handler must be synchronous — awaiting inside onAuthStateChange deadlocks
+// Supabase's internal auth processing, causing silent login freezes on refresh.
 if (db) {
-  db.auth.onAuthStateChange(async (event, session) => {
+  db.auth.onAuthStateChange((event, session) => {
     if (!session) { showLogin(); return; }
-
-    // Verify admin status before showing anything — don't rely on RLS alone
-    const { data: profile, error } = await db
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', session.user.id)
-      .single();
-
-    if (error || !profile?.is_admin) {
-      // Authenticated but not an admin — sign them out and show a clear message
-      await db.auth.signOut();
-      showLogin();
-      showLoginAlert('Access denied. This panel is for administrators only.', 'error');
-      return;
-    }
-
-    if (event === 'PASSWORD_RECOVERY') {
-      showDashboard(session.user.email);
-      await loadDashboard();
-      const section = document.getElementById('change-pw-section');
-      section.classList.remove('hidden');
-      section.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      showDashboard(session.user.email);
-      await loadDashboard();
-    }
+    verifyAndLoad(session, event); // fire-and-forget async work
   });
+}
+
+async function verifyAndLoad(session, event) {
+  // Verify admin status before showing anything — don't rely on RLS alone
+  const { data: profile, error } = await db
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', session.user.id)
+    .single();
+
+  if (error || !profile?.is_admin) {
+    await db.auth.signOut();
+    showLogin();
+    showLoginAlert('Access denied. This panel is for administrators only.', 'error');
+    return;
+  }
+
+  showDashboard(session.user.email);
+  loadDashboard();
+
+  if (event === 'PASSWORD_RECOVERY') {
+    const section = document.getElementById('change-pw-section');
+    section.classList.remove('hidden');
+    section.scrollIntoView({ behavior: 'smooth' });
+  }
 }
 
 function showLogin() {
