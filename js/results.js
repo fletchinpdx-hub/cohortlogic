@@ -32,14 +32,35 @@ function renderResultsGrid() {
   const splitStudents   = AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
   const totalStudents   = regularStudents + splitStudents;
   const totalClasses    = grades.reduce((n, g) => n + AppState.results[g].length, 0) + AppState.splitResults.length;
-  const sepViolations  = countSepViolations();
-  const togViolations  = countTogViolations();
+  const sepViolations  = getSepViolations();
+  const togViolations  = getTogViolations();
+  const sepCount = sepViolations.length;
+  const togCount = togViolations.length;
+
+  const violationList = (violations, type) => {
+    if (!violations.length) return '';
+    const items = violations.map(v =>
+      `<li>${v.nameA} &amp; ${v.nameB}${type === 'apart' ? ' — placed in the same class' : ' — placed in different classes'}</li>`
+    ).join('');
+    return `<ul class="violation-list">${items}</ul>`;
+  };
+
+  const sepCardExtra  = sepCount  ? ` violation-card" onclick="toggleViolationDetail('sep-detail')` : ``;
+  const togCardExtra  = togCount  ? ` violation-card" onclick="toggleViolationDetail('tog-detail')` : ``;
 
   stats.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Students</div><div class="stat-value">${totalStudents}</div></div>
     <div class="stat-card"><div class="stat-label">Total Classes</div><div class="stat-value">${totalClasses}</div></div>
-    <div class="stat-card"><div class="stat-label">Keep Apart Violations</div><div class="stat-value" style="color:${sepViolations ? '#ef4444' : '#22c55e'}">${sepViolations}</div></div>
-    <div class="stat-card"><div class="stat-label">Keep Together Violations</div><div class="stat-value" style="color:${togViolations ? '#ef4444' : '#22c55e'}">${togViolations}</div></div>
+    <div class="stat-card${sepCardExtra}">
+      <div class="stat-label">Keep Apart Violations${sepCount ? ' <span class="violation-hint">click for details</span>' : ''}</div>
+      <div class="stat-value" style="color:${sepCount ? '#ef4444' : '#22c55e'}">${sepCount}</div>
+      ${sepCount ? `<div id="sep-detail" class="violation-detail hidden">${violationList(sepViolations, 'apart')}</div>` : ''}
+    </div>
+    <div class="stat-card${togCardExtra}">
+      <div class="stat-label">Keep Together Violations${togCount ? ' <span class="violation-hint">click for details</span>' : ''}</div>
+      <div class="stat-value" style="color:${togCount ? '#ef4444' : '#22c55e'}">${togCount}</div>
+      ${togCount ? `<div id="tog-detail" class="violation-detail hidden">${violationList(togViolations, 'together')}</div>` : ''}
+    </div>
   `;
 
   grid.innerHTML = '';
@@ -288,22 +309,26 @@ document.getElementById('regenerate-btn').addEventListener('click', () => {
   }, 30);
 });
 
-function countSepViolations() {
-  let count = 0;
+function getSepViolations() {
+  const violations = [];
   const allClasses = [
     ...Object.values(AppState.results).flat(),
     ...AppState.splitResults.map(sr => sr.students),
   ];
   AppState.separations.forEach(pair => {
     allClasses.forEach(cls => {
-      if (cls.some(s => s.id === pair.a) && cls.some(s => s.id === pair.b)) count++;
+      const sA = cls.find(s => s.id === pair.a);
+      const sB = cls.find(s => s.id === pair.b);
+      if (sA && sB) {
+        violations.push({ nameA: studentLabel(sA), nameB: studentLabel(sB) });
+      }
     });
   });
-  return count;
+  return violations;
 }
 
-function countTogViolations() {
-  let count = 0;
+function getTogViolations() {
+  const violations = [];
   const allClasses = [
     ...Object.values(AppState.results).flat(),
     ...AppState.splitResults.map(sr => sr.students),
@@ -311,7 +336,16 @@ function countTogViolations() {
   AppState.togethers.forEach(pair => {
     const aClass = allClasses.findIndex(cls => cls.some(s => s.id === pair.a));
     const bClass = allClasses.findIndex(cls => cls.some(s => s.id === pair.b));
-    if (aClass !== -1 && bClass !== -1 && aClass !== bClass) count++;
+    if (aClass !== -1 && bClass !== -1 && aClass !== bClass) {
+      const sA = allClasses[aClass].find(s => s.id === pair.a);
+      const sB = allClasses[bClass].find(s => s.id === pair.b);
+      violations.push({ nameA: studentLabel(sA), nameB: studentLabel(sB) });
+    }
   });
-  return count;
+  return violations;
+}
+
+function toggleViolationDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('hidden');
 }
