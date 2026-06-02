@@ -6,6 +6,7 @@ function renderStudents() {
   renderTogetherDropdowns();
   renderTogetherList();
   updateDisplayModeToggle();
+  if (document.getElementById('kwt-list')) renderKwtList();
 }
 
 function populateGradeFilter() {
@@ -93,6 +94,17 @@ function renderStudentTable() {
 
 document.getElementById('grade-filter').addEventListener('change', renderStudentTable);
 document.getElementById('student-search').addEventListener('input', renderStudentTable);
+
+// ── Generate button (from Students view) ──
+document.getElementById('generate-from-students-btn').addEventListener('click', () => {
+  if (!AppState.students.length) { alert('Please import student data first.'); return; }
+  runBalancingAlgorithm();
+  const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0)
+    + AppState.splitClasses.length;
+  if (typeof trackEvent === 'function') trackEvent('classes_generated', { grades: getGrades().length, totalClasses });
+  renderResults();
+  navigateTo('results');
+});
 
 // ── Helper: build option list respecting displayMode ──
 function studentOptions() {
@@ -292,6 +304,92 @@ function renderTogetherList() {
     btn.addEventListener('click', () => {
       AppState.togethers.splice(parseInt(btn.dataset.pair), 1);
       renderTogetherList();
+    });
+  });
+}
+
+// ── Keep with Teacher modal ──
+document.getElementById('manage-kwt-btn').addEventListener('click', () => {
+  document.getElementById('kwt-modal').classList.remove('hidden');
+  renderKwtDropdowns();
+  renderKwtList();
+});
+
+document.getElementById('close-kwt').addEventListener('click', () => {
+  document.getElementById('kwt-modal').classList.add('hidden');
+});
+
+document.querySelector('.kwt-backdrop').addEventListener('click', () => {
+  document.getElementById('kwt-modal').classList.add('hidden');
+});
+
+function renderKwtDropdowns() {
+  // Student dropdown
+  document.getElementById('kwt-student').innerHTML =
+    `<option value="">Select student…</option>${studentOptions()}`;
+
+  // Class dropdown — built from gradeConfig teachers
+  const opts = [];
+  getGrades().forEach(g => {
+    const cfg = AppState.gradeConfig[g];
+    if (!cfg) return;
+    cfg.teachers.forEach((t, i) => {
+      const label = t ? `Grade ${g} — ${t}` : `Grade ${g} — Class ${i + 1}`;
+      opts.push(`<option value="${g}|${i}">${label}</option>`);
+    });
+  });
+  document.getElementById('kwt-class').innerHTML =
+    opts.length
+      ? `<option value="">Select class…</option>${opts.join('')}`
+      : `<option value="">— Set up classes first —</option>`;
+}
+
+document.getElementById('add-kwt-btn').addEventListener('click', () => {
+  const studentId = parseInt(document.getElementById('kwt-student').value);
+  const classVal  = document.getElementById('kwt-class').value;
+  if (isNaN(studentId) || !classVal) { alert('Please select a student and a class.'); return; }
+
+  const [grade, classIndex] = classVal.split('|');
+  const ci = parseInt(classIndex);
+
+  // Remove any existing pin for this student
+  AppState.keepWithTeacher = AppState.keepWithTeacher.filter(k => k.studentId !== studentId);
+  AppState.keepWithTeacher.push({ studentId, grade, classIndex: ci });
+
+  renderKwtList();
+  document.getElementById('kwt-student').value = '';
+  document.getElementById('kwt-class').value   = '';
+});
+
+function renderKwtList() {
+  const container = document.getElementById('kwt-list');
+  if (!AppState.keepWithTeacher.length) {
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No keep-with-teacher rules added yet.</p>';
+    return;
+  }
+
+  const rows = AppState.keepWithTeacher.map((k, i) => {
+    const student = AppState.students.find(s => s.id === k.studentId);
+    if (!student) return '';
+    const cfg     = AppState.gradeConfig[k.grade];
+    const teacher = cfg?.teachers?.[k.classIndex] || `Class ${k.classIndex + 1}`;
+    const label   = `Grade ${k.grade} — ${teacher}`;
+    return `
+      <div class="sep-entry">
+        <div class="sep-entry-name">
+          ${studentLabel(student)} <span style="color:var(--gray-400);font-size:12px;">(Gr. ${student.grade})</span>
+          <span style="color:var(--gray-500);font-size:12px;"> → ${label}</span>
+        </div>
+        <button class="kwt-remove-btn btn btn-sm" style="color:#ef4444;background:none;border:none;cursor:pointer;" data-index="${i}">Remove</button>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = rows;
+  container.querySelectorAll('.kwt-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      AppState.keepWithTeacher.splice(parseInt(btn.dataset.index), 1);
+      renderKwtList();
     });
   });
 }

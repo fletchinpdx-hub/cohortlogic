@@ -31,11 +31,11 @@
         <a class="nav-item" data-view="fields">
           <span class="nav-icon">🗂️</span> Field Mapping
         </a>
-        <a class="nav-item" data-view="students">
-          <span class="nav-icon">👥</span> Students
-        </a>
         <a class="nav-item" data-view="classes">
           <span class="nav-icon">📋</span> Class Setup
+        </a>
+        <a class="nav-item" data-view="students">
+          <span class="nav-icon">👥</span> Students
         </a>
         <a class="nav-item" data-view="results">
           <span class="nav-icon">✅</span> Results
@@ -122,6 +122,19 @@
           </div>
         </div>
 
+        <!-- Restore session -->
+        <div class="restore-session-card">
+          <div class="restore-session-left">
+            <div class="restore-icon">💾</div>
+            <div>
+              <div class="restore-title">Restore a saved session</div>
+              <div class="restore-desc">Pick up where you left off — upload a <strong>.cohort</strong> file to restore all students, class setup, and placement rules.</div>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" id="restore-session-btn">📂 Restore Session</button>
+          <input type="file" id="restore-file-input" accept=".cohort" hidden />
+        </div>
+
         <!-- Sample data section -->
         <div class="sample-section">
           <h3>Don't have a file yet?</h3>
@@ -177,7 +190,7 @@
       <div id="view-students" class="view">
         <div class="view-header">
           <h1>Students</h1>
-          <p class="view-subtitle">Review your student list and mark any separation pairs, then click on Class Setup.</p>
+          <p class="view-subtitle">Review your student list and set any placement rules, then generate your classes.</p>
         </div>
 
         <div class="students-toolbar">
@@ -197,6 +210,7 @@
             </select>
             <button class="btn btn-outline btn-sm" id="manage-separations-btn">⛔ Keep Apart</button>
             <button class="btn btn-outline btn-sm" id="manage-togethers-btn">🤝 Keep Together</button>
+            <button class="btn btn-outline btn-sm" id="manage-kwt-btn">📌 Keep with Teacher</button>
             <span id="student-count" class="student-count"></span>
           </div>
         </div>
@@ -209,8 +223,8 @@
         </div>
 
         <div class="next-step-bar">
-          <p class="next-step-hint">Done reviewing? Set up the number of classes and teachers for each grade.</p>
-          <button class="btn btn-primary" id="setup-classes-btn">Set Up Classes →</button>
+          <p class="next-step-hint">All placement rules set? Generate your balanced class lists.</p>
+          <button class="btn btn-primary" id="generate-from-students-btn">⚡ Generate Balanced Classes</button>
         </div>
 
         <!-- Keep Apart modal -->
@@ -260,19 +274,43 @@
             </div>
           </div>
         </div>
+
+        <!-- Keep with Teacher modal -->
+        <div id="kwt-modal" class="modal hidden">
+          <div class="modal-backdrop kwt-backdrop"></div>
+          <div class="modal-box">
+            <div class="modal-header" style="background:var(--navy);color:#fff;">
+              <h2>Keep with Teacher</h2>
+              <button class="modal-close" id="close-kwt" style="color:#fff;">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="margin-bottom:16px;">Pin a student to a specific teacher's class. Class Setup must be configured first.</p>
+              <div class="sep-add-section">
+                <label class="sep-add-label">Student:</label>
+                <select id="kwt-student" class="input" style="width:100%;margin-bottom:10px;"></select>
+                <label class="sep-add-label">Assign to:</label>
+                <div class="sep-multi-row">
+                  <select id="kwt-class" class="input" style="flex:1;"></select>
+                  <button class="btn btn-primary btn-sm" id="add-kwt-btn">+ Add</button>
+                </div>
+              </div>
+              <div id="kwt-list" style="margin-top:20px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Class Setup View -->
       <div id="view-classes" class="view">
         <div class="view-header">
           <h1>Class Setup</h1>
-          <p class="view-subtitle">Configure the number of classes per grade and assign teachers.</p>
+          <p class="view-subtitle">Configure the number of classes per grade and assign teachers, then continue to set student placement rules.</p>
         </div>
 
         <div id="grades-config"></div>
 
         <div class="view-actions">
-          <button class="btn btn-primary" id="generate-btn">⚡ Generate Balanced Classes</button>
+          <button class="btn btn-primary" id="continue-to-students-btn">Continue to Students →</button>
         </div>
       </div>
 
@@ -293,6 +331,7 @@
           <div class="toolbar-right">
             <button class="btn btn-outline btn-sm" id="export-by-grade-btn">⬇️ By Grade</button>
             <button class="btn btn-outline btn-sm" id="export-by-teacher-btn">⬇️ By Teacher</button>
+            <button class="btn btn-outline btn-sm" id="save-session-btn">💾 Save Session</button>
             <button class="btn btn-secondary btn-sm" id="regenerate-btn">🔄 Regenerate</button>
           </div>
         </div>
@@ -311,5 +350,6 @@
   <script src="js/algorithm.js"></script>
   <script src="js/results.js"></script>
   <script src="js/sample.js"></script>
+  <script src="js/session.js"></script>
 </body>
 </html>

@@ -169,5 +169,5 @@ document.getElementById('apply-mapping-btn').addEventListener('click', () => {
   updateSidebarStatus();
   renderStudents();
   buildGradeConfig();
-  navigateTo('students');
+  navigateTo('classes');
 });

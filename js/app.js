@@ -6,8 +6,9 @@ const AppState = {
   rawRows: [],         // raw rows from spreadsheet
   rawHeaders: [],      // column headers from spreadsheet
   students: [],        // mapped + parsed students
-  separations: [],     // [{a: id, b: id}]  — must be in different classes
-  togethers:   [],     // [{a: id, b: id}]  — must be in the same class
+  separations:      [],  // [{a: id, b: id}]  — must be in different classes
+  togethers:        [],  // [{a: id, b: id}]  — must be in the same class
+  keepWithTeacher:  [],  // [{studentId, grade, classIndex}] — pinned to a specific class
   displayMode: 'name', // 'name' | 'id'  — how students are labelled in the UI
   competencies: [      // configurable scoring fields
     { name: 'Math',      type: 'score',    column: '', min: 1, max: 5, direction: 'asc' },

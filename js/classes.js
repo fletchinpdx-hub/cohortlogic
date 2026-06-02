@@ -150,12 +150,8 @@ function attachSplitListeners(grades) {
   });
 }
 
-document.getElementById('generate-btn').addEventListener('click', () => {
+document.getElementById('continue-to-students-btn').addEventListener('click', () => {
   if (!AppState.students.length) { alert('Please import student data first.'); return; }
-  runBalancingAlgorithm();
-  const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0)
-    + AppState.splitClasses.length;
-  if (typeof trackEvent === 'function') trackEvent('classes_generated', { grades: getGrades().length, totalClasses });
-  renderResults();
-  navigateTo('results');
+  renderStudents();
+  navigateTo('students');
 });

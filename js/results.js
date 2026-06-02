@@ -89,20 +89,26 @@ function renderResultsGrid() {
   }
 }
 
+// ── Per-card sort state: { compName, dir } ──
+const _cardSortState = {};
+
 function buildClassCard(title, cls, gradeKey, classIdx, isSplit) {
   const avgs     = classAverages(cls);
-  const avgChips = Object.entries(avgs).map(([name, val]) =>
-    `<div class="avg-chip">${name}: <strong>${val}</strong></div>`
-  ).join('');
+  const sortKey  = `${gradeKey}-${classIdx}`;
+  const curSort  = _cardSortState[sortKey];
+
+  const avgChips = Object.entries(avgs).map(([name, val]) => {
+    const isActive = curSort && curSort.compName === name;
+    const arrow    = isActive ? (curSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<div class="avg-chip sort-chip${isActive ? ' sort-active' : ''}" onclick="sortCardBy('${gradeKey}',${classIdx},'${name}')" title="Sort by ${name}">${name}: <strong>${val}</strong>${arrow}</div>`;
+  }).join('');
 
   const card = document.createElement('div');
   card.className     = 'class-card';
   card.dataset.grade = gradeKey;
   card.dataset.class = classIdx;
 
-  const headerStyle = isSplit
-    ? `background:var(--gold);color:var(--navy);`
-    : '';
+  const headerStyle = isSplit ? `background:var(--gold);color:var(--navy);` : '';
 
   card.innerHTML = `
     <div class="class-card-header" style="${headerStyle}">
@@ -117,11 +123,37 @@ function buildClassCard(title, cls, gradeKey, classIdx, isSplit) {
   return card;
 }
 
+function sortCardBy(gradeKey, classIdx, compName) {
+  const sortKey = `${gradeKey}-${classIdx}`;
+  const cur     = _cardSortState[sortKey];
+  if (cur && cur.compName === compName) {
+    _cardSortState[sortKey] = { compName, dir: cur.dir === 'asc' ? 'desc' : 'asc' };
+  } else {
+    _cardSortState[sortKey] = { compName, dir: 'asc' };
+  }
+  // Re-render just this card's body and chips
+  renderResultsGrid();
+}
+
 function renderStudentPills(cls, g, ci) {
   const scoreComps = AppState.competencies.filter(c => c.type === 'score' && c.name && c.column);
   const catComps   = AppState.competencies.filter(c => c.type === 'category' && c.name && c.column);
 
-  return cls.map(s => {
+  // Apply sort if one is active for this card
+  const sortKey  = `${g}-${ci}`;
+  const curSort  = _cardSortState[sortKey];
+  let students   = [...cls];
+  if (curSort) {
+    const comp = AppState.competencies.find(c => c.name === curSort.compName);
+    students.sort((a, b) => {
+      const va = a.scores[curSort.compName] ?? (comp?.type === 'category' ? '' : -Infinity);
+      const vb = b.scores[curSort.compName] ?? (comp?.type === 'category' ? '' : -Infinity);
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+      return curSort.dir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  return students.map(s => {
     const scoreBadges = scoreComps.map(c => {
       const v = s.scores[c.name];
       if (v == null) return '';

@@ -239,6 +239,23 @@ body {
 .sheets-steps li { margin-bottom: 2px; }
 .hint { font-size: 12px !important; color: var(--gray-400) !important; }
 
+.restore-session-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.restore-session-left { display: flex; align-items: center; gap: 14px; }
+.restore-icon { font-size: 28px; flex-shrink: 0; }
+.restore-title { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 3px; }
+.restore-desc { font-size: 12px; color: var(--gray-500); }
+
 .sample-section {
   background: var(--blue-light);
   border: 1px solid #bfdbfe;
@@ -574,6 +591,9 @@ body {
   color: var(--gray-700);
 }
 .avg-chip strong { color: var(--blue-dark); }
+.sort-chip { cursor: pointer; user-select: none; }
+.sort-chip:hover { background: var(--teal-light); border-color: var(--teal); }
+.sort-active { background: var(--teal-light); border-color: var(--teal); font-weight: 600; }
 
 .student-pill {
   display: flex;

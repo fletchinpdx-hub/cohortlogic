@@ -68,7 +68,7 @@ function runBalancingAlgorithm() {
     const cfg      = AppState.gradeConfig[g] || { classCount: 1, teachers: [] };
     const students = pools[g] || [];
     if (cfg.classCount > 0) {
-      AppState.results[g] = balanceGrade(students, cfg.classCount);
+      AppState.results[g] = balanceGrade(students, cfg.classCount, g);
     }
   });
 }
@@ -133,9 +133,24 @@ function snakeDraft(students, classCount) {
   return classes;
 }
 
-function balanceGrade(students, classCount) {
+function balanceGrade(students, classCount, grade) {
   if (!classCount || classCount < 1) classCount = 1;
-  const classes = snakeDraft(students, classCount);
+
+  // Pre-extract students pinned to a specific class (Keep with Teacher)
+  const pins      = (AppState.keepWithTeacher || []).filter(k => k.grade === grade);
+  const pinnedIds = new Set(pins.map(k => k.studentId));
+  const unpinned  = students.filter(s => !pinnedIds.has(s.id));
+
+  const classes = snakeDraft(unpinned, classCount);
+
+  // Insert each pinned student into their designated class
+  pins.forEach(k => {
+    const student = students.find(s => s.id === k.studentId);
+    if (!student) return;
+    const targetIdx = Math.min(k.classIndex, classCount - 1);
+    classes[targetIdx].push(student);
+  });
+
   fixSeparations(classes);
   fixTogethers(classes);
   balanceCategories(classes);
