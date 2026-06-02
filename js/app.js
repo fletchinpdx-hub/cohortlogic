@@ -42,14 +42,14 @@ function navigateTo(view) {
 
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
-    navigateTo(item.dataset.view);
+    const view = item.dataset.view;
+    navigateTo(view);
+    // Re-render results whenever the Results tab is opened, so it stays in sync
+    if (view === 'results' && Object.keys(AppState.results).length) renderResults();
     // Close mobile menu after navigating
     document.getElementById('sidebar').classList.remove('menu-open');
   });
 });
-
-const _setupClassesBtn = document.getElementById('setup-classes-btn');
-if (_setupClassesBtn) _setupClassesBtn.addEventListener('click', () => navigateTo('classes'));
 
 // Mobile sidebar toggle
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
