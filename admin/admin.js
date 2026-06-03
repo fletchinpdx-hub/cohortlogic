@@ -809,9 +809,15 @@ async function loadPendingUsers() {
 }
 
 async function approveUser(userId) {
-  const btn      = document.querySelector(`#row-${userId} .approve-btn`);
+  const btn       = document.querySelector(`#row-${userId} .approve-btn`);
   const schoolSel = document.getElementById(`school-sel-${userId}`);
   const schoolId  = schoolSel ? (schoolSel.value || null) : null;
+
+  // Grab user details before the row changes
+  const nameEl  = document.querySelector(`#row-${userId} .pending-info strong`);
+  const emailEl = document.querySelector(`#row-${userId} .pending-info a[href^="mailto:"]`);
+  const name    = nameEl  ? nameEl.textContent  : '';
+  const email   = emailEl ? emailEl.textContent : '';
 
   if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
 
@@ -826,10 +832,34 @@ async function approveUser(userId) {
     return;
   }
 
+  // Show notify prompt before removing the row
   const row = document.getElementById(`row-${userId}`);
-  if (row) row.remove();
+  if (row && email) {
+    const subject = encodeURIComponent('Your Cohort Logic account is approved');
+    const body    = encodeURIComponent(
+      `Hi ${name},\n\nYour Cohort Logic account has been approved. You can sign in here:\nhttps://cohortlogic.com/login.html\n\nIf you have any questions, just reply to this email.\n\n— The Cohort Logic team`
+    );
+    row.innerHTML = `
+      <div class="pending-info">
+        <strong style="color:var(--green);">✓ Approved</strong>
+        <div class="meta">Notify ${escAdmin(name)} that their account is ready?</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <a href="mailto:${escAdmin(email)}?subject=${subject}&body=${body}"
+           class="approve-btn" style="text-decoration:none;display:inline-flex;align-items:center;">
+          Send email
+        </a>
+        <button class="reassign-btn" onclick="document.getElementById('row-${userId}').remove();_updatePendingBadge();">Done</button>
+      </div>`;
+  } else {
+    if (row) row.remove();
+    _updatePendingBadge();
+  }
+}
+
+function _updatePendingBadge() {
   const remaining = document.querySelectorAll('.pending-row').length;
-  const badge = document.getElementById('pending-badge');
+  const badge     = document.getElementById('pending-badge');
   if (remaining === 0) {
     badge.style.display = 'none';
     document.getElementById('pending-users-list').innerHTML =

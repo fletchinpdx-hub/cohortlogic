@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="pending-icon">📬</div>
         <strong style="font-size:16px;color:var(--navy-deep);">One more step — check your email</strong>
         <p style="color:var(--text-2);">We sent a confirmation link to <strong>${email}</strong>. Click it to verify your address.</p>
-        <p style="color:var(--text-2);margin-top:8px;">Once verified, your account will be reviewed for approval. We'll reach out when you're all set.</p>
+        <p style="color:var(--text-2);margin-top:8px;">Once verified, your account will be reviewed for approval. When approved, you'll be able to sign in at <a href="login.html" style="color:var(--teal-deep);">cohortlogic.com/login</a>.</p>
         <p style="font-size:13px;color:var(--text-3);margin-top:10px;">Didn't get it? Check your spam folder.</p>
       </div>
     `;
