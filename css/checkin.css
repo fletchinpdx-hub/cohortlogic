@@ -858,6 +858,18 @@ textarea.cico-input { resize: vertical; }
   margin-bottom: 4px;
 }
 
+/* Existing check-in edit banner */
+.existing-checkin-banner {
+  background: var(--ci-gold-soft);
+  border: 1px solid var(--ci-gold);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 12px;
+}
+
 .add-config-row {
   display: flex;
   gap: 8px;

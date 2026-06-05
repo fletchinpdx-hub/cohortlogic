@@ -16,12 +16,13 @@ const CicoState = {
 
   // Entry form working state
   entry: {
-    studentId:   null,
-    studentName: '',
-    date:        '',
-    notes:       '',
+    studentId:        null,
+    studentName:      '',
+    date:             '',
+    notes:            '',
+    existingCheckinId: null,   // set when editing an existing record
     // periods: { 1: { scores: { catId: null|0|1|2 }, incidents: [...] }, ... }
-    periods:     {}
+    periods:          {}
   },
 
   // Pending incident modal state

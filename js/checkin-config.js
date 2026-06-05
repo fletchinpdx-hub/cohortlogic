@@ -6,15 +6,14 @@
 const DEFAULT_CATEGORIES = ['Safe', 'Kind', 'Responsible'];
 
 const DEFAULT_INCIDENT_TYPES = [
-  { abbreviation: 'PD',    description: 'Property Destruction',              tracks_minutes: true },
-  { abbreviation: 'ELOP',  description: 'Elopement',                         tracks_minutes: true },
-  { abbreviation: 'AGGS',  description: 'Aggression to Staff',               tracks_minutes: true },
-  { abbreviation: 'RC',    description: 'Room Clear',                         tracks_minutes: true },
-  { abbreviation: 'OoA',   description: 'Out of Area',                        tracks_minutes: true },
-  { abbreviation: 'AGG/A', description: 'Physical Aggression (towards Adult)',   tracks_minutes: true },
-  { abbreviation: 'AGG/S', description: 'Physical Aggression (towards Student)', tracks_minutes: true },
-  { abbreviation: 'PPI',   description: 'Protective Physical Intervention',   tracks_minutes: true },
-  { abbreviation: 'LIT',   description: 'Lost Instructional Time',            tracks_minutes: true },
+  { abbreviation: 'PD',    description: 'Property Destruction',                    tracks_minutes: true  },
+  { abbreviation: 'RC',    description: 'Room Clear',                               tracks_minutes: true  },
+  { abbreviation: 'OoA',   description: 'Running / out of area',                   tracks_minutes: true  },
+  { abbreviation: 'AGG/A', description: 'Physical Aggression (towards Adult(s))',   tracks_minutes: true  },
+  { abbreviation: 'AGG/S', description: 'Physical Aggression (towards Student(s))', tracks_minutes: true  },
+  { abbreviation: 'PPI',   description: 'Protective Physical Int',                 tracks_minutes: true  },
+  { abbreviation: 'LIT',   description: 'Lost Instructional Time (minutes)',        tracks_minutes: true  },
+  { abbreviation: 'O',     description: 'Other',                                    tracks_minutes: false },
 ];
 
 // ── Render Settings ────────────────────────────────────────────────────────

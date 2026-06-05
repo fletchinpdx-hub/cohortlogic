@@ -15,6 +15,7 @@ function initEntryView() {
   CicoState.entry.date = dateInput.value;
   dateInput.addEventListener('change', () => {
     CicoState.entry.date = dateInput.value;
+    if (CicoState.entry.studentId) checkForExistingCheckin();
   });
 
   // Wire clear button
@@ -106,6 +107,7 @@ function initStudentSearch() {
 
     initEntryPeriods();
     updateEntryGrid();
+    checkForExistingCheckin();
   }
 
   input.addEventListener('input', () => {
@@ -234,6 +236,77 @@ function renderPeriodGrid() {
   grid.innerHTML = html;
 }
 
+// ── Existing check-in rollup ───────────────────────────────────────────────
+async function checkForExistingCheckin() {
+  const studentId = CicoState.entry.studentId;
+  const date      = CicoState.entry.date;
+  if (!studentId || !date) return;
+
+  try {
+    const { data } = await SupabaseClient
+      .from('cico_checkins')
+      .select(`id, notes,
+        cico_period_scores (period_number, category_id, score),
+        cico_incidents (period_number, incident_type_id, minutes, notes,
+          cico_incident_types (abbreviation))`)
+      .eq('student_id', studentId)
+      .eq('check_in_date', date)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const record = data?.[0] || null;
+
+    if (record) {
+      CicoState.entry.existingCheckinId = record.id;
+
+      // Pre-fill notes
+      const notesEl = document.getElementById('entry-notes');
+      if (notesEl) notesEl.value = record.notes || '';
+
+      // Re-init periods then overlay existing scores + incidents
+      initEntryPeriods();
+      (record.cico_period_scores || []).forEach(ps => {
+        if (CicoState.entry.periods[ps.period_number]) {
+          CicoState.entry.periods[ps.period_number].scores[ps.category_id] = ps.score;
+        }
+      });
+      (record.cico_incidents || []).forEach(inc => {
+        if (CicoState.entry.periods[inc.period_number]) {
+          CicoState.entry.periods[inc.period_number].incidents.push({
+            typeId:  inc.incident_type_id,
+            abbr:    inc.cico_incident_types?.abbreviation || '?',
+            minutes: inc.minutes,
+            notes:   inc.notes,
+          });
+        }
+      });
+
+      setExistingBanner(true, date);
+    } else {
+      CicoState.entry.existingCheckinId = null;
+      setExistingBanner(false);
+      initEntryPeriods();
+    }
+
+    updateEntryGrid();
+  } catch (err) {
+    console.error('checkForExistingCheckin error:', err);
+  }
+}
+
+function setExistingBanner(visible, date) {
+  const el = document.getElementById('existing-checkin-banner');
+  if (!el) return;
+  if (visible) {
+    el.textContent = `✏️ A check-in for ${formatDate(date)} already exists — saving will update it.`;
+    el.classList.remove('hidden');
+    document.getElementById('save-checkin-btn').textContent = '💾 Update Check-in';
+  } else {
+    el.classList.add('hidden');
+    document.getElementById('save-checkin-btn').textContent = '💾 Save Check-in';
+  }
+}
+
 // ── Schedule recall/persist per student ───────────────────────────────────
 function recallStudentSchedule(studentId) {
   try {
@@ -346,21 +419,43 @@ async function saveCheckin() {
   btn.textContent = 'Saving…';
 
   try {
-    // 1. Insert checkin row
-    const { data: checkinRow, error: ciErr } = await SupabaseClient
-      .from('cico_checkins')
-      .insert({
-        student_id:    CicoState.entry.studentId,
-        check_in_date: CicoState.entry.date,
-        submitted_by:  CicoState.currentUser.id,
-        school_id:     CicoState.schoolId || null,
-        notes:         document.getElementById('entry-notes').value.trim() || null
-      })
-      .select()
-      .single();
+    const notes = document.getElementById('entry-notes').value.trim() || null;
+    let checkinId;
 
-    if (ciErr) throw ciErr;
-    const checkinId = checkinRow.id;
+    if (CicoState.entry.existingCheckinId) {
+      // ── Update existing record ─────────────────────────────────────
+      checkinId = CicoState.entry.existingCheckinId;
+      const { error: upErr } = await SupabaseClient
+        .from('cico_checkins')
+        .update({ notes })
+        .eq('id', checkinId);
+      if (upErr) throw upErr;
+
+      // Wipe existing child rows so we can rewrite from the form
+      const { error: dScErr } = await SupabaseClient
+        .from('cico_period_scores').delete().eq('checkin_id', checkinId);
+      if (dScErr) throw dScErr;
+
+      const { error: dIncErr } = await SupabaseClient
+        .from('cico_incidents').delete().eq('checkin_id', checkinId);
+      if (dIncErr) throw dIncErr;
+
+    } else {
+      // ── Insert new check-in ────────────────────────────────────────
+      const { data: checkinRow, error: ciErr } = await SupabaseClient
+        .from('cico_checkins')
+        .insert({
+          student_id:    CicoState.entry.studentId,
+          check_in_date: CicoState.entry.date,
+          submitted_by:  CicoState.currentUser.id,
+          school_id:     CicoState.schoolId || null,
+          notes,
+        })
+        .select()
+        .single();
+      if (ciErr) throw ciErr;
+      checkinId = checkinRow.id;
+    }
 
     // 2. Build period_scores rows (non-null scores only)
     const scoreRows = [];
@@ -403,7 +498,7 @@ async function saveCheckin() {
     }
 
     persistStudentSchedule(CicoState.entry.studentId);
-    showToast('✅ Check-in saved!', 'success');
+    showToast(CicoState.entry.existingCheckinId ? '✅ Check-in updated!' : '✅ Check-in saved!', 'success');
     clearEntryForm();
 
   } catch (err) {
@@ -417,8 +512,10 @@ async function saveCheckin() {
 
 // ── Clear Entry Form ───────────────────────────────────────────────────────
 function clearEntryForm() {
-  CicoState.entry.studentId   = null;
-  CicoState.entry.studentName = '';
+  CicoState.entry.studentId        = null;
+  CicoState.entry.studentName      = '';
+  CicoState.entry.existingCheckinId = null;
+  setExistingBanner(false);
 
   document.getElementById('student-search-input').value = '';
   document.getElementById('selected-student-id').value  = '';
