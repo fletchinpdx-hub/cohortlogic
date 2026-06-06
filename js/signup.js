@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const email      = document.getElementById('email').value.trim();
     const schoolName = document.getElementById('school-name').value.trim();
     const password   = document.getElementById('password').value;
+    const betaAgreed = document.getElementById('beta-agree').checked;
 
     errorEl.classList.remove('visible');
     successEl.classList.remove('visible');
@@ -47,6 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
       errorEl.classList.add('visible');
       return;
     }
+    if (!betaAgreed) {
+      errorEl.textContent = 'Please agree to the Beta Agreement to continue.';
+      errorEl.classList.add('visible');
+      return;
+    }
 
     btn.disabled = true;
     btn.textContent = 'Creating account…';
@@ -56,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
       email,
       password,
       options: {
-        data: { full_name: fullName, school_name: schoolName },
+        data: { full_name: fullName, school_name: schoolName, beta_agreement_version: '1.0' },
         emailRedirectTo: 'https://cohortlogic.com/login.html',
       }
     });
