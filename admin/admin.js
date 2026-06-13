@@ -41,22 +41,27 @@ if (db) {
 }
 
 async function verifyAndLoad(session, event) {
-  // Verify admin status before showing anything — don't rely on RLS alone
+  // Verify super-admin status before showing anything — don't rely on RLS alone.
+  // Reads `role` (source of truth) rather than the legacy is_admin column.
   const { data: profile, error } = await db
     .from('profiles')
-    .select('is_admin')
+    .select('role')
     .eq('id', session.user.id)
     .single();
 
-  if (error || !profile?.is_admin) {
+  if (error || profile?.role !== 'super_admin') {
     await db.auth.signOut();
     showLogin();
     showLoginAlert('Access denied. This panel is for administrators only.', 'error');
     return;
   }
 
+  // Require MFA (aal2) when a factor is enrolled; otherwise allow + remind.
+  const mfa = await AdminMFA.gate(db);
+
   showDashboard(session.user.email);
   loadDashboard();
+  if (mfa === 'enroll-optional') AdminMFA.showEnrollReminder(db);
 
   if (event === 'PASSWORD_RECOVERY') {
     const section = document.getElementById('change-pw-section');

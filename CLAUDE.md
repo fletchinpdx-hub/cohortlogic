@@ -110,7 +110,8 @@ School admins have **no direct write on `profiles`** — they call these, which 
 ## Admin panel (`admin/index.html` + `admin/admin.js`)
 
 ### Security
-- Auth handler verifies `profiles.is_admin = true` before showing any UI — non-admins are signed out immediately
+- Auth handler verifies `profiles.role = 'super_admin'` (source of truth, not the legacy is_admin column) before showing any UI — non-admins are signed out immediately
+- MFA gate (`AdminMFA.gate`) runs after the role check: a TOTP challenge is required when a factor is enrolled (aal2); otherwise an enroll reminder shows
 - 15-minute inactivity timeout (same as CICO)
 - RLS is a second backstop at the data layer
 
@@ -201,6 +202,7 @@ js/
   results.js            — Class cards, drag-to-move, export by grade/teacher
   sample.js             — 500-student sample + blank template download
   supabase-config.js    — Shared: SupabaseClient, trackSession(), trackEvent()
+  admin-mfa.js          — Shared MFA gate + TOTP enrollment for both admin panels (window.AdminMFA)
   checkin-state.js      — CicoState, loadCicoData(), navigation, toast, initApp(), session timeout
   checkin-entry.js      — Entry view: student search, period grid, incidents
   checkin-history.js    — History view: filter, load, render cards
@@ -266,6 +268,7 @@ supabase/migrations/
 | Auto-create profile trigger on signup | ✅ Done |
 | Email verification on signup | ✅ Done (Supabase Auth setting) |
 | MFA on admin account | ✅ Done |
+| MFA enforced in code (aal2) on both admin panels | ✅ Done — `js/admin-mfa.js`; strict when a factor is enrolled, soft "enroll" reminder otherwise; fails open on SDK error to avoid lockout |
 | Session timeout — CICO + admin (15 min) | ✅ Done |
 | Security headers via netlify.toml | ✅ Done (CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) |
 | Privacy policy page | ✅ Done (`privacy.html`) |
