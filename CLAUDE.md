@@ -62,8 +62,8 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 ### Key Supabase tables
 | Table | Purpose |
 |-------|---------|
-| `profiles` | `id, full_name, school_name, school_id, approved, is_admin, created_at` |
-| `schools` | `id, name, district, state, created_at` |
+| `profiles` | `id, full_name, school_name, school_id, approved, role, product_overrides, is_admin (legacy), created_at` |
+| `schools` | `id, name, district, state, enabled_products, created_at` |
 | `audit_log` | FERPA audit trail: `id, user_id, action, table_name, record_id, old_data, new_data, created_at` |
 | `cico_students` | Students per school |
 | `cico_checkins` | Daily check-in records |
@@ -75,13 +75,28 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 | `sessions` | Class Builder demo sessions (anon + authenticated INSERT, authenticated SELECT) |
 | `events` | Class Builder demo events (anon + authenticated INSERT, authenticated SELECT) |
 
-### RLS helper functions
-- `public.is_admin()` — SECURITY DEFINER, checks `profiles.is_admin = true`
-- `public.my_school_id()` — SECURITY DEFINER, returns `profiles.school_id` for current user
+### Roles & tool access
+- `profiles.role` enum: `'user' | 'school_admin' | 'super_admin'` — **source of truth** for access level. The legacy `profiles.is_admin` boolean is vestigial (kept so the signup trigger doesn't break); `is_admin()` now reads `role`.
+- `schools.enabled_products text[]` — school-wide tool default (e.g. `{cico}`).
+- `profiles.product_overrides jsonb` — per-user override, e.g. `{"cico": false}`. Absent key = inherit the school default. Effective access = override if present, else product ∈ school's `enabled_products`.
+- **Class Builder is never gated** (no backend). Only CICO + future backend products are.
+
+### RLS helper functions (all SECURITY DEFINER)
+- `public.is_admin()` — now means **super admin** (`role = 'super_admin'`). Name kept so existing policies keep working.
+- `public.is_super_admin()` / `public.is_school_admin()` / `public.my_role()` — role checks.
+- `public.my_school_id()` — returns `profiles.school_id` for current user.
+- `public.can_access_product(p text)` — approved AND (per-user override else school default). Used in CICO RLS and by the CICO app at startup.
+
+### School-admin mutation RPCs (SECURITY DEFINER; the only write path for school admins)
+School admins have **no direct write on `profiles`** — they call these, which validate caller is super_admin OR (school_admin of the target's school) AND target is a plain `user`:
+- `approve_school_user(target)`, `set_school_user_active(target, active)`, `remove_school_user(target)`
+- `set_user_product_override(target, product, access)` — access = `'allow' | 'deny' | 'inherit'`
+- `set_school_products(products text[])` — sets caller's own school's `enabled_products`
 
 ### Migrations (all run)
 1. `supabase/migrations/ferpa_compliance.sql` — audit log, schools table, school_id columns, transition-safe RLS
 2. `supabase/migrations/school_isolation_complete.sql` — strict RLS isolation, backfilled null school_ids
+3. `supabase/migrations/school_admin_roles.sql` — role enum, tool-access columns, helper fns, school-admin RPCs, CICO RLS gated on approval + product access
 
 ### SQL changes run directly (not migration files)
 - **Profiles RLS** — tightened: users can only read their own profile; admins can read all; only admins can delete
@@ -117,6 +132,32 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 - `wipeSchoolData()` / `confirmWipeSchoolData()` — deletes all CICO data for a school in safe order (child records first)
 - `loadAuditLog(append)` — paginated 50/page, resolves user names via `_auditUserCache`
 - `openAuditDetail(id)` — modal with INSERT/UPDATE/DELETE diff
+- **All Users** now has a **Role** column (`setUserRole` — promote/revoke `school_admin`; super_admin only set via SQL)
+- **Pending** has `assignPendingSchool` — "Route to school admin": sets `school_id` WITHOUT approving, so the user lands in their school admin's queue
+
+---
+
+## School-admin panel (`school-admin/index.html` + `school-admin.js`)
+
+A per-school admin (designated by the super admin) manages **only their own school**. Auth gate verifies `role IN ('school_admin','super_admin')` and scopes everything to `my_school_id()`.
+
+### Sections
+- **Pending Approvals** — approve/decline signups routed to this school
+- **Tool Settings** — toggle CICO on/off for the whole school (`set_school_products`)
+- **Staff** — per-person CICO access (School default / Allowed / Denied via `set_user_product_override`), Deactivate (`set_school_user_active`), Remove (`remove_school_user`)
+
+### Security
+- **Zero direct write access to `profiles`** — every mutation goes through the SECURITY DEFINER RPCs above, which enforce same-school + target-is-plain-user. A school admin can't escalate roles, reach another school, or modify an admin account even via crafted API calls.
+- Read access via the additive `"School admins can view their school's profiles"` SELECT policy.
+- 15-minute inactivity timeout (same as the other panels).
+
+### User lifecycle (decoupled approval)
+1. User self-signs-up → `approved=false`, `school_id=null`.
+2. **Super admin** assigns a school (Route to school admin) — routes but does NOT approve.
+3. **School admin** approves → `approved=true`. They manage tool access + deactivation thereafter.
+
+### CICO tool gate
+`checkin-state.js → initApp()` calls `can_access_product('cico')` at startup; denied users get a full-screen lockout message (`renderCicoAccessDenied`) instead of an empty app. Fail-open on RPC error — RLS still protects the data.
 
 ---
 
@@ -136,8 +177,12 @@ class-builder.html      — Class Builder marketing/product page
 resources.html          — Resources
 netlify.toml            — Netlify security headers (CSP, X-Frame-Options, etc.)
 admin/
-  index.html            — Admin panel
-  admin.js              — All admin logic
+  index.html            — Super-admin panel
+  admin.js              — All super-admin logic
+  admin.css             — Shared admin styles (also used by school-admin/)
+school-admin/
+  index.html            — Per-school admin panel (reuses ../admin/admin.css)
+  school-admin.js       — School-admin logic (approve/deactivate/remove staff, tool access)
 css/
   styles.css            — Class Builder styles (--navy, --teal, --gold)
   checkin.css           — CICO styles (--ci-navy, --ci-teal, --ci-gold)
@@ -182,7 +227,7 @@ supabase/migrations/
 ## Critical constraints — do not violate
 
 ### Admin `onAuthStateChange` must stay synchronous
-`db.auth.onAuthStateChange(...)` in `admin/admin.js` **must not be `async`** and must not `await` anything inside the handler body. Supabase cannot finish processing auth state while the callback is blocked — the symptom is a completely silent login freeze on page refresh (no error, button stays on "Signing in…"). All async work goes in `verifyAndLoad()`, which is called fire-and-forget from the handler. This has been broken and fixed twice. Do not revert it.
+`db.auth.onAuthStateChange(...)` in `admin/admin.js` **and `school-admin/school-admin.js`** **must not be `async`** and must not `await` anything inside the handler body. Supabase cannot finish processing auth state while the callback is blocked — the symptom is a completely silent login freeze on page refresh (no error, button stays on "Signing in…"). All async work goes in `verifyAndLoad()`, which is called fire-and-forget from the handler. This has been broken and fixed twice. Do not revert it.
 
 ---
 
@@ -209,6 +254,9 @@ supabase/migrations/
 | Area | Status |
 |------|--------|
 | School data isolation (RLS) | ✅ Done — strict isolation, school_id backfilled |
+| Role-based access (`role` enum) | ✅ Done — user / school_admin / super_admin |
+| Per-school tool access (CICO) | ✅ Done — RLS-enforced (approval + product), school default + per-user override |
+| School-admin privilege isolation | ✅ Done — no direct profile writes; SECURITY DEFINER RPCs guard same-school + target-is-user |
 | FERPA audit log | ✅ Done |
 | Profiles RLS — users see only their own profile | ✅ Done |
 | Auto-create profile trigger on signup | ✅ Done |
@@ -234,5 +282,5 @@ supabase/migrations/
 - **Supabase DPA** — formal FERPA compliance (requires Pro)
 - **Data retention policy** — process decision, not yet defined
 - **Switch to Cloudflare Pages**
-- Class Builder: save/load sessions, print view, lock student to class
+- Class Builder: print view, lock student to class
 - CICO: mobile polish, print-friendly check-in sheets
