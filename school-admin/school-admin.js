@@ -151,9 +151,9 @@ function renderToolSettings() {
     <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;">
       <input type="checkbox" id="cico-school-toggle" ${cicoOn ? 'checked' : ''}
              onchange="toggleSchoolCico(this.checked)" style="width:18px;height:18px;cursor:pointer;" />
-      <span><strong>Check-in / Check-out (CICO)</strong> — enabled for everyone at your school</span>
+      <span><strong>Check-in / Check-out (CICO)</strong> — master switch for your whole school</span>
     </label>
-    <p style="font-size:12px;color:#9ca3af;margin-top:8px;">Class Builder is always available and isn't restricted here.</p>`;
+    <p style="font-size:12px;color:#9ca3af;margin-top:8px;">When this is off, <strong>no one</strong> at your school can use CICO — including anyone individually allowed. Class Builder is always available and isn't restricted here.</p>`;
 }
 
 async function toggleSchoolCico(on) {
@@ -276,17 +276,20 @@ async function loadUsers() {
 
   users.forEach(u => { _nameById[u.id] = u.full_name || 'this user'; });
 
-  const defaultLabel = _me.enabledProducts.includes('cico') ? 'Allowed' : 'Denied';
+  // CICO master switch is off for the school → nobody has access; the per-user
+  // control is moot. When on, the control can only BLOCK an individual.
+  const cicoOn = _me.enabledProducts.includes('cico');
 
   const rows = users.map(u => {
     const date    = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const isAdmin = u.role !== 'user';
-    const access  = cicoAccessValue(u);
-    const sel = `
+    const blocked = cicoAccessValue(u) === 'deny';
+    const sel = !cicoOn
+      ? '<span style="font-size:12px;color:#9ca3af;">School CICO off</span>'
+      : `
       <select id="cico-sel-${u.id}" onchange="setUserCico('${u.id}', this.value)" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;">
-        <option value="inherit" ${access === 'inherit' ? 'selected' : ''}>School default (${defaultLabel})</option>
-        <option value="allow"   ${access === 'allow'   ? 'selected' : ''}>Allowed</option>
-        <option value="deny"    ${access === 'deny'    ? 'selected' : ''}>Denied</option>
+        <option value="inherit" ${!blocked ? 'selected' : ''}>Allowed</option>
+        <option value="deny"    ${blocked  ? 'selected' : ''}>Blocked</option>
       </select>`;
 
     const roleBadge = u.role === 'super_admin'

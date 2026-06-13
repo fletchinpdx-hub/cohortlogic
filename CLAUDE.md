@@ -77,8 +77,9 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 
 ### Roles & tool access
 - `profiles.role` enum: `'user' | 'school_admin' | 'super_admin'` — **source of truth** for access level. The legacy `profiles.is_admin` boolean is vestigial (kept so the signup trigger doesn't break); `is_admin()` now reads `role`.
-- `schools.enabled_products text[]` — school-wide tool default (e.g. `{cico}`).
-- `profiles.product_overrides jsonb` — per-user override, e.g. `{"cico": false}`. Absent key = inherit the school default. Effective access = override if present, else product ∈ school's `enabled_products`.
+- `schools.enabled_products text[]` — **hard master switch** per school (e.g. `{cico}`). If a product is off here, NO ONE at the school gets it, regardless of per-user override.
+- `profiles.product_overrides jsonb` — per-user override, e.g. `{"cico": false}`. When the school has the product ON, a `false` override **blocks** that individual; an absent/`true` override = allowed. A per-user override can only subtract, never grant above the school setting.
+- **Effective access** = `approved AND product ∈ school.enabled_products AND NOT (override = false)`. See `can_access_product()`.
 - **Class Builder is never gated** (no backend). Only CICO + future backend products are.
 
 ### RLS helper functions (all SECURITY DEFINER)
@@ -97,6 +98,7 @@ School admins have **no direct write on `profiles`** — they call these, which 
 1. `supabase/migrations/ferpa_compliance.sql` — audit log, schools table, school_id columns, transition-safe RLS
 2. `supabase/migrations/school_isolation_complete.sql` — strict RLS isolation, backfilled null school_ids
 3. `supabase/migrations/school_admin_roles.sql` — role enum, tool-access columns, helper fns, school-admin RPCs, CICO RLS gated on approval + product access
+4. `supabase/migrations/school_tool_master_switch.sql` — `can_access_product()` redefined so `schools.enabled_products` is a hard master switch (override can only block); audit trigger on `schools`
 
 ### SQL changes run directly (not migration files)
 - **Profiles RLS** — tightened: users can only read their own profile; admins can read all; only admins can delete
