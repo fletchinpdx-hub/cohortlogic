@@ -1,6 +1,14 @@
 // Start tracking this session
 if (typeof trackSession === 'function') trackSession();
 
+// Global error capture for Class Builder
+window.addEventListener('error', e => {
+  if (typeof logError === 'function') logError('class_builder', 'unhandled_error', e.message);
+});
+window.addEventListener('unhandledrejection', e => {
+  if (typeof logError === 'function') logError('class_builder', 'unhandled_promise', e.reason?.message || String(e.reason));
+});
+
 // Central app state
 const AppState = {
   rawRows: [],         // raw rows from spreadsheet

@@ -44,6 +44,7 @@ function handleFile(file) {
       loadRawData(rows, file.name);
     } catch (err) {
       showImportStatus('Could not read the file. Make sure it is a valid Excel or CSV file.', 'error');
+      if (typeof logError === 'function') logError('class_builder', 'import_failed', err.message);
     }
   };
 

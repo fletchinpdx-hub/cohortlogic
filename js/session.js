@@ -65,6 +65,7 @@ function loadCohortFile(file) {
       restoreSession(data);
     } catch (err) {
       alert('Could not restore session: ' + err.message);
+      if (typeof logError === 'function') logError('class_builder', 'session_restore_failed', err.message);
     }
   };
   reader.readAsText(file);

@@ -171,6 +171,35 @@
       <div id="school-alert" class="alert hidden" style="margin-top:10px;"></div>
     </div>
 
+    <!-- Error Logs -->
+    <h2 style="margin-bottom:12px;margin-top:8px;">Error Logs</h2>
+    <div class="section-card" style="margin-bottom:32px;">
+      <h3>Application Errors</h3>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">
+        <div>
+          <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Product</label>
+          <select id="error-product-filter" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit;">
+            <option value="">All products</option>
+            <option value="class_builder">Class Builder</option>
+            <option value="cico">CICO</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Type</label>
+          <select id="error-type-filter" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit;">
+            <option value="">All types</option>
+            <option value="import_failed">import_failed</option>
+            <option value="session_restore_failed">session_restore_failed</option>
+            <option value="unhandled_error">unhandled_error</option>
+            <option value="unhandled_promise">unhandled_promise</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="loadErrors()">Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="clearErrorFilters()">Clear filters</button>
+      </div>
+      <div id="error-log-wrap"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+    </div>
+
     <!-- Feedback -->
     <h2 style="margin-bottom:12px;margin-top:8px;">Feedback</h2>
     <div class="section-card" style="margin-bottom:32px;">

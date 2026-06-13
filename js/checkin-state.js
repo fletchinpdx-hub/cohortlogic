@@ -4,6 +4,16 @@
  * for the Check-in / Check-out app.
  */
 
+// Global error capture for CICO
+window.addEventListener('error', e => {
+  const email = window.CicoState?.profile?.email || null;
+  if (typeof logError === 'function') logError('cico', 'unhandled_error', e.message, email);
+});
+window.addEventListener('unhandledrejection', e => {
+  const email = window.CicoState?.profile?.email || null;
+  if (typeof logError === 'function') logError('cico', 'unhandled_promise', e.reason?.message || String(e.reason), email);
+});
+
 // ── Central state ──────────────────────────────────────────────────────────
 const CicoState = {
   currentUser: null,        // Supabase auth user object

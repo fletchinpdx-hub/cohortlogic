@@ -883,8 +883,101 @@ function loadDashboard() {
   });
   loadAuditLog();
   loadAnalytics();
+  loadErrors();
   loadFeedback();
 }
+
+// ── Error Logs ────────────────────────────────────────────────────────────
+
+const ERROR_PAGE_SIZE = 50;
+let _errorOffset  = 0;
+let _errorRecords = [];
+
+document.getElementById('error-product-filter').addEventListener('change', loadErrors);
+document.getElementById('error-type-filter').addEventListener('change', loadErrors);
+
+async function loadErrors(append = false) {
+  const wrap          = document.getElementById('error-log-wrap');
+  const productFilter = document.getElementById('error-product-filter').value;
+  const typeFilter    = document.getElementById('error-type-filter').value;
+
+  if (!append) {
+    _errorOffset  = 0;
+    _errorRecords = [];
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+  }
+
+  let query = db
+    .from('error_logs')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(_errorOffset, _errorOffset + ERROR_PAGE_SIZE - 1);
+
+  if (productFilter) query = query.eq('product', productFilter);
+  if (typeFilter)    query = query.eq('error_type', typeFilter);
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    wrap.innerHTML = `<p style="color:#ef4444;font-size:13px;">Error: ${escAdmin(error.message)}</p>`;
+    return;
+  }
+
+  if (!data?.length && !append) {
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No errors logged yet.</p>';
+    return;
+  }
+
+  _errorRecords = append ? [..._errorRecords, ...(data || [])] : (data || []);
+  _errorOffset += (data?.length || 0);
+
+  const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO' }[p] || p);
+  const productColor = p => ({ class_builder: '#e0f2fe;color:#0369a1', cico: '#d1fae5;color:#065f46' }[p] || '#f3f4f6;color:#374151');
+
+  const rows = _errorRecords.map(r => `
+    <tr>
+      <td style="white-space:nowrap;font-size:12px;">${fmt(r.created_at)}</td>
+      <td><span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:${productColor(r.product)}">${escAdmin(productLabel(r.product))}</span></td>
+      <td style="font-size:12px;font-family:monospace;color:#6b7280;">${escAdmin(r.error_type || '—')}</td>
+      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${escAdmin(r.message || '')}">${escAdmin(r.message || '—')}</td>
+      <td style="font-size:11px;color:#9ca3af;">${escAdmin(r.browser || '—')}</td>
+      <td style="font-size:11px;color:#9ca3af;">${r.user_email ? `<a href="mailto:${escAdmin(r.user_email)}" style="color:#6b7280;">${escAdmin(r.user_email)}</a>` : '—'}</td>
+    </tr>
+  `).join('');
+
+  const hasMore = count !== null && _errorOffset < count;
+
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">
+      Showing ${_errorRecords.length}${count !== null ? ' of ' + count : ''} errors
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Product</th>
+            <th>Type</th>
+            <th>Message</th>
+            <th>Browser</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${hasMore ? `<button class="audit-load-more" onclick="loadErrors(true)">Load more (${count - _errorOffset} remaining)</button>` : ''}
+  `;
+}
+
+function clearErrorFilters() {
+  document.getElementById('error-product-filter').value = '';
+  document.getElementById('error-type-filter').value    = '';
+  loadErrors();
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────
 
 async function loadFeedback() {
   const container = document.getElementById('feedback-list');

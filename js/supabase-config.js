@@ -36,3 +36,32 @@ async function trackEvent(name, data = {}) {
     console.warn('[CL tracking] event exception:', e.message);
   }
 }
+
+async function logError(product, errorType, message, userEmail) {
+  try {
+    const ua = navigator.userAgent;
+    let browser = 'Unknown';
+    if (/Edg\//.test(ua))     browser = 'Edge';
+    else if (/Chrome\//.test(ua))  browser = 'Chrome';
+    else if (/Firefox\//.test(ua)) browser = 'Firefox';
+    else if (/Safari\//.test(ua))  browser = 'Safari';
+
+    let os = 'Unknown';
+    if (/iPhone|iPad/.test(ua))   os = 'iOS';
+    else if (/Android/.test(ua))  os = 'Android';
+    else if (/Windows/.test(ua))  os = 'Windows';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Linux/.test(ua))    os = 'Linux';
+
+    await SupabaseClient.from('error_logs').insert({
+      product,
+      error_type:  errorType,
+      message:     String(message || '').slice(0, 1000),
+      url:         window.location.href,
+      browser:     `${browser} / ${os}`,
+      user_email:  userEmail || null,
+    });
+  } catch (e) {
+    console.warn('[CL error log]', e.message);
+  }
+}
