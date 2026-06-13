@@ -197,7 +197,7 @@ body {
 /* ── Import View ── */
 .import-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 24px;
   margin-bottom: 32px;
 }
@@ -239,22 +239,6 @@ body {
 .sheets-steps li { margin-bottom: 2px; }
 .hint { font-size: 12px !important; color: var(--gray-400) !important; }
 
-.restore-session-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: #fff;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow);
-}
-.restore-session-left { display: flex; align-items: center; gap: 14px; }
-.restore-icon { font-size: 28px; flex-shrink: 0; }
-.restore-title { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 3px; }
-.restore-desc { font-size: 12px; color: var(--gray-500); }
 
 .sample-section {
   background: var(--blue-light);
@@ -407,6 +391,12 @@ body {
 
 .flag-yes { color: var(--red); font-weight: 600; font-size: 12px; }
 .flag-no  { color: var(--gray-400); font-size: 12px; }
+.student-row-actions { white-space: nowrap; text-align: right; }
+.student-edit-btn, .student-delete-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 4px; opacity: 0.4; transition: opacity .15s; }
+.student-edit-btn:hover, .student-delete-btn:hover { opacity: 1; }
+.edit-field-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.edit-field-row label { width: 130px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--gray-700); }
+.edit-field-row .input { flex: 1; }
 
 /* ── Modal ── */
 .modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }

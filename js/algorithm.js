@@ -321,6 +321,9 @@ function classAverages(cls) {
       const counts = {};
       cls.forEach(s => { const v = s.scores[c.name]; if (v) counts[v] = (counts[v]||0) + 1; });
       avgs[c.name] = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(' ') || '—';
+    } else if (c.type === 'flag') {
+      const yesCount = cls.filter(s => s.scores[c.name] === true).length;
+      avgs[c.name] = `${yesCount} of ${cls.length}`;
     }
   });
   return avgs;

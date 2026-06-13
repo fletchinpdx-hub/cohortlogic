@@ -61,11 +61,12 @@ function renderStudentTable() {
     <th>Last Name</th>
     <th>Grade</th>
     ${comps.map(c => `<th>${c.name}</th>`).join('')}
+    <th></th>
   </tr>`;
 
   // Body
   const tbody = document.getElementById('students-tbody');
-  const colSpan = 4 + comps.length + (showId ? 1 : 0);
+  const colSpan = 5 + comps.length + (showId ? 1 : 0);
   if (!students.length) {
     tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center;padding:32px;color:#9ca3af;">No students found.</td></tr>`;
     document.getElementById('student-count').textContent = '';
@@ -86,8 +87,19 @@ function renderStudentTable() {
         if (c.type === 'category') return `<td><span class="cat-badge">${val}</span></td>`;
         return `<td><span class="score-badge ${getScoreBadgeClass(val, c)}">${val}</span></td>`;
       }).join('')}
+      <td class="student-row-actions">
+        <button class="student-edit-btn" data-id="${s.id}" title="Edit">✏️</button>
+        <button class="student-delete-btn" data-id="${s.id}" title="Delete">🗑️</button>
+      </td>
     </tr>
   `).join('');
+
+  tbody.querySelectorAll('.student-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => openEditStudent(parseInt(btn.dataset.id)));
+  });
+  tbody.querySelectorAll('.student-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteStudent(parseInt(btn.dataset.id)));
+  });
 
   document.getElementById('student-count').textContent = `${students.length} student${students.length !== 1 ? 's' : ''}`;
 }
@@ -306,6 +318,111 @@ function renderTogetherList() {
       renderTogetherList();
     });
   });
+}
+
+// ── Edit student ──
+function openEditStudent(id) {
+  const s = AppState.students.find(s => s.id === id);
+  if (!s) return;
+
+  const comps = AppState.competencies.filter(c => c.name && c.column);
+  const showId = AppState.students.some(st => st.studentId);
+
+  const fields = `
+    <div class="edit-field-row">
+      <label>First Name</label>
+      <input type="text" id="edit-firstName" class="input" value="${s.firstName}" />
+    </div>
+    <div class="edit-field-row">
+      <label>Last Name</label>
+      <input type="text" id="edit-lastName" class="input" value="${s.lastName}" />
+    </div>
+    <div class="edit-field-row">
+      <label>Grade</label>
+      <input type="text" id="edit-grade" class="input" value="${s.grade}" />
+    </div>
+    ${showId ? `<div class="edit-field-row">
+      <label>Student ID</label>
+      <input type="text" id="edit-studentId" class="input" value="${s.studentId || ''}" />
+    </div>` : ''}
+    ${comps.map(c => {
+      const val = s.scores[c.name];
+      if (c.type === 'score') {
+        return `<div class="edit-field-row">
+          <label>${c.name} (${c.min ?? 1}–${c.max ?? 5})</label>
+          <input type="number" id="edit-score-${c.name}" class="input" value="${val ?? ''}" min="${c.min ?? 1}" max="${c.max ?? 5}" step="1" />
+        </div>`;
+      } else if (c.type === 'category') {
+        return `<div class="edit-field-row">
+          <label>${c.name}</label>
+          <input type="text" id="edit-cat-${c.name}" class="input" value="${val || ''}" />
+        </div>`;
+      } else {
+        return `<div class="edit-field-row">
+          <label>${c.name}</label>
+          <select id="edit-flag-${c.name}" class="input">
+            <option value="no" ${!val ? 'selected' : ''}>No</option>
+            <option value="yes" ${val ? 'selected' : ''}>Yes</option>
+          </select>
+        </div>`;
+      }
+    }).join('')}
+  `;
+
+  document.getElementById('edit-student-fields').innerHTML = fields;
+  document.getElementById('edit-student-modal').dataset.editId = id;
+  document.getElementById('edit-student-modal').classList.remove('hidden');
+}
+
+['close-edit-student', 'close-edit-student-cancel'].forEach(id => {
+  document.getElementById(id).addEventListener('click', () => {
+    document.getElementById('edit-student-modal').classList.add('hidden');
+  });
+});
+document.querySelector('.edit-student-backdrop').addEventListener('click', () => {
+  document.getElementById('edit-student-modal').classList.add('hidden');
+});
+
+document.getElementById('save-edit-student-btn').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-student-modal').dataset.editId);
+  const s  = AppState.students.find(s => s.id === id);
+  if (!s) return;
+
+  s.firstName = document.getElementById('edit-firstName').value.trim();
+  s.lastName  = document.getElementById('edit-lastName').value.trim();
+  s.grade     = document.getElementById('edit-grade').value.trim();
+  const idEl  = document.getElementById('edit-studentId');
+  if (idEl) s.studentId = idEl.value.trim();
+
+  AppState.competencies.filter(c => c.name && c.column).forEach(c => {
+    if (c.type === 'score') {
+      const v = parseFloat(document.getElementById(`edit-score-${c.name}`)?.value);
+      s.scores[c.name] = isNaN(v) ? null : Math.min(c.max ?? 5, Math.max(c.min ?? 1, v));
+    } else if (c.type === 'category') {
+      s.scores[c.name] = document.getElementById(`edit-cat-${c.name}`)?.value.trim() || null;
+    } else {
+      s.scores[c.name] = document.getElementById(`edit-flag-${c.name}`)?.value === 'yes';
+    }
+  });
+
+  document.getElementById('edit-student-modal').classList.add('hidden');
+  renderStudents();
+});
+
+// ── Delete student ──
+function deleteStudent(id) {
+  const s = AppState.students.find(s => s.id === id);
+  if (!s) return;
+  const name = studentLabel(s);
+  if (!confirm(`Remove ${name} from the student list? This cannot be undone.`)) return;
+
+  AppState.students    = AppState.students.filter(s => s.id !== id);
+  AppState.separations = AppState.separations.filter(p => p.a !== id && p.b !== id);
+  AppState.togethers   = AppState.togethers.filter(p => p.a !== id && p.b !== id);
+  AppState.keepWithTeacher = AppState.keepWithTeacher.filter(k => k.studentId !== id);
+
+  updateSidebarStatus();
+  renderStudents();
 }
 
 // ── Keep with Teacher modal ──

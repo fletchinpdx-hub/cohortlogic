@@ -40,6 +40,21 @@ document.getElementById('restore-file-input').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   e.target.value = ''; // allow re-selecting the same file later
+  loadCohortFile(file);
+});
+
+// Drag & drop on the restore drop zone
+const restoreZone = document.getElementById('restore-drop-zone');
+restoreZone.addEventListener('dragover', e => { e.preventDefault(); restoreZone.classList.add('drag-over'); });
+restoreZone.addEventListener('dragleave', () => restoreZone.classList.remove('drag-over'));
+restoreZone.addEventListener('drop', e => {
+  e.preventDefault();
+  restoreZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadCohortFile(file);
+});
+
+function loadCohortFile(file) {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
@@ -51,7 +66,7 @@ document.getElementById('restore-file-input').addEventListener('change', e => {
     }
   };
   reader.readAsText(file);
-});
+}
 
 function restoreSession(data) {
   SESSION_FIELDS.forEach(k => {

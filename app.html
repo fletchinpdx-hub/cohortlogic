@@ -120,19 +120,23 @@
             </ol>
             <p class="hint">Your data stays on your device and is never sent to a server.</p>
           </div>
-        </div>
 
-        <!-- Restore session -->
-        <div class="restore-session-card">
-          <div class="restore-session-left">
-            <div class="restore-icon">💾</div>
-            <div>
-              <div class="restore-title">Restore a saved session</div>
-              <div class="restore-desc">Pick up where you left off — upload a <strong>.cohort</strong> file to restore all students, class setup, and placement rules.</div>
+          <!-- Restore saved session -->
+          <div class="import-card" id="restore-card">
+            <div class="import-card-icon">💾</div>
+            <h2>Continue a Session</h2>
+            <p>Pick up exactly where you left off — drop in a <strong>.cohort</strong> file to restore your students, class setup, placement rules, and results.</p>
+            <p class="hint" style="margin-bottom:14px;">Save a session anytime from the Results tab using the 💾 Save Session button.</p>
+            <div id="restore-drop-zone" class="drop-zone">
+              <div class="drop-zone-inner">
+                <div class="drop-icon">📂</div>
+                <p>Drop your .cohort file here</p>
+                <p class="drop-sub">or</p>
+                <button class="btn btn-secondary" id="restore-session-btn">Browse Files</button>
+              </div>
+              <input type="file" id="restore-file-input" accept=".cohort" hidden />
             </div>
           </div>
-          <button class="btn btn-outline btn-sm" id="restore-session-btn">📂 Restore Session</button>
-          <input type="file" id="restore-file-input" accept=".cohort" hidden />
         </div>
 
         <!-- Sample data section -->
@@ -271,6 +275,24 @@
                 </div>
               </div>
               <div id="togethers-list" style="margin-top:20px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Student modal -->
+        <div id="edit-student-modal" class="modal hidden">
+          <div class="modal-backdrop edit-student-backdrop"></div>
+          <div class="modal-box">
+            <div class="modal-header">
+              <h2>Edit Student</h2>
+              <button class="modal-close" id="close-edit-student">✕</button>
+            </div>
+            <div class="modal-body">
+              <div id="edit-student-fields"></div>
+              <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-outline btn-sm" id="close-edit-student-cancel">Cancel</button>
+                <button class="btn btn-primary btn-sm" id="save-edit-student-btn">Save Changes</button>
+              </div>
             </div>
           </div>
         </div>
