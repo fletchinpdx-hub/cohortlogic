@@ -23,7 +23,8 @@ function saveSession() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `cohort-session-${new Date().toISOString().slice(0,10)}.cohort`;
+  const ts = new Date().toISOString().replace('T','-').slice(0,16).replace(':','-');
+  a.download = `cohort-session-${ts}.cohort`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -60,6 +61,7 @@ function loadCohortFile(file) {
     try {
       const data = JSON.parse(ev.target.result);
       if (!data._version) throw new Error('Not a valid .cohort file.');
+      if (data._version > SESSION_VERSION) throw new Error(`This file was saved with a newer version of Cohort Logic. Please refresh the page and try again.`);
       restoreSession(data);
     } catch (err) {
       alert('Could not restore session: ' + err.message);

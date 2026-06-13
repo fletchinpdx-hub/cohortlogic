@@ -45,6 +45,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
     const view = item.dataset.view;
     navigateTo(view);
     // Re-render results whenever the Results tab is opened, so it stays in sync
+    if (view === 'fields' && AppState.rawHeaders.length) renderFieldMapping();
     if (view === 'results' && Object.keys(AppState.results).length) renderResults();
     // Close mobile menu after navigating
     document.getElementById('sidebar').classList.remove('menu-open');
