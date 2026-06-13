@@ -56,7 +56,11 @@ async function verifyAndLoad(session) {
   _me.role    = profile.role;
   _me.schoolId = profile.school_id;
 
+  // Require MFA (aal2) when a factor is enrolled; otherwise allow + remind.
+  const mfa = await AdminMFA.gate(db);
+
   showDashboard(session.user.email);
+  if (mfa === 'enroll-optional') AdminMFA.showEnrollReminder(db);
 
   if (!_me.schoolId) {
     // School admin with no school assigned — nothing to manage.
