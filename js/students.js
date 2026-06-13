@@ -320,33 +320,51 @@ function renderTogetherList() {
   });
 }
 
-// ── Edit student ──
-function openEditStudent(id) {
-  const s = AppState.students.find(s => s.id === id);
-  if (!s) return;
+// ── Add student ──
+document.getElementById('add-student-btn').addEventListener('click', () => {
+  if (!AppState.competencies.some(c => c.column)) {
+    alert('Please complete Field Mapping before adding students manually.');
+    return;
+  }
+  openEditStudent(null);
+});
 
-  const comps = AppState.competencies.filter(c => c.name && c.column);
+// ── Add / Edit student modal ──
+function openEditStudent(id) {
+  const isAdd = id === null;
+  const s     = isAdd ? null : AppState.students.find(s => s.id === id);
+  if (!isAdd && !s) return;
+
+  const comps  = AppState.competencies.filter(c => c.name && c.column);
   const showId = AppState.students.some(st => st.studentId);
+  const grades = getGrades();
+
+  const gradeInput = grades.length
+    ? `<select id="edit-grade" class="input">
+        <option value="">Select grade…</option>
+        ${grades.map(g => `<option value="${g}" ${!isAdd && s.grade === g ? 'selected' : ''}>${g}</option>`).join('')}
+       </select>`
+    : `<input type="text" id="edit-grade" class="input" value="${isAdd ? '' : s.grade}" placeholder="e.g. 3" />`;
 
   const fields = `
     <div class="edit-field-row">
       <label>First Name</label>
-      <input type="text" id="edit-firstName" class="input" value="${s.firstName}" />
+      <input type="text" id="edit-firstName" class="input" value="${isAdd ? '' : s.firstName}" />
     </div>
     <div class="edit-field-row">
       <label>Last Name</label>
-      <input type="text" id="edit-lastName" class="input" value="${s.lastName}" />
+      <input type="text" id="edit-lastName" class="input" value="${isAdd ? '' : s.lastName}" />
     </div>
     <div class="edit-field-row">
       <label>Grade</label>
-      <input type="text" id="edit-grade" class="input" value="${s.grade}" />
+      ${gradeInput}
     </div>
     ${showId ? `<div class="edit-field-row">
       <label>Student ID</label>
-      <input type="text" id="edit-studentId" class="input" value="${s.studentId || ''}" />
+      <input type="text" id="edit-studentId" class="input" value="${isAdd ? '' : (s.studentId || '')}" />
     </div>` : ''}
     ${comps.map(c => {
-      const val = s.scores[c.name];
+      const val = isAdd ? null : s.scores[c.name];
       if (c.type === 'score') {
         return `<div class="edit-field-row">
           <label>${c.name} (${c.min ?? 1}–${c.max ?? 5})</label>
@@ -369,9 +387,12 @@ function openEditStudent(id) {
     }).join('')}
   `;
 
+  const modal = document.getElementById('edit-student-modal');
+  modal.querySelector('h2').textContent = isAdd ? 'Add Student' : 'Edit Student';
+  document.getElementById('save-edit-student-btn').textContent = isAdd ? 'Add Student' : 'Save Changes';
   document.getElementById('edit-student-fields').innerHTML = fields;
-  document.getElementById('edit-student-modal').dataset.editId = id;
-  document.getElementById('edit-student-modal').classList.remove('hidden');
+  modal.dataset.editId = isAdd ? '' : id;
+  modal.classList.remove('hidden');
 }
 
 ['close-edit-student', 'close-edit-student-cancel'].forEach(id => {
@@ -384,28 +405,56 @@ document.querySelector('.edit-student-backdrop').addEventListener('click', () =>
 });
 
 document.getElementById('save-edit-student-btn').addEventListener('click', () => {
-  const id = parseInt(document.getElementById('edit-student-modal').dataset.editId);
-  const s  = AppState.students.find(s => s.id === id);
-  if (!s) return;
+  const modal  = document.getElementById('edit-student-modal');
+  const editId = modal.dataset.editId;
+  const isAdd  = editId === '';
 
-  s.firstName = document.getElementById('edit-firstName').value.trim();
-  s.lastName  = document.getElementById('edit-lastName').value.trim();
-  s.grade     = document.getElementById('edit-grade').value.trim();
-  const idEl  = document.getElementById('edit-studentId');
-  if (idEl) s.studentId = idEl.value.trim();
+  const firstName = document.getElementById('edit-firstName').value.trim();
+  const lastName  = document.getElementById('edit-lastName').value.trim();
+  const grade     = document.getElementById('edit-grade').value.trim();
+  if (!grade) { alert('Please enter a grade.'); return; }
+  if (!firstName && !lastName && !document.getElementById('edit-studentId')?.value.trim()) {
+    alert('Please enter at least a first name, last name, or student ID.'); return;
+  }
 
+  const scores = {};
   AppState.competencies.filter(c => c.name && c.column).forEach(c => {
     if (c.type === 'score') {
       const v = parseFloat(document.getElementById(`edit-score-${c.name}`)?.value);
-      s.scores[c.name] = isNaN(v) ? null : Math.min(c.max ?? 5, Math.max(c.min ?? 1, v));
+      scores[c.name] = isNaN(v) ? null : Math.min(c.max ?? 5, Math.max(c.min ?? 1, v));
     } else if (c.type === 'category') {
-      s.scores[c.name] = document.getElementById(`edit-cat-${c.name}`)?.value.trim() || null;
+      scores[c.name] = document.getElementById(`edit-cat-${c.name}`)?.value.trim() || null;
     } else {
-      s.scores[c.name] = document.getElementById(`edit-flag-${c.name}`)?.value === 'yes';
+      scores[c.name] = document.getElementById(`edit-flag-${c.name}`)?.value === 'yes';
     }
   });
 
-  document.getElementById('edit-student-modal').classList.add('hidden');
+  if (isAdd) {
+    const newId = AppState.students.length
+      ? Math.max(...AppState.students.map(s => s.id)) + 1
+      : 0;
+    AppState.students.push({
+      id: newId,
+      firstName,
+      lastName,
+      grade,
+      studentId: document.getElementById('edit-studentId')?.value.trim() || '',
+      scores,
+    });
+  } else {
+    const s = AppState.students.find(s => s.id === parseInt(editId));
+    if (!s) return;
+    s.firstName = firstName;
+    s.lastName  = lastName;
+    s.grade     = grade;
+    const idEl  = document.getElementById('edit-studentId');
+    if (idEl) s.studentId = idEl.value.trim();
+    Object.assign(s.scores, scores);
+  }
+
+  modal.classList.add('hidden');
+  updateSidebarStatus();
+  buildGradeConfig();
   renderStudents();
 });
 
