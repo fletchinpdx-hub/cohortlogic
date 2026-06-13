@@ -76,6 +76,9 @@ function restoreSession(data) {
   // Rebuild UI from restored state
   updateSidebarStatus();
 
+  // Re-render field mapping so column dropdowns reflect restored headers/competencies
+  if (AppState.rawHeaders.length) renderFieldMapping();
+
   if (AppState.students.length) {
     renderStudents();
     buildGradeConfig();

@@ -323,7 +323,7 @@ function classAverages(cls) {
       avgs[c.name] = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(' ') || '—';
     } else if (c.type === 'flag') {
       const yesCount = cls.filter(s => s.scores[c.name] === true).length;
-      avgs[c.name] = `${yesCount} of ${cls.length}`;
+      avgs[c.name] = `${yesCount}`;
     }
   });
   return avgs;

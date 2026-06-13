@@ -318,6 +318,8 @@ function exportByTeacher() {
 
 // ── Regenerate ──
 document.getElementById('regenerate-btn').addEventListener('click', () => {
+  if (!confirm('Regenerate will completely re-sort all classes using a new random arrangement. Any manual moves you\'ve made by dragging students will be lost.\n\nContinue?')) return;
+
   const btn = document.getElementById('regenerate-btn');
   btn.disabled = true;
   btn.textContent = 'Regenerating…';
