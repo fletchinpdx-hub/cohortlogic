@@ -279,6 +279,20 @@ supabase/migrations/
 
 ---
 
+## Runbooks
+
+### MFA recovery — admin locked out of their authenticator
+There are no self-service recovery codes (factor removal is service-role only, intentionally not exposed to the client). To recover an admin who lost their device:
+1. Verify the person's identity out-of-band first.
+2. Supabase dashboard → **Authentication → Users** → open the user.
+3. In their **Factors**, delete the TOTP factor.
+4. They can now sign in with password alone (`aal1`); the **"Enable 2FA"** banner prompts them to re-enroll on next login (or it's required once MFA enforcement is turned on).
+
+### Changing role / approval / school / tool access
+The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role`, `approved`, `school_id`, `product_overrides`, `is_admin` (no admin session ⇒ `is_super_admin()` is false). Make these changes **through the panels** (which run as the signed-in super-admin) or the school-admin RPCs — not raw SQL. Break-glass only: `set session_replication_role = replica;` disables triggers for that transaction (also skips the audit log), then reset to `default`.
+
+---
+
 ## Pending / to do
 - **Test signup flow end-to-end** — verify email confirmation → pending approvals → approval → login works
 - **Teacher-level RLS** — on hold; needs product decisions on role model and homeroom assignment UX
