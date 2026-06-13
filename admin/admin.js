@@ -401,6 +401,7 @@ function formatJson(obj, highlightKeys = []) {
 // ── Schools ──────────────────────────────────────────────────────────────
 
 let _schools = [];  // cached list for selects
+let _userNameById = {};  // id -> name, keeps user-controlled names out of inline onclick (XSS)
 
 async function loadSchools() {
   const container = document.getElementById('schools-list');
@@ -623,6 +624,9 @@ async function loadAllUsers() {
     `<option value="${s.id}">${escAdmin(s.name)}</option>`
   ).join('');
 
+  // id -> name lookup so user-controlled names never enter inline onclick (XSS)
+  users.forEach(u => { _userNameById[u.id] = u.full_name || 'this user'; });
+
   const rows = users.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const assignedSchool = _schools.find(s => s.id === u.school_id);
@@ -646,7 +650,7 @@ async function loadAllUsers() {
         </td>
         <td>${roleControlHtml(u)}</td>
         <td style="font-size:11px;color:#9ca3af;">${date}</td>
-        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}','${escAdmin(u.full_name || 'this user')}')">Deactivate</button></td>
+        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}')">Deactivate</button></td>
       </tr>`;
   }).join('');
 
@@ -739,11 +743,12 @@ async function reassignUserSchool(userId) {
   }
 }
 
-function deactivateUser(id, name) {
+function deactivateUser(id) {
   const row = document.getElementById(`user-row-${id}`);
   if (!row) return;
+  const name = _userNameById[id] || 'this user';
   row.innerHTML = `
-    <td colspan="6">
+    <td colspan="7">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
         <span style="font-size:13px;">Deactivate <strong>${escAdmin(name)}</strong>? They'll lose access immediately.</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">

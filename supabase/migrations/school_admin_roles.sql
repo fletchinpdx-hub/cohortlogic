@@ -144,6 +144,11 @@ begin
       raise exception 'User is not in your school';
     end if;
   end if;
+
+  -- Caller is authorized: green-light the privileged-column UPDATE that the
+  -- calling RPC is about to make (checked by guard_profile_privileged_columns,
+  -- PART 6). Transaction-local, so it does not leak to other statements.
+  perform set_config('app.allow_privileged_profile_update', 'on', true);
 end; $$;
 
 -- Approve a pending user in the caller's school.
@@ -235,6 +240,46 @@ grant execute on function public.set_school_products(text[])             to auth
 grant execute on function public.can_access_product(text)                to authenticated;
 -- internal guard — not callable directly by clients
 revoke execute on function public._assert_can_manage_user(uuid) from public;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- PART 6: Privilege-escalation backstop on profiles
+-- Defense-in-depth: even if some RLS UPDATE policy lets a user write their own
+-- profile row, this trigger forbids changing the security-critical columns
+-- (role, approved, school_id, product_overrides, is_admin) unless:
+--   • the caller is a super admin, OR
+--   • the write comes through a trusted school-admin RPC, which sets the
+--     transaction-local flag app.allow_privileged_profile_update (see PART 4).
+-- Regular users (and crafted PostgREST calls) can set neither, so they cannot
+-- self-promote to super_admin, self-approve, move schools, or self-grant tools.
+-- ─────────────────────────────────────────────────────────────────────
+
+create or replace function public.guard_profile_privileged_columns()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- Authorized by a trusted RPC in this transaction.
+  if current_setting('app.allow_privileged_profile_update', true) = 'on' then
+    return new;
+  end if;
+  -- Super admins may change anything directly.
+  if public.is_super_admin() then
+    return new;
+  end if;
+  -- Otherwise none of the privileged columns may change.
+  if new.role             is distinct from old.role
+     or new.approved          is distinct from old.approved
+     or new.school_id         is distinct from old.school_id
+     or new.product_overrides is distinct from old.product_overrides
+     or new.is_admin          is distinct from old.is_admin then
+    raise exception 'Not allowed to modify privileged profile fields';
+  end if;
+  return new;
+end; $$;
+
+drop trigger if exists guard_profiles_privileged on public.profiles;
+create trigger guard_profiles_privileged
+  before update on public.profiles
+  for each row execute function public.guard_profile_privileged_columns();
 
 
 -- ─────────────────────────────────────────────────────────────────────

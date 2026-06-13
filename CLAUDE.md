@@ -148,6 +148,8 @@ A per-school admin (designated by the super admin) manages **only their own scho
 
 ### Security
 - **Zero direct write access to `profiles`** — every mutation goes through the SECURITY DEFINER RPCs above, which enforce same-school + target-is-plain-user. A school admin can't escalate roles, reach another school, or modify an admin account even via crafted API calls.
+- **Privilege-escalation backstop** — `guard_profile_privileged_columns()` BEFORE UPDATE trigger forbids changing `role`/`approved`/`school_id`/`product_overrides`/`is_admin` unless the caller is a super admin or the write comes through a trusted RPC (transaction-local flag `app.allow_privileged_profile_update`). Defends even if an RLS UPDATE policy is permissive.
+- **No user data in inline `onclick`** — handlers pass only UUIDs; names are looked up from a render-time `_nameById`/`_userNameById` map and rendered in escaped text context. (`esc()`/`escAdmin()` don't escape `'`, and HTML entity-encoding doesn't survive into inline-handler JS, so user-controlled strings must never be interpolated into `onclick`.)
 - Read access via the additive `"School admins can view their school's profiles"` SELECT policy.
 - 15-minute inactivity timeout (same as the other panels).
 

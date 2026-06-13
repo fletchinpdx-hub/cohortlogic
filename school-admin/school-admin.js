@@ -21,6 +21,11 @@ try {
 // Current admin context, populated by verifyAndLoad()
 let _me = { id: null, role: null, schoolId: null, schoolName: '', enabledProducts: [] };
 
+// id -> display name. Populated at render time so user-controlled names are
+// NEVER interpolated into inline onclick handlers (XSS). Handlers pass only the
+// UUID; the name is looked up here and rendered into text context via esc().
+let _nameById = {};
+
 // ── Auth state ──
 // ⚠️  Same constraint as the main admin panel: this handler MUST stay
 //     synchronous. Do not make it async or await inside it — Supabase cannot
@@ -184,6 +189,7 @@ async function loadPending() {
 
   badge.textContent = data.length;
   badge.style.display = 'inline';
+  data.forEach(u => { _nameById[u.id] = u.full_name || 'this user'; });
 
   container.innerHTML = data.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -196,7 +202,7 @@ async function loadPending() {
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
           <button class="approve-btn" onclick="approvePending('${u.id}')">Approve</button>
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="declinePending('${u.id}','${esc(u.full_name || 'this user')}')">Decline</button>
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="declinePending('${u.id}')">Decline</button>
         </div>
       </div>`;
   }).join('');
@@ -213,9 +219,10 @@ async function approvePending(id) {
   loadUsers();
 }
 
-function declinePending(id, name) {
+function declinePending(id) {
   const row = document.getElementById(`prow-${id}`);
   if (!row) return;
+  const name = _nameById[id] || 'this user';
   row.innerHTML = `
     <div class="pending-info">
       <strong>${esc(name)}</strong>
@@ -267,6 +274,8 @@ async function loadUsers() {
     return;
   }
 
+  users.forEach(u => { _nameById[u.id] = u.full_name || 'this user'; });
+
   const defaultLabel = _me.enabledProducts.includes('cico') ? 'Allowed' : 'Denied';
 
   const rows = users.map(u => {
@@ -289,8 +298,8 @@ async function loadUsers() {
     const actions = isAdmin
       ? '<span style="font-size:12px;color:#9ca3af;">—</span>'
       : `<div style="display:flex;gap:6px;flex-wrap:wrap;">
-           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}','${esc(u.full_name || 'this user')}')">Deactivate</button>
-           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="removeUser('${u.id}','${esc(u.full_name || 'this user')}')">Remove</button>
+           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}')">Deactivate</button>
+           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="removeUser('${u.id}')">Remove</button>
          </div>`;
 
     return `
@@ -336,9 +345,10 @@ async function setUserCico(id, access) {
   if (error) { alert('Error updating access: ' + error.message); loadUsers(); }
 }
 
-function deactivateUser(id, name) {
+function deactivateUser(id) {
   const row = document.getElementById(`urow-${id}`);
   if (!row) return;
+  const name = _nameById[id] || 'this user';
   row.innerHTML = `
     <td colspan="4">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;flex-wrap:wrap;">
@@ -358,9 +368,10 @@ async function confirmDeactivate(id) {
   loadPending(); // deactivated users reappear in the pending list for re-approval
 }
 
-function removeUser(id, name) {
+function removeUser(id) {
   const row = document.getElementById(`urow-${id}`);
   if (!row) return;
+  const name = _nameById[id] || 'this user';
   row.innerHTML = `
     <td colspan="4">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;flex-wrap:wrap;">
