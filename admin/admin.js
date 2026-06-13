@@ -401,6 +401,7 @@ function formatJson(obj, highlightKeys = []) {
 // ── Schools ──────────────────────────────────────────────────────────────
 
 let _schools = [];  // cached list for selects
+let _userNameById = {};  // id -> name, keeps user-controlled names out of inline onclick (XSS)
 
 async function loadSchools() {
   const container = document.getElementById('schools-list');
@@ -605,7 +606,7 @@ async function loadAllUsers() {
 
   const { data: users, error } = await db
     .from('profiles')
-    .select('id, full_name, email, school_id, school_name, approved, created_at')
+    .select('id, full_name, email, school_id, school_name, approved, role, created_at')
     .eq('approved', true)
     .order('full_name', { ascending: true });
 
@@ -622,6 +623,9 @@ async function loadAllUsers() {
   const schoolOptions = _schools.map(s =>
     `<option value="${s.id}">${escAdmin(s.name)}</option>`
   ).join('');
+
+  // id -> name lookup so user-controlled names never enter inline onclick (XSS)
+  users.forEach(u => { _userNameById[u.id] = u.full_name || 'this user'; });
 
   const rows = users.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -644,8 +648,9 @@ async function loadAllUsers() {
             <button class="reassign-btn" id="reassign-btn-${u.id}" onclick="reassignUserSchool('${u.id}')">Save</button>
           </div>
         </td>
+        <td>${roleControlHtml(u)}</td>
         <td style="font-size:11px;color:#9ca3af;">${date}</td>
-        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}','${escAdmin(u.full_name || 'this user')}')">Deactivate</button></td>
+        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}')">Deactivate</button></td>
       </tr>`;
   }).join('');
 
@@ -658,6 +663,7 @@ async function loadAllUsers() {
             <th>School (at signup)</th>
             <th>Assigned School</th>
             <th>Reassign</th>
+            <th>Role</th>
             <th>Joined</th>
             <th></th>
           </tr>
@@ -673,6 +679,33 @@ async function loadAllUsers() {
       if (sel) sel.value = u.school_id;
     }
   });
+}
+
+// Role control for the All Users table. Super admins are shown as a badge only
+// (demote a super admin via SQL, deliberately not via the panel). A plain user
+// can only be promoted once they have a school assigned, since school admins
+// operate on their own school.
+function roleControlHtml(u) {
+  if (u.role === 'super_admin') {
+    return `<span class="role-badge" style="background:#1e3a5f;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">Super Admin</span>`;
+  }
+  if (u.role === 'school_admin') {
+    return `<span class="role-badge" style="background:#0e7490;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">School Admin</span>
+      <button class="reassign-btn" style="margin-left:6px;" onclick="setUserRole('${u.id}','user')">Revoke</button>`;
+  }
+  // plain user
+  if (!u.school_id) {
+    return `<span style="color:#9ca3af;font-size:12px;">User</span>
+      <div style="font-size:11px;color:#9ca3af;">assign a school to promote</div>`;
+  }
+  return `<span style="color:#6b7280;font-size:12px;">User</span>
+    <button class="reassign-btn" style="margin-left:6px;" onclick="setUserRole('${u.id}','school_admin')">Make school admin</button>`;
+}
+
+async function setUserRole(userId, role) {
+  const { error } = await db.from('profiles').update({ role }).eq('id', userId);
+  if (error) { alert('Error changing role: ' + error.message); return; }
+  loadAllUsers();
 }
 
 async function reassignUserSchool(userId) {
@@ -710,11 +743,12 @@ async function reassignUserSchool(userId) {
   }
 }
 
-function deactivateUser(id, name) {
+function deactivateUser(id) {
   const row = document.getElementById(`user-row-${id}`);
   if (!row) return;
+  const name = _userNameById[id] || 'this user';
   row.innerHTML = `
-    <td colspan="6">
+    <td colspan="7">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
         <span style="font-size:13px;">Deactivate <strong>${escAdmin(name)}</strong>? They'll lose access immediately.</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -791,7 +825,10 @@ async function loadPendingUsers() {
             </select>
           </div>
         </div>
-        <button class="approve-btn" onclick="approveUser('${u.id}')">${isReturning ? 'Reactivate' : 'Approve'}</button>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+          <button class="approve-btn" onclick="approveUser('${u.id}')">${isReturning ? 'Reactivate' : 'Approve'}</button>
+          <button class="reassign-btn" onclick="assignPendingSchool('${u.id}')" title="Set their school without approving — their school admin approves them">Route to school admin →</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -854,6 +891,29 @@ async function approveUser(userId) {
   } else {
     if (row) row.remove();
     _updatePendingBadge();
+  }
+}
+
+// Route a pending user to their school admin: set school_id WITHOUT approving.
+// The user stays pending (approved=false) but now appears in that school's
+// admin queue, where the school admin approves or declines them.
+async function assignPendingSchool(userId) {
+  const sel      = document.getElementById(`school-sel-${userId}`);
+  const schoolId = sel ? (sel.value || null) : null;
+  if (!schoolId) { alert('Pick a school in the dropdown first, then route.'); return; }
+
+  const { error } = await db.from('profiles').update({ school_id: schoolId }).eq('id', userId);
+  if (error) { alert('Error assigning school: ' + error.message); return; }
+
+  const schoolName = (_schools.find(s => s.id === schoolId) || {}).name || 'the school';
+  const row = document.getElementById(`row-${userId}`);
+  if (row) {
+    row.innerHTML = `
+      <div class="pending-info">
+        <strong style="color:var(--teal);">→ Routed to ${escAdmin(schoolName)}</strong>
+        <div class="meta">Their school admin can now approve this user.</div>
+      </div>
+      <button class="reassign-btn" onclick="document.getElementById('row-${userId}').remove();_updatePendingBadge();">Done</button>`;
   }
 }
 

@@ -198,12 +198,38 @@ function bindEvents() {
   document.getElementById('log-incident-btn').addEventListener('click', confirmLogIncident);
 }
 
+// Full-screen message for users whose school admin hasn't enabled CICO for them.
+function renderCicoAccessDenied() {
+  const overlay = document.createElement('div');
+  overlay.id = 'cico-access-denied';
+  overlay.innerHTML = `
+    <div style="position:fixed;inset:0;background:#f8fafc;z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Nunito,sans-serif;">
+      <div style="max-width:460px;text-align:center;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:40px 32px;box-shadow:0 4px 24px rgba(0,0,0,.06);">
+        <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+        <h1 style="font-size:20px;color:#1e3a5f;margin:0 0 10px;">Check-in / Check-out isn't enabled for your account</h1>
+        <p style="font-size:14px;color:#6b7280;margin:0 0 24px;line-height:1.5;">Your school administrator decides who can use this tool. Ask them to enable Check-in / Check-out for you, then sign back in.</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <a href="dashboard.html" style="background:#2a9d8f;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;">Back to Dashboard</a>
+          <button onclick="(async()=>{try{await SupabaseClient.auth.signOut();}catch(e){}window.location.replace('login.html');})()" style="background:#fff;border:1px solid #e5e7eb;color:#374151;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Sign Out</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
 // ── App bootstrap ──────────────────────────────────────────────────────────
 async function initApp() {
   // Confirm auth
   const { data: { session } } = await SupabaseClient.auth.getSession();
   if (!session) { window.location.replace('login.html'); return; }
   CicoState.currentUser = session.user;
+
+  // CICO tool-access gate. School admins (and the super admin) control who can
+  // use Check-in / Check-out. RLS enforces this at the data layer too — this
+  // check just gives a denied user a clear message instead of an empty app.
+  // Fail-open on error/null: the data stays protected by RLS regardless.
+  const { data: hasCico } = await SupabaseClient.rpc('can_access_product', { p: 'cico' });
+  if (hasCico === false) { renderCicoAccessDenied(); return; }
 
   // Load data
   await loadCicoData();
