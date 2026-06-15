@@ -317,7 +317,7 @@ function renderAuditTable(wrap, records, totalCount) {
       <td><span class="table-chip">${escAdmin(r.table_name)}</span></td>
       <td style="font-family:monospace;font-size:11px;color:#9ca3af;" title="${escAdmin(r.record_id||'')}">${escAdmin(shortId)}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9ca3af;font-size:12px;">${escAdmin(summary)}</td>
-      <td><button class="audit-detail-btn" onclick="openAuditDetail('${escAdmin(r.id)}')">View</button></td>
+      <td><button class="audit-detail-btn" data-act="openAuditDetail" data-id="${escAdmin(r.id)}">View</button></td>
     </tr>`;
   }).join('');
 
@@ -343,7 +343,7 @@ function renderAuditTable(wrap, records, totalCount) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    ${hasMore ? `<button class="audit-load-more" onclick="loadAuditLog(true)">Load more (${totalCount - _auditOffset} remaining)</button>` : ''}
+    ${hasMore ? `<button class="audit-load-more" data-act="auditLoadMore">Load more (${totalCount - _auditOffset} remaining)</button>` : ''}
   `;
 }
 
@@ -461,8 +461,8 @@ function schoolRowHtml(s) {
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-family:monospace;font-size:11px;color:#9ca3af;">${s.id.slice(0,8)}…</span>
-        <button class="reassign-btn" onclick="startEditSchool('${s.id}')">Edit</button>
-        <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deleteSchool('${s.id}')">Delete</button>
+        <button class="reassign-btn" data-act="startEditSchool" data-id="${s.id}">Edit</button>
+        <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deleteSchool" data-id="${s.id}">Delete</button>
       </div>
     </div>`;
 }
@@ -479,8 +479,8 @@ function startEditSchool(id) {
       <input id="edit-state-${id}"    value="${escAdmin(school.state || '')}"    placeholder="State"           style="padding:7px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;outline:none;width:70px;" />
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0;">
-      <button class="reassign-btn" style="color:var(--teal);border-color:var(--teal);" onclick="saveEditSchool('${id}')">Save</button>
-      <button class="reassign-btn" onclick="cancelEditSchool('${id}')">Cancel</button>
+      <button class="reassign-btn" style="color:var(--teal);border-color:var(--teal);" data-act="saveEditSchool" data-id="${id}">Save</button>
+      <button class="reassign-btn" data-act="cancelEditSchool" data-id="${id}">Cancel</button>
     </div>`;
   document.getElementById(`edit-name-${id}`).focus();
 }
@@ -534,8 +534,8 @@ function deleteSchool(id) {
       <div class="school-meta" style="color:var(--red);">Delete this school? This cannot be undone.</div>
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0;">
-      <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmDeleteSchool('${id}')">Yes, delete</button>
-      <button class="reassign-btn" onclick="cancelDeleteSchool('${id}')">Cancel</button>
+      <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDeleteSchool" data-id="${id}">Yes, delete</button>
+      <button class="reassign-btn" data-act="cancelDeleteSchool" data-id="${id}">Cancel</button>
     </div>`;
 }
 
@@ -564,7 +564,7 @@ async function confirmDeleteSchool(id) {
           ${assigned.length} user${assigned.length !== 1 ? 's are' : ' is'} assigned here — reassign them first.
         </div>
       </div>
-      <button class="reassign-btn" onclick="cancelDeleteSchool('${id}')">OK</button>`;
+      <button class="reassign-btn" data-act="cancelDeleteSchool" data-id="${id}">OK</button>`;
     return;
   }
 
@@ -632,6 +632,33 @@ function escAdmin(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Event delegation ────────────────────────────────────────────────────────
+// Replaces inline onclick so the CSP can drop script-src 'unsafe-inline'.
+// Buttons carry data-act="<fn>" plus optional data-id / data-role / data-name /
+// data-students; the dispatcher calls fn(dataset.id, element).
+function auditLoadMore()  { loadAuditLog(true); }
+function errorLoadMore()  { loadErrors(true); }
+function dismissPendingRow(id) {
+  const r = document.getElementById(`row-${id}`);
+  if (r) r.remove();
+  _updatePendingBadge();
+}
+
+const ADMIN_ACTIONS = {
+  openAuditDetail, auditLoadMore, errorLoadMore, loadErrors, clearErrorFilters, loadCicoStats,
+  startEditSchool, deleteSchool, saveEditSchool, cancelEditSchool, confirmDeleteSchool, cancelDeleteSchool,
+  reassignUserSchool, deactivateUser, setUserRole, confirmDeactivateUser, cancelDeactivateUser,
+  approveUser, assignPendingSchool, dismissPendingRow,
+  wipeSchoolData, confirmWipeSchoolData,
+};
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
+  const fn = ADMIN_ACTIONS[t.dataset.act];
+  if (fn) fn(t.dataset.id, t);
+});
+
 // ── All Users ─────────────────────────────────────────────────────────────
 
 async function loadAllUsers() {
@@ -678,12 +705,12 @@ async function loadAllUsers() {
               <option value="">— None —</option>
               ${schoolOptions}
             </select>
-            <button class="reassign-btn" id="reassign-btn-${u.id}" onclick="reassignUserSchool('${u.id}')">Save</button>
+            <button class="reassign-btn" id="reassign-btn-${u.id}" data-act="reassignUserSchool" data-id="${u.id}">Save</button>
           </div>
         </td>
         <td>${roleControlHtml(u)}</td>
         <td style="font-size:11px;color:#9ca3af;">${date}</td>
-        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}')">Deactivate</button></td>
+        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deactivateUser" data-id="${u.id}">Deactivate</button></td>
       </tr>`;
   }).join('');
 
@@ -724,7 +751,7 @@ function roleControlHtml(u) {
   }
   if (u.role === 'school_admin') {
     return `<span class="role-badge" style="background:#0e7490;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">School Admin</span>
-      <button class="reassign-btn" style="margin-left:6px;" onclick="setUserRole('${u.id}','user')">Revoke</button>`;
+      <button class="reassign-btn" style="margin-left:6px;" data-act="setUserRole" data-id="${u.id}" data-role="user">Revoke</button>`;
   }
   // plain user
   if (!u.school_id) {
@@ -732,10 +759,11 @@ function roleControlHtml(u) {
       <div style="font-size:11px;color:#9ca3af;">assign a school to promote</div>`;
   }
   return `<span style="color:#6b7280;font-size:12px;">User</span>
-    <button class="reassign-btn" style="margin-left:6px;" onclick="setUserRole('${u.id}','school_admin')">Make school admin</button>`;
+    <button class="reassign-btn" style="margin-left:6px;" data-act="setUserRole" data-id="${u.id}" data-role="school_admin">Make school admin</button>`;
 }
 
-async function setUserRole(userId, role) {
+async function setUserRole(userId, el) {
+  const role = el.dataset.role;
   const { error } = await db.from('profiles').update({ role }).eq('id', userId);
   if (error) { alert('Error changing role: ' + error.message); return; }
   loadAllUsers();
@@ -785,8 +813,8 @@ function deactivateUser(id) {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
         <span style="font-size:13px;">Deactivate <strong>${escAdmin(name)}</strong>? They'll lose access immediately.</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmDeactivateUser('${id}')">Yes, deactivate</button>
-          <button class="reassign-btn" onclick="cancelDeactivateUser('${id}')">Cancel</button>
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDeactivateUser" data-id="${id}">Yes, deactivate</button>
+          <button class="reassign-btn" data-act="cancelDeactivateUser" data-id="${id}">Cancel</button>
         </div>
       </div>
     </td>`;
@@ -859,8 +887,8 @@ async function loadPendingUsers() {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
-          <button class="approve-btn" onclick="approveUser('${u.id}')">${isReturning ? 'Reactivate' : 'Approve'}</button>
-          <button class="reassign-btn" onclick="assignPendingSchool('${u.id}')" title="Set their school without approving — their school admin approves them">Route to school admin →</button>
+          <button class="approve-btn" data-act="approveUser" data-id="${u.id}">${isReturning ? 'Reactivate' : 'Approve'}</button>
+          <button class="reassign-btn" data-act="assignPendingSchool" data-id="${u.id}" title="Set their school without approving — their school admin approves them">Route to school admin →</button>
         </div>
       </div>
     `;
@@ -919,7 +947,7 @@ async function approveUser(userId) {
            class="approve-btn" style="text-decoration:none;display:inline-flex;align-items:center;">
           Send email
         </a>
-        <button class="reassign-btn" onclick="document.getElementById('row-${userId}').remove();_updatePendingBadge();">Done</button>
+        <button class="reassign-btn" data-act="dismissPendingRow" data-id="${userId}">Done</button>
       </div>`;
   } else {
     if (row) row.remove();
@@ -946,7 +974,7 @@ async function assignPendingSchool(userId) {
         <strong style="color:var(--teal);">→ Routed to ${escAdmin(schoolName)}</strong>
         <div class="meta">Their school admin can now approve this user.</div>
       </div>
-      <button class="reassign-btn" onclick="document.getElementById('row-${userId}').remove();_updatePendingBadge();">Done</button>`;
+      <button class="reassign-btn" data-act="dismissPendingRow" data-id="${userId}">Done</button>`;
   }
 }
 
@@ -1060,7 +1088,7 @@ async function loadErrors(append = false) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    ${hasMore ? `<button class="audit-load-more" onclick="loadErrors(true)">Load more (${count - _errorOffset} remaining)</button>` : ''}
+    ${hasMore ? `<button class="audit-load-more" data-act="errorLoadMore">Load more (${count - _errorOffset} remaining)</button>` : ''}
   `;
 }
 
@@ -1172,7 +1200,7 @@ async function loadCicoStats() {
         <td style="text-align:center;">${s.students}</td>
         <td style="text-align:center;font-weight:${s.checkins30d > 0 ? '700' : '400'};color:${s.checkins30d > 0 ? 'var(--green)' : '#9ca3af'};">${s.checkins30d}</td>
         <td style="font-size:12px;color:#6b7280;">${lastActivity}</td>
-        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="wipeSchoolData('${s.id}','${escAdmin(s.name)}',${s.students})">Wipe Data</button></td>
+        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="wipeSchoolData" data-id="${s.id}" data-name="${escAdmin(s.name)}" data-students="${s.students}">Wipe Data</button></td>
       </tr>`;
     }).join('');
 
@@ -1191,7 +1219,9 @@ async function loadCicoStats() {
     </div>`;
 }
 
-function wipeSchoolData(id, name, students) {
+function wipeSchoolData(id, el) {
+  const name = el.dataset.name;
+  const students = Number(el.dataset.students);
   const row = document.getElementById(`cico-row-${id}`);
   if (!row) return;
   const studentLabel = `${students} student${students !== 1 ? 's' : ''}`;
@@ -1205,14 +1235,15 @@ function wipeSchoolData(id, name, students) {
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmWipeSchoolData('${id}','${escAdmin(name)}')">Yes, wipe all data</button>
-          <button class="reassign-btn" onclick="loadCicoStats()">Cancel</button>
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmWipeSchoolData" data-id="${id}" data-name="${escAdmin(name)}">Yes, wipe all data</button>
+          <button class="reassign-btn" data-act="loadCicoStats">Cancel</button>
         </div>
       </div>
     </td>`;
 }
 
-async function confirmWipeSchoolData(id, name) {
+async function confirmWipeSchoolData(id, el) {
+  const name = el.dataset.name;
   const row = document.getElementById(`cico-row-${id}`);
   if (row) row.innerHTML = `<td colspan="5" style="color:#9ca3af;font-size:13px;padding:12px;">Wiping data for ${escAdmin(name)}…</td>`;
 
@@ -1357,13 +1388,15 @@ function parseUA(ua) {
                 font-size:14px;font-family:inherit;box-shadow:0 4px 20px rgba(0,0,0,.3);
                 display:flex;align-items:center;gap:14px;z-index:9999;white-space:nowrap;">
       <span>⏱ You'll be logged out in 60 seconds due to inactivity.</span>
-      <button onclick="window._resetAdminTimer();"
+      <button id="admin-timeout-stay"
               style="background:#2a9d8f;border:none;color:#fff;padding:6px 14px;
                      border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">
         Stay logged in
       </button>
     </div>`;
   document.body.appendChild(banner);
+  banner.querySelector('#admin-timeout-stay')
+    .addEventListener('click', () => window._resetAdminTimer());
 
   let _warnTimer   = null;
   let _logoutTimer = null;
