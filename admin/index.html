@@ -213,8 +213,9 @@
       <h3>Change Password</h3>
       <div class="pw-form">
         <div id="pw-alert" class="alert hidden"></div>
-        <input type="password" id="pw-new" placeholder="New password" />
-        <input type="password" id="pw-confirm" placeholder="Confirm new password" />
+        <input type="password" id="pw-current" placeholder="Current password" autocomplete="current-password" />
+        <input type="password" id="pw-new" placeholder="New password" autocomplete="new-password" />
+        <input type="password" id="pw-confirm" placeholder="Confirm new password" autocomplete="new-password" />
         <div class="pw-actions">
           <button class="btn btn-primary btn-sm" id="save-pw-btn">Save Password</button>
           <button class="btn btn-outline btn-sm" id="cancel-pw-btn">Cancel</button>
