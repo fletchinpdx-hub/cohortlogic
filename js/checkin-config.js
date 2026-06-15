@@ -40,8 +40,8 @@ function renderSchedulesList() {
       <span class="config-row-meta">${s.period_count} period${s.period_count !== 1 ? 's' : ''}</span>
       ${s.is_default
         ? '<span class="config-row-badge">Default</span>'
-        : `<button class="config-row-action" onclick="setDefaultSchedule('${s.id}')">Set default</button>`}
-      <button class="config-row-delete" onclick="deleteSchedule('${s.id}')" title="Remove">✕</button>
+        : `<button class="config-row-action" data-act="setDefaultSchedule" data-id="${s.id}">Set default</button>`}
+      <button class="config-row-delete" data-act="deleteSchedule" data-id="${s.id}" title="Remove">✕</button>
     </div>
   `).join('');
 }
@@ -151,7 +151,7 @@ function renderCategoriesList() {
     <div class="config-row">
       <span class="config-row-name">${escHtml(cat.name)}</span>
       <span class="config-row-meta">Order ${cat.display_order}</span>
-      <button class="config-row-delete" onclick="deleteCategory('${cat.id}')" title="Remove">✕</button>
+      <button class="config-row-delete" data-act="deleteCategory" data-id="${cat.id}" title="Remove">✕</button>
     </div>
   `).join('');
 }
@@ -229,7 +229,7 @@ function renderIncidentTypesList() {
         <span style="font-weight:400;margin-left:6px;">${escHtml(t.description)}</span>
       </span>
       <span class="config-row-meta">${t.tracks_minutes ? '⏱ mins' : 'no mins'}</span>
-      <button class="config-row-delete" onclick="deleteIncidentType('${t.id}')" title="Remove">✕</button>
+      <button class="config-row-delete" data-act="deleteIncidentType" data-id="${t.id}" title="Remove">✕</button>
     </div>
   `).join('');
 }

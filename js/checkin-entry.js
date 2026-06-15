@@ -207,7 +207,7 @@ function renderPeriodGrid() {
       [0, 1, 2].forEach(score => {
         const activeClass = currentScore === score ? `active-${score}` : '';
         html += `<button class="score-btn ${activeClass}"
-          onclick="toggleScore(${p}, '${cat.id}', ${score})"
+          data-act="toggleScore" data-p="${p}" data-cat="${cat.id}" data-score="${score}"
           title="${cat.name}: ${score}">${score}</button>`;
       });
       html += `</div></td>`;
@@ -221,12 +221,12 @@ function renderPeriodGrid() {
       incidents.forEach((inc, idx) => {
         const minutesLabel = inc.minutes ? ` ${inc.minutes}m` : '';
         html += `<span class="incident-chip">${escHtml(inc.abbr)}${minutesLabel}
-          <button class="incident-chip-remove" onclick="removeIncident(${p}, ${idx})" title="Remove">×</button>
+          <button class="incident-chip-remove" data-act="removeIncident" data-p="${p}" data-idx="${idx}" title="Remove">×</button>
         </span>`;
       });
       html += `</div>`;
     }
-    html += `<button class="add-incident-btn" onclick="openIncidentModal(${p})">+ Incident</button>`;
+    html += `<button class="add-incident-btn" data-act="openIncidentModal" data-p="${p}">+ Incident</button>`;
     html += `</td>`;
 
     html += `</tr>`;
@@ -329,7 +329,10 @@ function persistStudentSchedule(studentId) {
 }
 
 // ── Score toggling ─────────────────────────────────────────────────────────
-function toggleScore(period, catId, score) {
+function toggleScore(_id, t) {
+  const period = Number(t.dataset.p);
+  const catId  = t.dataset.cat;
+  const score  = Number(t.dataset.score);
   const periods = CicoState.entry.periods;
   if (!periods[period]) return;
 
@@ -340,7 +343,8 @@ function toggleScore(period, catId, score) {
 }
 
 // ── Incident Modal ─────────────────────────────────────────────────────────
-function openIncidentModal(period) {
+function openIncidentModal(_id, t) {
+  const period = Number(t.dataset.p);
   CicoState._pendingIncident.period = period;
 
   const types = CicoState.incidentTypes;
@@ -392,7 +396,9 @@ function confirmLogIncident() {
   renderPeriodGrid();
 }
 
-function removeIncident(period, idx) {
+function removeIncident(_id, t) {
+  const period = Number(t.dataset.p);
+  const idx    = Number(t.dataset.idx);
   CicoState.entry.periods[period].incidents.splice(idx, 1);
   renderPeriodGrid();
 }
