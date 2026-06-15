@@ -154,13 +154,14 @@ function renderToolSettings() {
   wrap.innerHTML = `
     <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;">
       <input type="checkbox" id="cico-school-toggle" ${cicoOn ? 'checked' : ''}
-             onchange="toggleSchoolCico(this.checked)" style="width:18px;height:18px;cursor:pointer;" />
+             data-change="toggleSchoolCico" style="width:18px;height:18px;cursor:pointer;" />
       <span><strong>Check-in / Check-out (CICO)</strong> — master switch for your whole school</span>
     </label>
     <p style="font-size:12px;color:#9ca3af;margin-top:8px;">When this is off, <strong>no one</strong> at your school can use CICO — including anyone individually allowed. Class Builder is always available and isn't restricted here.</p>`;
 }
 
-async function toggleSchoolCico(on) {
+async function toggleSchoolCico(_id, el) {
+  const on = el.checked;
   const products = on ? ['cico'] : [];
   const { error } = await db.rpc('set_school_products', { products });
   if (error) { alert('Error updating tools: ' + error.message); renderToolSettings(); return; }
@@ -205,8 +206,8 @@ async function loadPending() {
           <div class="meta">Signed up ${date}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
-          <button class="approve-btn" onclick="approvePending('${u.id}')">Approve</button>
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="declinePending('${u.id}')">Decline</button>
+          <button class="approve-btn" data-act="approvePending" data-id="${u.id}">Approve</button>
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="declinePending" data-id="${u.id}">Decline</button>
         </div>
       </div>`;
   }).join('');
@@ -233,8 +234,8 @@ function declinePending(id) {
       <div class="meta" style="color:var(--red);">Decline this request? They'll be removed from your school and won't get access.</div>
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0;">
-      <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmDecline('${id}')">Yes, decline</button>
-      <button class="reassign-btn" onclick="loadPending()">Cancel</button>
+      <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDecline" data-id="${id}">Yes, decline</button>
+      <button class="reassign-btn" data-act="loadPending">Cancel</button>
     </div>`;
 }
 
@@ -291,7 +292,7 @@ async function loadUsers() {
     const sel = !cicoOn
       ? '<span style="font-size:12px;color:#9ca3af;">School CICO off</span>'
       : `
-      <select id="cico-sel-${u.id}" onchange="setUserCico('${u.id}', this.value)" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;">
+      <select id="cico-sel-${u.id}" data-change="setUserCico" data-id="${u.id}" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;">
         <option value="inherit" ${!blocked ? 'selected' : ''}>Allowed</option>
         <option value="deny"    ${blocked  ? 'selected' : ''}>Blocked</option>
       </select>`;
@@ -305,8 +306,8 @@ async function loadUsers() {
     const actions = isAdmin
       ? '<span style="font-size:12px;color:#9ca3af;">—</span>'
       : `<div style="display:flex;gap:6px;flex-wrap:wrap;">
-           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="deactivateUser('${u.id}')">Deactivate</button>
-           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="removeUser('${u.id}')">Remove</button>
+           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deactivateUser" data-id="${u.id}">Deactivate</button>
+           <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="removeUser" data-id="${u.id}">Remove</button>
          </div>`;
 
     return `
@@ -344,7 +345,8 @@ function cicoAccessValue(u) {
   return 'inherit';
 }
 
-async function setUserCico(id, access) {
+async function setUserCico(id, el) {
+  const access = el.value;
   const sel = document.getElementById(`cico-sel-${id}`);
   if (sel) sel.disabled = true;
   const { error } = await db.rpc('set_user_product_override', { target: id, product: 'cico', access });
@@ -361,8 +363,8 @@ function deactivateUser(id) {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;flex-wrap:wrap;">
         <span style="font-size:13px;">Deactivate <strong>${esc(name)}</strong>? They lose access immediately but stay on your school's list.</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmDeactivate('${id}')">Yes, deactivate</button>
-          <button class="reassign-btn" onclick="loadUsers()">Cancel</button>
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDeactivate" data-id="${id}">Yes, deactivate</button>
+          <button class="reassign-btn" data-act="loadUsers">Cancel</button>
         </div>
       </div>
     </td>`;
@@ -384,8 +386,8 @@ function removeUser(id) {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;flex-wrap:wrap;">
         <span style="font-size:13px;">Remove <strong>${esc(name)}</strong> from your school entirely? They'll need to be reassigned by a Cohort Logic admin to return.</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" onclick="confirmRemove('${id}')">Yes, remove</button>
-          <button class="reassign-btn" onclick="loadUsers()">Cancel</button>
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmRemove" data-id="${id}">Yes, remove</button>
+          <button class="reassign-btn" data-act="loadUsers">Cancel</button>
         </div>
       </div>
     </td>`;
@@ -402,6 +404,33 @@ function esc(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ── Event delegation ────────────────────────────────────────────────────────
+// Replaces inline onclick/onchange so the CSP can drop script-src 'unsafe-inline'.
+// Buttons carry data-act="<fn>" (+ optional data-id); selects/checkboxes carry
+// data-change="<fn>". Handlers receive (id, element).
+const ACTIONS = {
+  signIn, toggleMagicLink, sendMagicLink, doLogout,
+  approvePending, declinePending, confirmDecline, loadPending,
+  deactivateUser, removeUser, confirmDeactivate, confirmRemove, loadUsers,
+};
+const CHANGE_ACTIONS = { setUserCico, toggleSchoolCico };
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
+  const fn = ACTIONS[t.dataset.act];
+  if (fn) fn(t.dataset.id, t);
+});
+document.addEventListener('change', (e) => {
+  const t = e.target.closest('[data-change]');
+  if (!t) return;
+  const fn = CHANGE_ACTIONS[t.dataset.change];
+  if (fn) fn(t.dataset.id, t);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target && e.target.id === 'password-input') signIn();
+});
+
 // ── Inactivity session timeout (15 min, mirrors the main admin panel) ──
 (function () {
   const TIMEOUT_MS = 15 * 60 * 1000;
@@ -416,13 +445,15 @@ function esc(str) {
                 font-size:14px;font-family:inherit;box-shadow:0 4px 20px rgba(0,0,0,.3);
                 display:flex;align-items:center;gap:14px;z-index:9999;white-space:nowrap;">
       <span>⏱ You'll be logged out in 60 seconds due to inactivity.</span>
-      <button onclick="window._resetSchoolAdminTimer();"
+      <button id="session-timeout-stay"
               style="background:#2a9d8f;border:none;color:#fff;padding:6px 14px;
                      border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">
         Stay logged in
       </button>
     </div>`;
   document.body.appendChild(banner);
+  banner.querySelector('#session-timeout-stay')
+    .addEventListener('click', () => window._resetSchoolAdminTimer());
 
   let _warnTimer = null, _logoutTimer = null;
 
