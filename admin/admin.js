@@ -64,6 +64,8 @@ async function verifyAndLoad(session, event) {
   if (mfa === 'enroll-optional') AdminMFA.showEnrollReminder(db);
 
   if (event === 'PASSWORD_RECOVERY') {
+    _pwRecoveryMode = true;          // recovery token authorizes the reset
+    showCurrentPwField(false);       // user doesn't know their old password
     const section = document.getElementById('change-pw-section');
     section.classList.remove('hidden');
     section.scrollIntoView({ behavior: 'smooth' });
@@ -158,7 +160,19 @@ _auditOverlay.querySelector('.audit-modal').addEventListener('click', e => e.sto
 _auditOverlay.querySelector('.audit-modal-close').addEventListener('click', closeAuditModal);
 
 // ── Change password ──
+// Recovery sessions (forgot-password link) authorize a password set WITHOUT the
+// current password; a normal in-app change requires it (the Supabase project
+// has "Require current password when updating" enabled).
+let _pwRecoveryMode = false;
+
+function showCurrentPwField(show) {
+  const cur = document.getElementById('pw-current');
+  if (cur) cur.style.display = show ? '' : 'none';
+}
+
 document.getElementById('change-pw-btn').addEventListener('click', () => {
+  _pwRecoveryMode = false;
+  showCurrentPwField(true);
   const section = document.getElementById('change-pw-section');
   section.classList.remove('hidden');
   section.scrollIntoView({ behavior: 'smooth' });
@@ -166,27 +180,41 @@ document.getElementById('change-pw-btn').addEventListener('click', () => {
 
 document.getElementById('cancel-pw-btn').addEventListener('click', () => {
   document.getElementById('change-pw-section').classList.add('hidden');
+  document.getElementById('pw-current').value = '';
   document.getElementById('pw-new').value = '';
   document.getElementById('pw-confirm').value = '';
 });
 
 document.getElementById('save-pw-btn').addEventListener('click', async () => {
+  const pwCurrent = document.getElementById('pw-current').value;
   const pw1     = document.getElementById('pw-new').value;
   const pw2     = document.getElementById('pw-confirm').value;
   const alertEl = document.getElementById('pw-alert');
-  if (pw1.length < 8) {
-    alertEl.textContent = 'Password must be at least 8 characters.';
-    alertEl.className = 'alert alert-error'; alertEl.classList.remove('hidden'); return;
+  const fail = (msg) => { alertEl.textContent = msg; alertEl.className = 'alert alert-error'; alertEl.classList.remove('hidden'); };
+
+  if (pw1.length < 10)                  { fail('Password must be at least 10 characters.'); return; }
+  if (pw1 !== pw2)                      { fail('Passwords do not match.'); return; }
+  if (!_pwRecoveryMode && !pwCurrent)   { fail('Enter your current password.'); return; }
+
+  const attrs = _pwRecoveryMode
+    ? { password: pw1 }
+    : { current_password: pwCurrent, password: pw1 };
+  const { error } = await db.auth.updateUser(attrs);
+
+  if (error) {
+    fail(/current password|incorrect|invalid|wrong/i.test(error.message)
+      ? 'Your current password is incorrect.'
+      : error.message);
+    return;
   }
-  if (pw1 !== pw2) {
-    alertEl.textContent = 'Passwords do not match.';
-    alertEl.className = 'alert alert-error'; alertEl.classList.remove('hidden'); return;
-  }
-  const { error } = await db.auth.updateUser({ password: pw1 });
-  alertEl.textContent = error ? error.message : 'Password updated successfully.';
-  alertEl.className   = error ? 'alert alert-error' : 'alert alert-success';
+
+  alertEl.textContent = 'Password updated successfully.';
+  alertEl.className   = 'alert alert-success';
   alertEl.classList.remove('hidden');
-  if (!error) { document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
+  document.getElementById('pw-current').value = '';
+  document.getElementById('pw-new').value = '';
+  document.getElementById('pw-confirm').value = '';
+  _pwRecoveryMode = false;
 });
 
 // ── Audit Log ────────────────────────────────────────────────────────────

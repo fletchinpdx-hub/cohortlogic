@@ -103,8 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const pwd2 = document.getElementById('confirm-password').value;
     errorEl.classList.remove('visible');
 
-    if (pwd.length < 8) {
-      errorEl.textContent = 'Password must be at least 8 characters.';
+    if (pwd.length < 10) {
+      errorEl.textContent = 'Password must be at least 10 characters.';
       errorEl.classList.add('visible'); return;
     }
     if (pwd !== pwd2) {
