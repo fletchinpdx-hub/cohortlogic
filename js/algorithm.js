@@ -43,8 +43,20 @@ function runBalancingAlgorithm() {
 
     splits.forEach((sc, splitIdx) => {
       const splitsLeft = splits.length - splitIdx;
-      const takeCountA = Math.round(remainTakeA / splitsLeft);
-      const takeCountB = Math.round(remainTakeB / splitsLeft);
+
+      // Students pinned to this split class via Keep with Teacher
+      const splitPins    = (AppState.keepWithTeacher || []).filter(k => k.splitClassId === sc.id);
+      const pinnedIds    = new Set(splitPins.map(k => k.studentId));
+      const pinnedFromA  = origA.filter(s => pinnedIds.has(s.id) && !usedA.has(s.id));
+      const pinnedFromB  = origB.filter(s => pinnedIds.has(s.id) && !usedB.has(s.id));
+      pinnedFromA.forEach(s => usedA.add(s.id));
+      pinnedFromB.forEach(s => usedB.add(s.id));
+
+      // Subtract pinned students from remaining quota before computing how many more to pick
+      const adjRemainA = Math.max(0, remainTakeA - pinnedFromA.length);
+      const adjRemainB = Math.max(0, remainTakeB - pinnedFromB.length);
+      const takeCountA = Math.round(adjRemainA / splitsLeft);
+      const takeCountB = Math.round(adjRemainB / splitsLeft);
 
       const availA = sortedA.filter(s => !usedA.has(s.id));
       const availB = sortedB.filter(s => !usedB.has(s.id));
@@ -52,13 +64,13 @@ function runBalancingAlgorithm() {
       const takeA = pickDistributed(availA, Math.min(takeCountA, availA.length));
       const takeB = pickDistributed(availB, Math.min(takeCountB, availB.length));
 
-      remainTakeA -= takeA.length;
-      remainTakeB -= takeB.length;
+      remainTakeA -= (pinnedFromA.length + takeA.length);
+      remainTakeB -= (pinnedFromB.length + takeB.length);
 
       takeA.forEach(s => usedA.add(s.id));
       takeB.forEach(s => usedB.add(s.id));
 
-      const splitStudents = snakeDraft([...takeA, ...takeB], 1)[0] || [];
+      const splitStudents = snakeDraft([...takeA, ...takeB, ...pinnedFromA, ...pinnedFromB], 1)[0] || [];
       fixSeparations([splitStudents]);
       fixTogethers([splitStudents]);
 

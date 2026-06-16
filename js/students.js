@@ -494,15 +494,22 @@ function renderKwtDropdowns() {
   document.getElementById('kwt-student').innerHTML =
     `<option value="">Select student…</option>${studentOptions()}`;
 
-  // Class dropdown — built from gradeConfig teachers
+  // Class dropdown — regular classes from gradeConfig + split classes
   const opts = [];
   getGrades().forEach(g => {
     const cfg = AppState.gradeConfig[g];
     if (!cfg) return;
     cfg.teachers.forEach((t, i) => {
       const label = t ? `Grade ${g} — ${t}` : `Grade ${g} — Class ${i + 1}`;
-      opts.push(`<option value="${g}|${i}">${label}</option>`);
+      opts.push(`<option value="grade|${g}|${i}">${label}</option>`);
     });
+  });
+  AppState.splitClasses.forEach(sc => {
+    const grades = sc.grades.join('/');
+    const label  = sc.teacher
+      ? `Grade ${grades} Split — ${sc.teacher}`
+      : `Grade ${grades} Split`;
+    opts.push(`<option value="split|${sc.id}">${label}</option>`);
   });
   document.getElementById('kwt-class').innerHTML =
     opts.length
@@ -515,12 +522,17 @@ document.getElementById('add-kwt-btn').addEventListener('click', () => {
   const classVal  = document.getElementById('kwt-class').value;
   if (isNaN(studentId) || !classVal) { alert('Please select a student and a class.'); return; }
 
-  const [grade, classIndex] = classVal.split('|');
-  const ci = parseInt(classIndex);
-
   // Remove any existing pin for this student
   AppState.keepWithTeacher = AppState.keepWithTeacher.filter(k => k.studentId !== studentId);
-  AppState.keepWithTeacher.push({ studentId, grade, classIndex: ci });
+
+  if (classVal.startsWith('split|')) {
+    const splitClassId = classVal.slice(6);
+    AppState.keepWithTeacher.push({ studentId, splitClassId });
+  } else {
+    // format: "grade|g|classIndex"
+    const [, grade, classIndex] = classVal.split('|');
+    AppState.keepWithTeacher.push({ studentId, grade, classIndex: parseInt(classIndex) });
+  }
 
   renderKwtList();
   document.getElementById('kwt-student').value = '';
@@ -537,9 +549,17 @@ function renderKwtList() {
   const rows = AppState.keepWithTeacher.map((k, i) => {
     const student = AppState.students.find(s => s.id === k.studentId);
     if (!student) return '';
-    const cfg     = AppState.gradeConfig[k.grade];
-    const teacher = cfg?.teachers?.[k.classIndex] || `Class ${k.classIndex + 1}`;
-    const label   = `Grade ${k.grade} — ${teacher}`;
+    let label;
+    if (k.splitClassId) {
+      const sc = AppState.splitClasses.find(c => c.id === k.splitClassId);
+      label = sc
+        ? `Grade ${sc.grades.join('/')} Split${sc.teacher ? ' — ' + sc.teacher : ''}`
+        : 'Split Class';
+    } else {
+      const cfg     = AppState.gradeConfig[k.grade];
+      const teacher = cfg?.teachers?.[k.classIndex] || `Class ${k.classIndex + 1}`;
+      label = `Grade ${k.grade} — ${teacher}`;
+    }
     return `
       <div class="sep-entry">
         <div class="sep-entry-name">

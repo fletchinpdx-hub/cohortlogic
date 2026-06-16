@@ -32,8 +32,8 @@ function renderResultsGrid() {
   const splitStudents   = AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
   const totalStudents   = regularStudents + splitStudents;
   const totalClasses    = grades.reduce((n, g) => n + AppState.results[g].length, 0) + AppState.splitResults.length;
-  const sepViolations  = getSepViolations();
-  const togViolations  = getTogViolations();
+  const sepViolations  = getSepViolations(filterGrade);
+  const togViolations  = getTogViolations(filterGrade);
   const sepCount = sepViolations.length;
   const togCount = togViolations.length;
 
@@ -394,36 +394,41 @@ document.getElementById('regenerate-btn').addEventListener('click', () => {
   }, 30);
 });
 
-function getSepViolations() {
+function buildFilteredClassList(filterGrade) {
+  const classes = [];
+  if (!filterGrade || filterGrade !== '__split__') {
+    Object.entries(AppState.results).forEach(([g, gradeClasses]) => {
+      if (!filterGrade || g === filterGrade) gradeClasses.forEach(cls => classes.push(cls));
+    });
+  }
+  if (!filterGrade || filterGrade === '__split__') {
+    AppState.splitResults.forEach(sr => classes.push(sr.students));
+  }
+  return classes;
+}
+
+function getSepViolations(filterGrade) {
   const violations = [];
-  const allClasses = [
-    ...Object.values(AppState.results).flat(),
-    ...AppState.splitResults.map(sr => sr.students),
-  ];
+  const classesToCheck = buildFilteredClassList(filterGrade);
   AppState.separations.forEach(pair => {
-    allClasses.forEach(cls => {
+    classesToCheck.forEach(cls => {
       const sA = cls.find(s => s.id === pair.a);
       const sB = cls.find(s => s.id === pair.b);
-      if (sA && sB) {
-        violations.push({ nameA: studentLabel(sA), nameB: studentLabel(sB) });
-      }
+      if (sA && sB) violations.push({ nameA: studentLabel(sA), nameB: studentLabel(sB) });
     });
   });
   return violations;
 }
 
-function getTogViolations() {
+function getTogViolations(filterGrade) {
   const violations = [];
-  const allClasses = [
-    ...Object.values(AppState.results).flat(),
-    ...AppState.splitResults.map(sr => sr.students),
-  ];
+  const classesToCheck = buildFilteredClassList(filterGrade);
   AppState.togethers.forEach(pair => {
-    const aClass = allClasses.findIndex(cls => cls.some(s => s.id === pair.a));
-    const bClass = allClasses.findIndex(cls => cls.some(s => s.id === pair.b));
+    const aClass = classesToCheck.findIndex(cls => cls.some(s => s.id === pair.a));
+    const bClass = classesToCheck.findIndex(cls => cls.some(s => s.id === pair.b));
     if (aClass !== -1 && bClass !== -1 && aClass !== bClass) {
-      const sA = allClasses[aClass].find(s => s.id === pair.a);
-      const sB = allClasses[bClass].find(s => s.id === pair.b);
+      const sA = classesToCheck[aClass].find(s => s.id === pair.a);
+      const sB = classesToCheck[bClass].find(s => s.id === pair.b);
       violations.push({ nameA: studentLabel(sA), nameB: studentLabel(sB) });
     }
   });
