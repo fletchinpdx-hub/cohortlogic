@@ -61,6 +61,7 @@ function renderResultsGrid() {
 
   stats.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Students</div><div class="stat-value">${totalStudents}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Classes</div><div class="stat-value">${totalClasses}</div></div>
     <div class="stat-card${sepCardExtra}">
       <div class="stat-label">Keep Apart Violations${sepCount ? ' <span class="violation-hint">click for details</span>' : ''}</div>
       <div class="stat-value" style="color:${sepCount ? '#ef4444' : '#22c55e'}">${sepCount}</div>
