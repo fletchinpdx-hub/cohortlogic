@@ -28,7 +28,12 @@ function runBalancingAlgorithm() {
     const totalStudents = origA.length + origB.length;
     const totalClasses  = cfgA.classCount + cfgB.classCount + splits.length;
     const targetSize    = Math.round(totalStudents / Math.max(totalClasses, 1));
-    const halfSize      = Math.round(targetSize / 2);
+
+    // Each grade contributes only the students its regular classes can't absorb.
+    // This keeps regular classes at ~targetSize and avoids 50/50 splits when
+    // the two grades have very different enrollment numbers.
+    let remainTakeA = Math.max(0, origA.length - cfgA.classCount * targetSize);
+    let remainTakeB = Math.max(0, origB.length - cfgB.classCount * targetSize);
 
     // Sort pools once; track which students have been assigned
     const sortedA  = sortByComposite(origA);
@@ -36,12 +41,19 @@ function runBalancingAlgorithm() {
     const usedA    = new Set();
     const usedB    = new Set();
 
-    splits.forEach(sc => {
+    splits.forEach((sc, splitIdx) => {
+      const splitsLeft = splits.length - splitIdx;
+      const takeCountA = Math.round(remainTakeA / splitsLeft);
+      const takeCountB = Math.round(remainTakeB / splitsLeft);
+
       const availA = sortedA.filter(s => !usedA.has(s.id));
       const availB = sortedB.filter(s => !usedB.has(s.id));
 
-      const takeA = pickDistributed(availA, Math.min(halfSize, availA.length));
-      const takeB = pickDistributed(availB, Math.min(halfSize, availB.length));
+      const takeA = pickDistributed(availA, Math.min(takeCountA, availA.length));
+      const takeB = pickDistributed(availB, Math.min(takeCountB, availB.length));
+
+      remainTakeA -= takeA.length;
+      remainTakeB -= takeB.length;
 
       takeA.forEach(s => usedA.add(s.id));
       takeB.forEach(s => usedB.add(s.id));

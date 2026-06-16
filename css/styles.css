@@ -542,6 +542,44 @@ body {
 .violation-list { margin: 0; padding-left: 16px; }
 .violation-list li { font-size: 12px; color: #374151; margin-bottom: 4px; line-height: 1.4; }
 
+.grade-stats-row {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.grade-stat-chip {
+  font-size: 13px;
+  color: var(--gray-700);
+  background: var(--gray-100);
+  border-radius: 6px;
+  padding: 3px 10px;
+}
+.grade-stat-chip strong { color: var(--navy); }
+
+.split-teacher-row {
+  margin-top: 8px;
+}
+.split-teacher-inline {
+  width: 100%;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--navy);
+  outline: none;
+}
+.split-teacher-inline::placeholder { color: rgba(10,34,64,0.45); }
+.split-teacher-inline:focus { background: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.7); }
+
 .results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

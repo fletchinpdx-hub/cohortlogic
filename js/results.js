@@ -48,6 +48,17 @@ function renderResultsGrid() {
   const sepCardExtra  = sepCount  ? ` violation-card" onclick="toggleViolationDetail('sep-detail')` : ``;
   const togCardExtra  = togCount  ? ` violation-card" onclick="toggleViolationDetail('tog-detail')` : ``;
 
+  // Per-grade student counts
+  const allGrades = [...Object.keys(AppState.results)];
+  AppState.splitResults.forEach(sr => sr.grades.forEach(g => { if (!allGrades.includes(g)) allGrades.push(g); }));
+  const gradeChips = allGrades
+    .filter(g => !filterGrade || filterGrade === g || filterGrade === '__split__')
+    .map(g => {
+      const fromRegular = (AppState.results[g] || []).flat().length;
+      const fromSplit   = AppState.splitResults.reduce((n, sr) => n + sr.students.filter(s => s.grade === g).length, 0);
+      return `<span class="grade-stat-chip"><strong>Gr. ${g}</strong> ${fromRegular + fromSplit}</span>`;
+    }).join('');
+
   stats.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Students</div><div class="stat-value">${totalStudents}</div></div>
     <div class="stat-card"><div class="stat-label">Total Classes</div><div class="stat-value">${totalClasses}</div></div>
@@ -61,6 +72,7 @@ function renderResultsGrid() {
       <div class="stat-value" style="color:${togCount ? '#ef4444' : '#22c55e'}">${togCount}</div>
       ${togCount ? `<div id="tog-detail" class="violation-detail hidden">${violationList(togViolations, 'together')}</div>` : ''}
     </div>
+    ${gradeChips ? `<div class="grade-stats-row">${gradeChips}</div>` : ''}
   `;
 
   grid.innerHTML = '';
@@ -82,8 +94,35 @@ function renderResultsGrid() {
   // Split classes
   if (showSplit) {
     AppState.splitResults.forEach((sr, i) => {
-      const label = `Grade ${sr.grades.join('/')} Split · ${sr.teacher || `Class ${i + 1}`}`;
-      const card  = buildClassCard(label, sr.students, `split-${i}`, 0, true);
+      const gradeKey = `split-${i}`;
+      const card = buildClassCard(`Grade ${sr.grades.join('/')} Split`, sr.students, gradeKey, i, true);
+
+      // Show per-grade breakdown in the card meta
+      const gradeBreakdown = sr.grades.map(g => {
+        const n = sr.students.filter(s => s.grade === g).length;
+        return `Gr. ${g}: ${n}`;
+      }).join(' · ');
+      const meta = card.querySelector('.class-card-meta');
+      if (meta) meta.textContent = `${sr.students.length} students · ${gradeBreakdown}`;
+
+      // Inline teacher name field
+      const header = card.querySelector('.class-card-header');
+      const teacherRow = document.createElement('div');
+      teacherRow.className = 'split-teacher-row';
+      const teacherInput = document.createElement('input');
+      teacherInput.type = 'text';
+      teacherInput.className = 'split-teacher-inline';
+      teacherInput.value = sr.teacher || '';
+      teacherInput.placeholder = 'Add teacher name…';
+      teacherInput.addEventListener('input', () => {
+        sr.teacher = teacherInput.value;
+        const sc = AppState.splitClasses.find(c => c.id === sr.id);
+        if (sc) sc.teacher = teacherInput.value;
+      });
+      teacherRow.appendChild(teacherInput);
+      header.appendChild(teacherRow);
+
+      setupDragDrop(card, gradeKey, i);
       grid.appendChild(card);
     });
   }
@@ -188,7 +227,16 @@ function getScoreBadgeClass(val, comp) {
   return 'score-5';
 }
 
-// ── Drag & drop between classes ──
+// Resolve the student array for either a regular grade class or a split class
+function resolveClassList(gradeKey, classIdx) {
+  if (gradeKey.startsWith('split-')) {
+    const i = parseInt(gradeKey.split('-')[1]);
+    return AppState.splitResults[i]?.students ?? null;
+  }
+  return AppState.results[gradeKey]?.[classIdx] ?? null;
+}
+
+// ── Drag & drop between classes (works for regular and split) ──
 function setupDragDrop(card, g, ci) {
   card.addEventListener('dragover',  e => { e.preventDefault(); card.classList.add('drag-target'); });
   card.addEventListener('dragleave', () => card.classList.remove('drag-target'));
@@ -200,12 +248,15 @@ function setupDragDrop(card, g, ci) {
     const fromClass = parseInt(e.dataTransfer.getData('fromClass'));
     if (fromGrade === g && fromClass === ci) return;
 
-    const fromList = AppState.results[fromGrade]?.[fromClass];
+    const fromList = resolveClassList(fromGrade, fromClass);
     if (!fromList) return;
     const idx = fromList.findIndex(s => s.id === studentId);
     if (idx === -1) return;
+    const toList = resolveClassList(g, ci);
+    if (!toList) return;
+
     const [student] = fromList.splice(idx, 1);
-    AppState.results[g][ci].push(student);
+    toList.push(student);
     if (typeof trackEvent === 'function') trackEvent('student_moved');
     renderResultsGrid();
   });
