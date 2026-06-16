@@ -4,7 +4,7 @@ async function init() {
 
   const { data: profile } = await SupabaseClient
     .from('profiles')
-    .select('full_name, school_name, approved')
+    .select('full_name, school_name, approved, role')
     .eq('id', session.user.id)
     .single();
 
@@ -17,6 +17,19 @@ async function init() {
     document.getElementById('dashboard-state').style.display = 'block';
     if (profile.school_name) {
       document.getElementById('school-line').textContent = profile.school_name;
+    }
+
+    // Role-aware admin link. The link is convenience only — the admin panels
+    // re-verify role server-side (+ RLS), so a non-admin who reaches the URL is
+    // still bounced. Super admins go to their own panel; school admins to theirs.
+    const adminLink = document.getElementById('admin-link');
+    if (profile.role === 'super_admin') {
+      adminLink.href = 'admin/';
+      adminLink.firstChild.textContent = 'Open admin panel ';
+      adminLink.style.display = 'inline-flex';
+    } else if (profile.role === 'school_admin') {
+      adminLink.href = 'school-admin/';
+      adminLink.style.display = 'inline-flex';
     }
   }
 }
