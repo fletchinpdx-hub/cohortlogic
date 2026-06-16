@@ -192,6 +192,8 @@ function renderStudentPills(cls, g, ci) {
     });
   }
 
+  const isSplitCard = g.startsWith('split-');
+
   return students.map(s => {
     const scoreBadges = scoreComps.map(c => {
       const v = s.scores[c.name];
@@ -205,9 +207,11 @@ function renderStudentPills(cls, g, ci) {
       return `<span class="cat-badge" title="${c.name}">${v}</span>`;
     }).join('');
 
+    const gradeTag = isSplitCard ? ` <span class="student-grade-tag">Gr.${s.grade}</span>` : '';
+
     return `
       <div class="student-pill" draggable="true" data-id="${s.id}" data-grade="${g}" data-class="${ci}">
-        <span class="student-name">${studentLabel(s)}</span>
+        <span class="student-name">${studentLabel(s)}${gradeTag}</span>
         <span class="student-scores">${scoreBadges}${catBadges}</span>
       </div>
     `;

@@ -73,6 +73,7 @@ function runBalancingAlgorithm() {
       const splitStudents = snakeDraft([...takeA, ...takeB, ...pinnedFromA, ...pinnedFromB], 1)[0] || [];
       fixSeparations([splitStudents]);
       fixTogethers([splitStudents]);
+      // Category balancing for splits happens in the global pass below
 
       AppState.splitResults.push({
         id:      sc.id,
@@ -95,6 +96,24 @@ function runBalancingAlgorithm() {
       AppState.results[g] = balanceGrade(students, cfg.classCount, g);
     }
   });
+
+  // ── Global category balance pass across all classes including splits ──
+  // Runs after all regular and split classes are built so that gender (and
+  // other priority categories) can be balanced between split classes and
+  // the regular classes they share grades with. Grade constraints prevent
+  // wrong-grade students from landing in single-grade regular classes.
+  if (AppState.splitResults.length) {
+    const allClassArrays    = [];
+    const gradeConstraints  = [];
+    Object.entries(AppState.results).forEach(([g, classes]) => {
+      classes.forEach(cls => { allClassArrays.push(cls); gradeConstraints.push(g); });
+    });
+    AppState.splitResults.forEach(sr => {
+      allClassArrays.push(sr.students);
+      gradeConstraints.push(sr.grades); // array = accepts any of these grades
+    });
+    balanceCategories(allClassArrays, gradeConstraints);
+  }
 }
 
 // ── Composite score (normalized 0–1 across any range) ──
@@ -266,9 +285,21 @@ function fixTogethers(classes) {
 // For each pair of classes, keeps swapping until that pair is fully
 // optimized before moving to the next pair. Outer passes repeat until
 // no pair needs further adjustment (handles cross-pair interactions).
-function balanceCategories(classes) {
+//
+// gradeConstraints (optional): array parallel to `classes`.
+//   - string  → only students of that grade may be placed in this slot
+//   - string[] → any of the listed grades are acceptable (split class)
+//   - absent/null → no grade restriction
+function balanceCategories(classes, gradeConstraints) {
   const catComps = AppState.competencies.filter(c => c.type === 'category' && c.name && c.column);
   if (!catComps.length || classes.length < 2) return;
+
+  const gradeOk = (student, classIdx) => {
+    if (!gradeConstraints) return true;
+    const c = gradeConstraints[classIdx];
+    if (!c) return true;
+    return Array.isArray(c) ? c.includes(student.grade) : student.grade === c;
+  };
 
   const getCounts = (cls, name) => {
     const counts = {};
@@ -288,6 +319,11 @@ function balanceCategories(classes) {
       let bestDelta = 0, bestSi = -1, bestSj = -1;
       for (let si = 0; si < classes[ci].length; si++) {
         for (let sj = 0; sj < classes[cj].length; sj++) {
+          // Respect grade constraints — don't place a student in a class
+          // that doesn't accept their grade (e.g. a Grade 4 student into
+          // a Grade 3-only regular class).
+          if (!gradeOk(classes[ci][si], cj)) continue;
+          if (!gradeOk(classes[cj][sj], ci)) continue;
           const catI = classes[ci][si].scores[name];
           const catJ = classes[cj][sj].scores[name];
           if (!catI || !catJ || catI === catJ) continue;

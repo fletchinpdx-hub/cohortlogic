@@ -636,6 +636,7 @@ body {
 .student-pill:hover { background: var(--gray-100); }
 .student-pill.dragging { opacity: .5; }
 .student-name { font-weight: 500; }
+.student-grade-tag { font-size: 10px; font-weight: 600; color: var(--gray-500); margin-left: 3px; }
 .student-scores { display: flex; gap: 4px; }
 
 .class-card.drag-target { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
