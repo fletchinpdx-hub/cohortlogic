@@ -38,8 +38,15 @@ function renderResultsGrid() {
     totalStudents = AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
     totalClasses  = AppState.splitResults.length;
   } else {
-    totalStudents = (AppState.results[filterGrade] || []).flat().length;
-    totalClasses  = (AppState.results[filterGrade] || []).length;
+    // Regular classes for this grade
+    const regularClasses = AppState.results[filterGrade] || [];
+    const regularCount   = regularClasses.reduce((n, cls) => n + cls.length, 0);
+    // Also count students of this grade who are in split classes
+    const splitCount     = AppState.splitResults.reduce(
+      (n, sr) => n + sr.students.filter(s => s.grade === filterGrade).length, 0
+    );
+    totalStudents = regularCount + splitCount;
+    totalClasses  = regularClasses.length;
   }
   const sepViolations  = getSepViolations(filterGrade);
   const togViolations  = getTogViolations(filterGrade);
