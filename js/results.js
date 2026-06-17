@@ -27,11 +27,20 @@ function renderResultsGrid() {
     return;
   }
 
-  // Stats
-  const regularStudents = grades.reduce((n, g) => n + AppState.results[g].flat().length, 0);
-  const splitStudents   = AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
-  const totalStudents   = regularStudents + splitStudents;
-  const totalClasses    = grades.reduce((n, g) => n + AppState.results[g].length, 0) + AppState.splitResults.length;
+  // Stats — scoped to the active filter
+  let totalStudents, totalClasses;
+  if (!filterGrade) {
+    totalStudents = Object.values(AppState.results).reduce((n, c) => n + c.flat().length, 0)
+                  + AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
+    totalClasses  = Object.values(AppState.results).reduce((n, c) => n + c.length, 0)
+                  + AppState.splitResults.length;
+  } else if (filterGrade === '__split__') {
+    totalStudents = AppState.splitResults.reduce((n, sr) => n + sr.students.length, 0);
+    totalClasses  = AppState.splitResults.length;
+  } else {
+    totalStudents = (AppState.results[filterGrade] || []).flat().length;
+    totalClasses  = (AppState.results[filterGrade] || []).length;
+  }
   const sepViolations  = getSepViolations(filterGrade);
   const togViolations  = getTogViolations(filterGrade);
   const sepCount = sepViolations.length;
@@ -48,17 +57,6 @@ function renderResultsGrid() {
   const sepCardExtra  = sepCount  ? ` violation-card" onclick="toggleViolationDetail('sep-detail')` : ``;
   const togCardExtra  = togCount  ? ` violation-card" onclick="toggleViolationDetail('tog-detail')` : ``;
 
-  // Per-grade student counts
-  const allGrades = [...Object.keys(AppState.results)];
-  AppState.splitResults.forEach(sr => sr.grades.forEach(g => { if (!allGrades.includes(g)) allGrades.push(g); }));
-  const gradeChips = allGrades
-    .filter(g => !filterGrade || filterGrade === g || filterGrade === '__split__')
-    .map(g => {
-      const fromRegular = (AppState.results[g] || []).flat().length;
-      const fromSplit   = AppState.splitResults.reduce((n, sr) => n + sr.students.filter(s => s.grade === g).length, 0);
-      return `<span class="grade-stat-chip"><strong>Gr. ${g}</strong> ${fromRegular + fromSplit}</span>`;
-    }).join('');
-
   stats.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Students</div><div class="stat-value">${totalStudents}</div></div>
     <div class="stat-card"><div class="stat-label">Total Classes</div><div class="stat-value">${totalClasses}</div></div>
@@ -72,7 +70,6 @@ function renderResultsGrid() {
       <div class="stat-value" style="color:${togCount ? '#ef4444' : '#22c55e'}">${togCount}</div>
       ${togCount ? `<div id="tog-detail" class="violation-detail hidden">${violationList(togViolations, 'together')}</div>` : ''}
     </div>
-    ${gradeChips ? `<div class="grade-stats-row">${gradeChips}</div>` : ''}
   `;
 
   grid.innerHTML = '';
