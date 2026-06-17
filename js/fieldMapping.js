@@ -120,6 +120,7 @@ document.getElementById('add-competency-btn').addEventListener('click', () => {
 // ── Apply mapping ──
 function normalizeGrade(g) {
   if (!g) return '';
+  g = g.trim().replace(/^(\d+)(st|nd|rd|th)$/i, '$1');
   return /^[a-zA-Z]+$/.test(g) ? g.toUpperCase() : g;
 }
 
