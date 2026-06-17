@@ -149,6 +149,10 @@ A per-school admin (designated by the super admin) manages **only their own scho
 - **Tool Settings** — toggle CICO on/off for the whole school (`set_school_products`)
 - **Staff** — per-person CICO access (School default / Allowed / Denied via `set_user_product_override`), Deactivate (`set_school_user_active`), Remove (`remove_school_user`)
 
+### Navigation (entry/exit)
+- **Entry:** from the product dashboard, school admins see a **"Manage your school →"** link into `/school-admin/`; super admins see **"Open admin panel →"** into `/admin/`. The link is one role-aware element (`#admin-link`) in the dashboard header, shown/targeted by `role` in `js/dashboard.js` (which now selects `role`). Hidden for plain `user`. Convenience only — both panels still re-verify role server-side + RLS.
+- **Exit:** a **"← Products"** link in the panel topbar returns to `dashboard.html`. Plain `<a>` nav; the Supabase session carries over both directions, so no re-authentication.
+
 ### Security
 - **Zero direct write access to `profiles`** — every mutation goes through the SECURITY DEFINER RPCs above, which enforce same-school + target-is-plain-user. A school admin can't escalate roles, reach another school, or modify an admin account even via crafted API calls.
 - **Privilege-escalation backstop** — `guard_profile_privileged_columns()` BEFORE UPDATE trigger forbids changing `role`/`approved`/`school_id`/`product_overrides`/`is_admin` unless the caller is a super admin or the write comes through a trusted RPC (transaction-local flag `app.allow_privileged_profile_update`). Defends even if an RLS UPDATE policy is permissive.
@@ -169,7 +173,7 @@ A per-school admin (designated by the super admin) manages **only their own scho
 ## File structure
 ```
 index.html              — Marketing/landing page
-dashboard.html          — Product dashboard (links to both products)
+dashboard.html          — Product dashboard (links to both products + role-aware admin link)
 app.html                — Class Builder app
 checkin-app.html        — Check-in / Check-out app
 login.html              — Shared login for CICO
