@@ -5,7 +5,7 @@ function renderResults() {
 
 function populateResultsGradeFilter() {
   const sel = document.getElementById('results-grade-filter');
-  const grades = Object.keys(AppState.results);
+  const grades = Object.keys(AppState.results).sort((a, b) => gradeOrder(a) - gradeOrder(b));
   sel.innerHTML = '<option value="">All Grades</option>' +
     grades.map(g => `<option value="${g}">${gradeLabel(g)}</option>`).join('') +
     (AppState.splitResults.length ? '<option value="__split__">Split Classes</option>' : '');
