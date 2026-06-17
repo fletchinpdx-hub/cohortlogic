@@ -108,9 +108,15 @@ function getGrades() {
 }
 
 function gradeOrder(g) {
-  const map = { 'K': 0, 'TK': -1 };
-  if (map[g] !== undefined) return map[g];
+  const upper = (g || '').toUpperCase();
+  const map = { 'K': 0, 'TK': -1, 'PK': -2 };
+  if (map[upper] !== undefined) return map[upper];
   return parseInt(g) || 99;
+}
+
+// "K" → "K", "TK" → "TK", "3" → "Grade 3", "10" → "Grade 10"
+function gradeLabel(g) {
+  return /^[A-Za-z]+$/.test(g) ? g.toUpperCase() : `Grade ${g}`;
 }
 
 // ── Feedback modal ──

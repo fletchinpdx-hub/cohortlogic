@@ -118,6 +118,11 @@ document.getElementById('add-competency-btn').addEventListener('click', () => {
 });
 
 // ── Apply mapping ──
+function normalizeGrade(g) {
+  if (!g) return '';
+  return /^[a-zA-Z]+$/.test(g) ? g.toUpperCase() : g;
+}
+
 document.getElementById('apply-mapping-btn').addEventListener('click', () => {
   const map = AppState.columnMap;
   const hasNames = map.firstName && map.lastName;
@@ -136,7 +141,7 @@ document.getElementById('apply-mapping-btn').addEventListener('click', () => {
       id:        i,
       firstName: String(row[map.firstName] || '').trim(),
       lastName:  String(row[map.lastName]  || '').trim(),
-      grade:     String(row[map.grade]     || '').trim(),
+      grade:     normalizeGrade(String(row[map.grade] ?? '').trim()),
       studentId: map.studentId ? String(row[map.studentId] || '').trim() : '',
       scores:    {},
     };

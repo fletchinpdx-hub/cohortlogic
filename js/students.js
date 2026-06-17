@@ -13,7 +13,7 @@ function populateGradeFilter() {
   const sel = document.getElementById('grade-filter');
   const current = sel.value;
   sel.innerHTML = '<option value="">All Grades</option>' +
-    getGrades().map(g => `<option value="${g}" ${current === g ? 'selected' : ''}>Grade ${g}</option>`).join('');
+    getGrades().map(g => `<option value="${g}" ${current === g ? 'selected' : ''}>${gradeLabel(g)}</option>`).join('');
 }
 
 // Show display-mode selector only when student IDs are loaded
@@ -79,7 +79,7 @@ function renderStudentTable() {
       ${showId ? `<td style="font-family:monospace;font-size:12px;">${s.studentId || '—'}</td>` : ''}
       <td>${s.firstName}</td>
       <td>${s.lastName}</td>
-      <td>Grade ${s.grade}</td>
+      <td>${gradeLabel(s.grade)}</td>
       ${comps.map(c => {
         const val = s.scores[c.name];
         if (val === undefined || val === null || val === false) return `<td>${c.type === 'flag' ? '<span class="flag-no">No</span>' : '—'}</td>`;
@@ -500,7 +500,7 @@ function renderKwtDropdowns() {
     const cfg = AppState.gradeConfig[g];
     if (!cfg) return;
     cfg.teachers.forEach((t, i) => {
-      const label = t ? `Grade ${g} — ${t}` : `Grade ${g} — Class ${i + 1}`;
+      const label = t ? `${gradeLabel(g)} — ${t}` : `${gradeLabel(g)} — Class ${i + 1}`;
       opts.push(`<option value="grade|${g}|${i}">${label}</option>`);
     });
   });

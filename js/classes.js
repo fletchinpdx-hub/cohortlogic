@@ -31,7 +31,7 @@ function renderClassSetup() {
     return `
       <div class="grade-card" data-grade="${g}">
         <div class="grade-card-header">
-          <h2>Grade ${g}</h2>
+          <h2>${gradeLabel(g)}</h2>
           <div class="grade-meta">${count} students · ~${avg} per class</div>
         </div>
         <div class="class-count-row">
@@ -122,11 +122,11 @@ function renderSplitList(grades) {
   return AppState.splitClasses.map((sc, i) => `
     <div class="split-class-row" data-split-index="${i}">
       <select class="input input-sm split-grade-a">
-        ${grades.map(g => `<option value="${g}" ${sc.grades[0] === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}
+        ${grades.map(g => `<option value="${g}" ${sc.grades[0] === g ? 'selected' : ''}>${gradeLabel(g)}</option>`).join('')}
       </select>
       <span style="color:var(--gray-500);font-weight:700;">/</span>
       <select class="input input-sm split-grade-b">
-        ${grades.map(g => `<option value="${g}" ${sc.grades[1] === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}
+        ${grades.map(g => `<option value="${g}" ${sc.grades[1] === g ? 'selected' : ''}>${gradeLabel(g)}</option>`).join('')}
       </select>
       <input type="text" class="input input-sm split-teacher" placeholder="Teacher name" value="${sc.teacher}" style="flex:1;" />
       <button class="remove-btn split-remove" title="Remove split class">×</button>

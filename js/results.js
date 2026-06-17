@@ -7,7 +7,7 @@ function populateResultsGradeFilter() {
   const sel = document.getElementById('results-grade-filter');
   const grades = Object.keys(AppState.results);
   sel.innerHTML = '<option value="">All Grades</option>' +
-    grades.map(g => `<option value="${g}">Grade ${g}</option>`).join('') +
+    grades.map(g => `<option value="${g}">${gradeLabel(g)}</option>`).join('') +
     (AppState.splitResults.length ? '<option value="__split__">Split Classes</option>' : '');
 }
 
@@ -81,7 +81,7 @@ function renderResultsGrid() {
       const classes = AppState.results[g];
       classes.forEach((cls, ci) => {
         const teacher = cfg.teachers[ci] || `Class ${ci + 1}`;
-        const card = buildClassCard(`Grade ${g} · ${teacher}`, cls, g, ci, false);
+        const card = buildClassCard(`${gradeLabel(g)} · ${teacher}`, cls, g, ci, false);
         setupDragDrop(card, g, ci);
         grid.appendChild(card);
       });
@@ -92,7 +92,7 @@ function renderResultsGrid() {
   if (showSplit) {
     AppState.splitResults.forEach((sr, i) => {
       const gradeKey = `split-${i}`;
-      const card = buildClassCard(`Grade ${sr.grades.join('/')} Split`, sr.students, gradeKey, i, true);
+      const card = buildClassCard(`${sr.grades.join('/')} Split`, sr.students, gradeKey, i, true);
 
       // Show per-grade breakdown in the card meta
       const gradeBreakdown = sr.grades.map(g => {
@@ -319,7 +319,7 @@ function exportByGrade() {
       sortedByName(cls).forEach(s => rows.push(buildStudentRow(s, g, ci + 1, teacher, comps)));
     });
     const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(`Grade ${g}`, used));
+    XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(gradeLabel(g), used));
   });
 
   if (AppState.splitResults.length) {
@@ -349,7 +349,7 @@ function exportByTeacher() {
     const cfg = AppState.gradeConfig[g] || { teachers: [] };
     AppState.results[g].forEach((cls, ci) => {
       const teacher   = cfg.teachers[ci] || '';
-      const sheetBase = teacher || `Grade ${g} - Class ${ci + 1}`;
+      const sheetBase = teacher || `${gradeLabel(g)} - Class ${ci + 1}`;
       const rows = sortedByName(cls).map(s => buildStudentRow(s, g, ci + 1, teacher || `Class ${ci + 1}`, comps));
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(sheetBase, used));
