@@ -182,16 +182,36 @@ function balanceGrade(students, classCount, grade) {
   // Pre-extract students pinned to a specific class (Keep with Teacher)
   const pins      = (AppState.keepWithTeacher || []).filter(k => k.grade === grade);
   const pinnedIds = new Set(pins.map(k => k.studentId));
-  const unpinned  = students.filter(s => !pinnedIds.has(s.id));
 
-  const classes = snakeDraft(unpinned, classCount);
+  // Snake draft ALL students so class sizes stay even, then swap pinned students
+  // into their target class (exchanging whoever is already there back to the
+  // vacated slot). This preserves ±1 class size balance even with many pins.
+  const classes = snakeDraft(students, classCount);
 
-  // Insert each pinned student into their designated class
   pins.forEach(k => {
     const student = students.find(s => s.id === k.studentId);
     if (!student) return;
     const targetIdx = Math.min(k.classIndex, classCount - 1);
-    classes[targetIdx].push(student);
+
+    // Find where the pinned student currently landed
+    let fromClass = -1, fromSlot = -1;
+    for (let ci = 0; ci < classes.length && fromClass === -1; ci++) {
+      const idx = classes[ci].findIndex(s => s.id === student.id);
+      if (idx !== -1) { fromClass = ci; fromSlot = idx; }
+    }
+    if (fromClass === targetIdx) return; // already in the right class
+
+    // Find an unpinned student in targetIdx to swap with, preserving sizes
+    const swapSlot = classes[targetIdx].findIndex(s => !pinnedIds.has(s.id));
+    if (swapSlot !== -1) {
+      const tmp = classes[fromClass][fromSlot];
+      classes[fromClass][fromSlot] = classes[targetIdx][swapSlot];
+      classes[targetIdx][swapSlot] = tmp;
+    } else {
+      // Every student in targetIdx is also pinned there; just move without swap
+      classes[targetIdx].push(student);
+      classes[fromClass].splice(fromSlot, 1);
+    }
   });
 
   fixSeparations(classes);
