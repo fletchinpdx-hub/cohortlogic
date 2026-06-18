@@ -325,8 +325,28 @@ function balanceCategories(classes, gradeConstraints) {
           // a Grade 3-only regular class).
           if (!gradeOk(classes[ci][si], cj)) continue;
           if (!gradeOk(classes[cj][sj], ci)) continue;
-          const catI = classes[ci][si].scores[name];
-          const catJ = classes[cj][sj].scores[name];
+          const sI = classes[ci][si];
+          const sJ = classes[cj][sj];
+          // Skip swaps that would violate separation constraints
+          const sepViolation = AppState.separations.some(p => {
+            const otherForI = p.a === sI.id ? p.b : p.b === sI.id ? p.a : null;
+            if (otherForI && classes[cj].some((s, x) => x !== sj && s.id === otherForI)) return true;
+            const otherForJ = p.a === sJ.id ? p.b : p.b === sJ.id ? p.a : null;
+            if (otherForJ && classes[ci].some((s, x) => x !== si && s.id === otherForJ)) return true;
+            return false;
+          });
+          if (sepViolation) continue;
+          // Skip swaps that would break together constraints
+          const togViolation = AppState.togethers.some(p => {
+            const otherForI = p.a === sI.id ? p.b : p.b === sI.id ? p.a : null;
+            if (otherForI && classes[ci].some((s, x) => x !== si && s.id === otherForI)) return true;
+            const otherForJ = p.a === sJ.id ? p.b : p.b === sJ.id ? p.a : null;
+            if (otherForJ && classes[cj].some((s, x) => x !== sj && s.id === otherForJ)) return true;
+            return false;
+          });
+          if (togViolation) continue;
+          const catI = sI.scores[name];
+          const catJ = sJ.scores[name];
           if (!catI || !catJ || catI === catJ) continue;
           const before = Math.abs((cI[catI]||0) - (cJ[catI]||0)) + Math.abs((cI[catJ]||0) - (cJ[catJ]||0));
           // Compute post-swap counts without allocating new objects
