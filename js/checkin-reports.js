@@ -520,15 +520,17 @@ function buildIncidentSectionHTML(type, title) {
       <div class="report-section-header">
         <h3>${title}</h3>
         <div class="breakdown-toggle">
-          <button class="breakdown-btn active" onclick="setIncidentMode('${type}','count',this)">Count</button>
-          <button class="breakdown-btn"        onclick="setIncidentMode('${type}','minutes',this)">Minutes</button>
+          <button class="breakdown-btn active" data-act="setIncidentMode" data-type="${type}" data-mode="count">Count</button>
+          <button class="breakdown-btn"        data-act="setIncidentMode" data-type="${type}" data-mode="minutes">Minutes</button>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="inc-${type}-chart"></canvas></div>
     </div>`;
 }
 
-function setIncidentMode(type, mode, btn) {
+function setIncidentMode(_id, btn) {
+  const type = btn.dataset.type;
+  const mode = btn.dataset.mode;
   _incidentMode[type] = mode;
   btn.closest('.breakdown-toggle').querySelectorAll('.breakdown-btn')
      .forEach(b => b.classList.toggle('active', b === btn));
@@ -615,8 +617,8 @@ function renderIncidentSection(type) {
 function buildBreakdownSectionHTML(type, title, defaultMode = 'total') {
   const toggle = defaultMode === 'combined' ? '' : `
         <div class="breakdown-toggle">
-          <button class="breakdown-btn ${defaultMode === 'total' ? 'active' : ''}"    onclick="setBreakdownMode('${type}','total',this)">Total</button>
-          <button class="breakdown-btn ${defaultMode === 'category' ? 'active' : ''}" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
+          <button class="breakdown-btn ${defaultMode === 'total' ? 'active' : ''}"    data-act="setBreakdownMode" data-type="${type}" data-mode="total">Total</button>
+          <button class="breakdown-btn ${defaultMode === 'category' ? 'active' : ''}" data-act="setBreakdownMode" data-type="${type}" data-mode="category">By Category</button>
         </div>`;
   return `
     <div class="report-section">
@@ -627,7 +629,9 @@ function buildBreakdownSectionHTML(type, title, defaultMode = 'total') {
     </div>`;
 }
 
-function setBreakdownMode(type, mode, btn) {
+function setBreakdownMode(_id, btn) {
+  const type = btn.dataset.type;
+  const mode = btn.dataset.mode;
   _breakdownMode[type] = mode;
   btn.closest('.breakdown-toggle').querySelectorAll('.breakdown-btn')
      .forEach(b => b.classList.toggle('active', b === btn));
