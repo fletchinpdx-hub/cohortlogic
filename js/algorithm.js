@@ -329,9 +329,9 @@ function balanceCategories(classes, gradeConstraints) {
           const catJ = classes[cj][sj].scores[name];
           if (!catI || !catJ || catI === catJ) continue;
           const before = Math.abs((cI[catI]||0) - (cJ[catI]||0)) + Math.abs((cI[catJ]||0) - (cJ[catJ]||0));
-          const nI = { ...cI }; nI[catI]--; nI[catJ] = (nI[catJ]||0) + 1;
-          const nJ = { ...cJ }; nJ[catJ]--; nJ[catI] = (nJ[catI]||0) + 1;
-          const after = Math.abs((nI[catI]||0) - (nJ[catI]||0)) + Math.abs((nI[catJ]||0) - (nJ[catJ]||0));
+          // Compute post-swap counts without allocating new objects
+          const after  = Math.abs((cI[catI]||0) - 1 - ((cJ[catI]||0) + 1))
+                       + Math.abs((cI[catJ]||0) + 1 - ((cJ[catJ]||0) - 1));
           const delta = before - after;
           if (delta > bestDelta) { bestDelta = delta; bestSi = si; bestSj = sj; }
         }
