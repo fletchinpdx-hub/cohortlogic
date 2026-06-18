@@ -110,12 +110,27 @@ document.getElementById('student-search').addEventListener('input', renderStuden
 // ── Generate button (from Students view) ──
 document.getElementById('generate-from-students-btn').addEventListener('click', () => {
   if (!AppState.students.length) { alert('Please import student data first.'); return; }
-  runBalancingAlgorithm();
-  const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0)
-    + AppState.splitClasses.length;
-  if (typeof trackEvent === 'function') trackEvent('classes_generated', { grades: getGrades().length, totalClasses });
-  renderResults();
+
+  const btn = document.getElementById('generate-from-students-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+
   navigateTo('results');
+  // Show a generating state in the results view before blocking algorithm runs
+  const grid  = document.getElementById('results-grid');
+  const stats = document.getElementById('results-stats');
+  if (grid)  grid.innerHTML  = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⏳</div><p>Generating classes…</p></div>`;
+  if (stats) stats.innerHTML = '';
+
+  setTimeout(() => {
+    runBalancingAlgorithm();
+    const totalClasses = Object.values(AppState.gradeConfig).reduce((n, g) => n + g.classCount, 0)
+      + AppState.splitClasses.length;
+    if (typeof trackEvent === 'function') trackEvent('classes_generated', { grades: getGrades().length, totalClasses });
+    renderResults();
+    btn.disabled = false;
+    btn.textContent = 'Generate Classes';
+  }, 50);
 });
 
 // ── Helper: build option list respecting displayMode ──

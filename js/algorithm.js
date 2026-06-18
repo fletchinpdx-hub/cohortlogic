@@ -312,7 +312,8 @@ function balanceCategories(classes, gradeConstraints) {
   const drainPair = (ci, cj, name) => {
     let anySwap = false;
     let pairImproved = true;
-    while (pairImproved) {
+    let iters = 0;
+    while (pairImproved && iters++ < 100) {
       pairImproved = false;
       const cI = getCounts(classes[ci], name);
       const cJ = getCounts(classes[cj], name);
