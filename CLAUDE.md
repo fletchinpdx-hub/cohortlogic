@@ -255,8 +255,7 @@ supabase/migrations/
 
 ## Deployment
 - Claude pushes to `main` → Cloudflare Workers auto-deploys (no manual step needed)
-- Hosted at: https://cohortlogic.fletchinpdx.workers.dev (production URL pending DNS cutover)
-- DNS cutover still pending: Porkbun still points A → 75.2.60.5 (Netlify) — needs to change to Cloudflare after DNS cutover is confirmed
+- Live at: https://cohortlogic.com (DNS cutover complete — Cloudflare managing DNS)
 - `wrangler.toml` configures static asset deployment (no build step)
 - `_headers` file sets all security headers (supported by Cloudflare Workers static assets)
 
@@ -305,7 +304,7 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 - **Teacher-level RLS** — on hold; needs product decisions on role model and homeroom assignment UX
 - **CICO weekly trend chart** — 8-week bar chart in CICO Analytics to show usage trajectory
 - **Pending Approvals UX** — edge cases for returning deactivated users (currently uses 3-day heuristic)
-- **Cloudflare DNS cutover** — update Porkbun DNS from Netlify to Cloudflare, then disable Netlify site
+- **Disable Netlify site** — migration complete; go to Netlify → site settings → Delete this site
 - **Safari smoke test** — test login, CICO app, and dashboard on Safari after addEventListener migration
 - **Supabase Pro upgrade** — prevents pausing in active use; needed before onboarding paying schools
 - **Supabase DPA** — formal FERPA compliance (requires Pro)
