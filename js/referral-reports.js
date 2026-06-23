@@ -39,6 +39,34 @@ function _populateDrilldownFilters() {
   fill('dd-behavior', RefState.behaviors);
   fill('dd-location', RefState.locations);
   fill('dd-action',   RefState.actions);
+
+  // Custom fields: one multi-select filter each + a group-by option each.
+  const fields = RefState.customFields || [];
+  document.getElementById('dd-custom-filters').innerHTML = fields.map(f => {
+    const opts = (f.options || []).map(o => `<option value="${o.id}">${refEsc(o.label)}</option>`).join('');
+    return `
+      <div class="field-group">
+        <label class="field-label">${refEsc(f.label)} <span style="opacity:.6;font-weight:400;">(none = all)</span></label>
+        <select id="dd-custom-${f.id}" class="cico-input dd-custom-filter" data-field-id="${f.id}" multiple size="4">${opts}</select>
+      </div>`;
+  }).join('');
+
+  const gb = document.getElementById('dd-groupby');
+  fields.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = `custom:${f.id}`;
+    opt.textContent = f.label;
+    gb.appendChild(opt);
+  });
+}
+
+// Map a custom field's stored option id → its label (for grouping/labels).
+function _customOptionLabel(fieldId, optId) {
+  if (!optId) return null;
+  const f = (RefState.customFields || []).find(x => x.id === fieldId);
+  if (!f) return null;
+  const o = (f.options || []).find(op => op.id === optId);
+  return o ? o.label : null;
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────
@@ -51,7 +79,7 @@ async function loadReportData() {
     let query = SupabaseClient
       .from('referral_referrals')
       .select(`
-        incident_date, incident_time, referral_type, grade_at_referral,
+        incident_date, incident_time, referral_type, grade_at_referral, custom_values,
         location:referral_locations ( id, label ),
         behavior:referral_behaviors ( id, label ),
         action:referral_actions ( id, label ),
@@ -217,16 +245,27 @@ function renderDrilldown() {
   if (actSet.size) rows = rows.filter(r => r.action   && actSet.has(r.action.id));
   if (type)        rows = rows.filter(r => r.referral_type === type);
 
+  // Custom-field filters: keep referrals whose stored option for that field is selected.
+  (RefState.customFields || []).forEach(f => {
+    const set = _selectedValues(`dd-custom-${f.id}`);
+    if (set.size) rows = rows.filter(r => set.has(r.custom_values && r.custom_values[f.id]));
+  });
+
   let keyFn, mode = 'freq';
-  switch (groupBy) {
-    case 'location':   keyFn = r => r.location?.label   || 'Unknown'; break;
-    case 'behavior':   keyFn = r => r.behavior?.label   || 'Unknown'; break;
-    case 'action':     keyFn = r => r.action?.label     || 'Unknown'; break;
-    case 'motivation': keyFn = r => r.motivation?.label || 'Unknown'; break;
-    case 'grade':      keyFn = _gradeOf; mode = 'natural'; break;
-    case 'type':       keyFn = r => r.referral_type === 'major' ? 'Major' : 'Minor'; break;
-    case 'month':      keyFn = null; break; // handled below
-    default:           keyFn = r => r.location?.label || 'Unknown';
+  if (groupBy.startsWith('custom:')) {
+    const fieldId = groupBy.slice(7);
+    keyFn = r => _customOptionLabel(fieldId, r.custom_values && r.custom_values[fieldId]) || '(none)';
+  } else {
+    switch (groupBy) {
+      case 'location':   keyFn = r => r.location?.label   || 'Unknown'; break;
+      case 'behavior':   keyFn = r => r.behavior?.label   || 'Unknown'; break;
+      case 'action':     keyFn = r => r.action?.label     || 'Unknown'; break;
+      case 'motivation': keyFn = r => r.motivation?.label || 'Unknown'; break;
+      case 'grade':      keyFn = _gradeOf; mode = 'natural'; break;
+      case 'type':       keyFn = r => r.referral_type === 'major' ? 'Major' : 'Minor'; break;
+      case 'month':      keyFn = null; break; // handled below
+      default:           keyFn = r => r.location?.label || 'Unknown';
+    }
   }
 
   let ordered;
@@ -248,7 +287,10 @@ function renderDrilldown() {
     ordered = (mode === 'natural') ? _orderByKey(counts) : _orderByFreq(counts);
   }
 
-  _setSummary(rows.length, `grouped by ${groupBy}`);
+  const gbLabel = groupBy.startsWith('custom:')
+    ? ((RefState.customFields || []).find(f => `custom:${f.id}` === groupBy)?.label || 'custom field')
+    : groupBy;
+  _setSummary(rows.length, `grouped by ${gbLabel}`);
   _renderBar('chart-drilldown', ordered.labels, ordered.values);
 }
 

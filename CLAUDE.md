@@ -57,7 +57,8 @@ Tier 1 behavior / office-discipline referral tracker, modeled on PBISApps/SWIS. 
 - **Phase 4 (migration `referral_phase4.sql`)** — reviewer workflow + custom fields:
   - Reviewer workflow: `referral_referrals.status` (`open|pending_review|reviewed`) + `reviewed_by/reviewed_at/reviewer_notes`. "Send to reviewer" checkbox on entry → `pending_review`. Review queue + per-school default reviewer (`referral_settings.default_reviewer_id`). Review nav + reviewer settings gated client-side to `school_admin`/`super_admin` (RefState.isReviewer); RLS is the real backstop. List has a Status column.
   - Custom fields: `referral_custom_fields` + `referral_custom_field_options` (school-scoped); selections stored as jsonb `referral_referrals.custom_values` (`{field_id: option_id}`). Managed in Settings (reviewers); rendered as dropdowns on entry.
-  - Staff still free-text (no staff roster yet); custom fields not yet in Drill Down/reports
+  - Custom fields ARE supported in Drill Down (one multi-select filter each + a `custom:<fieldId>` group-by dimension; reads `custom_values`). Not yet in the fixed per-dimension reports or Equity.
+  - Staff still free-text (no staff roster yet)
 
 ---
 
