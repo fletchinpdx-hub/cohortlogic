@@ -436,6 +436,12 @@ function formatJson(obj, highlightKeys = []) {
 let _schools = [];  // cached list for selects
 let _userNameById = {};  // id -> name, keeps user-controlled names out of inline onclick (XSS)
 
+// Backend-gated products that can be switched per school (Class Builder is never gated).
+const ADMIN_PRODUCTS = [
+  { key: 'cico',      short: 'CICO' },
+  { key: 'referrals', short: 'Referrals' },
+];
+
 async function loadSchools() {
   const container = document.getElementById('schools-list');
   const { data, error } = await db.from('schools').select('*').order('name');
@@ -453,18 +459,47 @@ async function loadSchools() {
 
 function schoolRowHtml(s) {
   const meta = [s.district, s.state].filter(Boolean).join(' · ') || 'No district / state set';
+  const ep = s.enabled_products || [];
+  const toggles = ADMIN_PRODUCTS.map(p => `
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#374151;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" data-change="toggleSchoolProductAdmin" data-id="${s.id}" data-product="${p.key}" ${ep.includes(p.key) ? 'checked' : ''} style="cursor:pointer;" />
+          ${p.short}
+        </label>`).join('');
   return `
     <div class="school-row" id="school-row-${s.id}">
       <div>
         <div class="school-name">${escAdmin(s.name)}</div>
         <div class="school-meta">${escAdmin(meta)}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:12px;">${toggles}</div>
         <span style="font-family:monospace;font-size:11px;color:#9ca3af;">${s.id.slice(0,8)}…</span>
         <button class="reassign-btn" data-act="startEditSchool" data-id="${s.id}">Edit</button>
         <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deleteSchool" data-id="${s.id}">Delete</button>
       </div>
     </div>`;
+}
+
+// Super-admin per-school product master switch. Writes enabled_products
+// directly (super admin already has UPDATE on schools via RLS), preserving the
+// other products. This is the school-level switch; a user also needs to be
+// approved + assigned to the school to actually get the product.
+async function toggleSchoolProductAdmin(id, el) {
+  const product = el.dataset.product;
+  const school = _schools.find(s => s.id === id);
+  if (!school) return;
+  const set = new Set(school.enabled_products || []);
+  if (el.checked) set.add(product); else set.delete(product);
+  const enabled = Array.from(set);
+  el.disabled = true;
+  const { error } = await db.from('schools').update({ enabled_products: enabled }).eq('id', id);
+  el.disabled = false;
+  if (error) {
+    alert('Error updating products: ' + error.message);
+    el.checked = !el.checked; // revert the toggle on failure
+    return;
+  }
+  school.enabled_products = enabled; // keep cache in sync
 }
 
 function startEditSchool(id) {
@@ -656,6 +691,14 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-act]');
   if (!t) return;
   const fn = ADMIN_ACTIONS[t.dataset.act];
+  if (fn) fn(t.dataset.id, t);
+});
+
+const ADMIN_CHANGE_ACTIONS = { toggleSchoolProductAdmin };
+document.addEventListener('change', (e) => {
+  const t = e.target.closest('[data-change]');
+  if (!t) return;
+  const fn = ADMIN_CHANGE_ACTIONS[t.dataset.change];
   if (fn) fn(t.dataset.id, t);
 });
 
