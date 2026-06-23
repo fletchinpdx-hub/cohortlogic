@@ -68,6 +68,46 @@
 }
 .ref-pill-major { background: #fdecec; color: #b91c1c; }
 .ref-pill-minor { background: #eef0fb; color: #3b3f9e; }
+.ref-pill-open     { background: #f1f5f9; color: #475569; }
+.ref-pill-review   { background: #fef3c7; color: #92400e; }
+.ref-pill-reviewed { background: #dcfce7; color: #166534; }
+
+/* ── Phase 4: reviewer workflow + custom fields ───────────────────────── */
+.muted { color: #9ca3af; font-weight: 400; }
+
+/* "Send to reviewer" checkbox row */
+.ref-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.ref-checkbox-row input { width: 16px; height: 16px; cursor: pointer; }
+
+/* Review-queue count badge on the nav item */
+.nav-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  margin-left: 4px;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 18px;
+}
+
+/* Custom-field sub-blocks within Settings */
+.cfg-subfield {
+  border: 1px solid var(--hairline, #e5e7eb);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #fafbfc;
+}
 
 /* ── Settings: config list sections ───────────────────────────────────── */
 .cfg-section {

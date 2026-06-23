@@ -3,6 +3,12 @@
  * Referrals view: filter by student / type / date range and list results.
  */
 
+function _statusPill(status) {
+  if (status === 'pending_review') return '<span class="ref-pill ref-pill-review">Pending review</span>';
+  if (status === 'reviewed')       return '<span class="ref-pill ref-pill-reviewed">Reviewed</span>';
+  return '<span class="ref-pill ref-pill-open">Open</span>';
+}
+
 function _populateListStudentFilter() {
   const sel = document.getElementById('list-student-sel');
   const current = sel.value;
@@ -27,7 +33,7 @@ async function loadReferrals() {
       .from('referral_referrals')
       .select(`
         id, incident_date, incident_time, referral_type, referring_staff,
-        seclusion_restraint, notes,
+        seclusion_restraint, notes, status,
         student:students ( first_name, last_name, grade ),
         location:referral_locations ( label ),
         behavior:referral_behaviors ( label ),
@@ -64,6 +70,7 @@ async function loadReferrals() {
           <td>${refEsc(r.behavior?.label) || '—'}</td>
           <td>${refEsc(r.location?.label) || '—'}</td>
           <td>${refEsc(r.action?.label) || '—'}</td>
+          <td>${_statusPill(r.status)}</td>
         </tr>`;
     }).join('');
 
@@ -71,7 +78,7 @@ async function loadReferrals() {
       <p style="font-size:13px;color:#6b7280;margin:0 0 10px;">${data.length} referral${data.length !== 1 ? 's' : ''}${data.length === 200 ? ' (showing most recent 200)' : ''}</p>
       <table class="cico-table">
         <thead>
-          <tr><th>Date</th><th>Student</th><th>Type</th><th>Behavior</th><th>Location</th><th>Action Taken</th></tr>
+          <tr><th>Date</th><th>Student</th><th>Type</th><th>Behavior</th><th>Location</th><th>Action Taken</th><th>Status</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>`;

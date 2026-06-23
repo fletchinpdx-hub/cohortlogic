@@ -46,6 +46,9 @@
         <a class="cico-nav-item" data-view="list">
           <span class="nav-icon">📋</span> Referrals
         </a>
+        <a class="cico-nav-item" data-view="review" style="display:none;">
+          <span class="nav-icon">✅</span> Review <span id="review-badge" class="nav-badge hidden"></span>
+        </a>
         <a class="cico-nav-item" data-view="reports">
           <span class="nav-icon">📊</span> Reports
         </a>
@@ -152,11 +155,21 @@
             </div>
           </div>
 
-          <!-- Right column: notes -->
+          <!-- Right column: notes, custom fields, reviewer routing -->
           <div class="ref-form-side">
             <div class="field-group">
               <label class="field-label">Notes</label>
               <textarea id="ref-notes" class="cico-input ref-notes" placeholder="Describe what happened…"></textarea>
+            </div>
+
+            <!-- School-defined custom fields (rendered by referral-entry.js) -->
+            <div id="ref-custom-fields"></div>
+
+            <div class="field-group" style="margin-top:8px;">
+              <label class="ref-checkbox-row">
+                <input type="checkbox" id="ref-send-review" />
+                <span>Send to reviewer <span class="muted" id="ref-reviewer-hint"></span></span>
+              </label>
             </div>
           </div>
         </div>
@@ -203,6 +216,17 @@
         </div>
 
         <div id="ref-list-results"></div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Review queue (reviewers only)
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-review" class="cico-view">
+        <div class="view-header">
+          <h1>Review Queue</h1>
+          <p class="view-subtitle">Referrals sent to a reviewer, awaiting review.</p>
+        </div>
+        <div id="review-results"></div>
       </div>
 
       <!-- ════════════════════════════════════════════════════════════════
@@ -453,6 +477,8 @@
       <div class="cico-modal-body">
         <input type="hidden" id="cfg-edit-id" />
         <input type="hidden" id="cfg-edit-table" />
+        <input type="hidden" id="cfg-edit-kind" />
+        <input type="hidden" id="cfg-edit-field" />
         <div class="field-group">
           <label class="field-label">Label *</label>
           <input type="text" id="cfg-label" class="cico-input" placeholder="e.g. Hallway" />
@@ -465,6 +491,29 @@
     </div>
   </div>
 
+  <!-- ── Review modal (reviewers finalize a referral) ─────────────────── -->
+  <div id="review-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop"></div>
+    <div class="cico-modal-box" style="max-width:520px;">
+      <div class="cico-modal-header">
+        <h2>Review Referral</h2>
+        <button class="modal-close-btn" id="review-modal-close">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <input type="hidden" id="review-ref-id" />
+        <div id="review-detail" style="font-size:13px;color:#374151;margin-bottom:14px;"></div>
+        <div class="field-group">
+          <label class="field-label">Reviewer Notes</label>
+          <textarea id="review-notes" class="cico-input ref-notes" placeholder="Outcome / follow-up notes…"></textarea>
+        </div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="review-modal-cancel">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico" id="review-mark-done">Mark Reviewed</button>
+      </div>
+    </div>
+  </div>
+
   <!-- App scripts -->
   <script src="js/referral-state.js"></script>
   <script src="js/referral-students.js"></script>
@@ -472,5 +521,6 @@
   <script src="js/referral-entry.js"></script>
   <script src="js/referral-list.js"></script>
   <script src="js/referral-reports.js"></script>
+  <script src="js/referral-review.js"></script>
 </body>
 </html>

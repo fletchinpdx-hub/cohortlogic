@@ -18,7 +18,37 @@ function initEntryView() {
   _fillSelect('ref-motivation', RefState.motivations, '— Select —');
   _fillSelect('ref-others',     RefState.others,      '— Select —');
   _fillSelect('ref-action',     RefState.actions,     '— Select —');
+  renderCustomFieldInputs();
+  updateReviewerHint();
   clearReferralForm();
+}
+
+// Render the school's custom fields as dropdowns in the side column.
+function renderCustomFieldInputs() {
+  const wrap = document.getElementById('ref-custom-fields');
+  if (!wrap) return;
+  const fields = RefState.customFields || [];
+  wrap.innerHTML = fields.map(f => {
+    const opts = (f.options || [])
+      .map(o => `<option value="${o.id}">${refEsc(o.label)}</option>`).join('');
+    return `
+      <div class="field-group">
+        <label class="field-label">${refEsc(f.label)}</label>
+        <select class="cico-input cico-select ref-custom-input" data-field-id="${f.id}">
+          <option value="">— Select —</option>${opts}
+        </select>
+      </div>`;
+  }).join('');
+}
+
+// Show the configured default reviewer's name next to the checkbox (admins have
+// the staff list loaded; plain users just see "Send to reviewer").
+function updateReviewerHint() {
+  const hint = document.getElementById('ref-reviewer-hint');
+  if (!hint) return;
+  const rid = RefState.settings && RefState.settings.default_reviewer_id;
+  const staff = (RefState.schoolStaff || []).find(s => s.id === rid);
+  hint.textContent = staff ? `→ ${staff.full_name || staff.email}` : '';
 }
 
 // ── Student autocomplete ─────────────────────────────────────────────────────
@@ -72,6 +102,9 @@ function clearReferralForm() {
   ['ref-location','ref-behavior','ref-motivation','ref-others','ref-action'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  document.querySelectorAll('#ref-custom-fields .ref-custom-input').forEach(s => { s.value = ''; });
+  const sendCb = document.getElementById('ref-send-review');
+  if (sendCb) sendCb.checked = false;
   document.getElementById('ref-date').value = refTodayISO();
 }
 
@@ -88,6 +121,14 @@ async function saveReferral() {
   if (!actionId)   { refToast('Action Taken is required.', 'error'); return; }
 
   const student = RefState.students.find(s => s.id === studentId);
+
+  // Collect custom field selections → { field_id: option_id }
+  const customValues = {};
+  document.querySelectorAll('#ref-custom-fields .ref-custom-input').forEach(sel => {
+    if (sel.value) customValues[sel.dataset.fieldId] = sel.value;
+  });
+
+  const sendReview = document.getElementById('ref-send-review').checked;
 
   const payload = {
     school_id:           RefState.schoolId,
@@ -106,6 +147,8 @@ async function saveReferral() {
     grade_at_referral:   student ? (student.grade || null) : null,
     iep_at_referral:     student ? !!student.iep : null,
     reported_by:         RefState.currentUser.id,
+    custom_values:       customValues,
+    status:              sendReview ? 'pending_review' : 'open',
   };
 
   const btn = document.getElementById('save-referral-btn');

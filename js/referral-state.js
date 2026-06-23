@@ -71,12 +71,17 @@ const RefState = {
   currentUser: null,
   profile:     null,
   schoolId:    null,
+  role:        null,    // 'user' | 'school_admin' | 'super_admin'
+  isReviewer:  false,   // school_admin / super_admin — sees the Review queue + reviewer settings
   locations:   [],
   behaviors:   [],
   motivations: [],
   actions:     [],
   others:      [],
-  students:    [],   // shared roster: {id, first_name, last_name, grade, homeroom, student_ref, race_ethnicity, gender, iep, active}
+  customFields: [],     // [{id, label, sort_order, options:[{id, label, sort_order}]}]
+  settings:    { default_reviewer_id: null },
+  schoolStaff: [],      // approved staff at this school (for the reviewer dropdown; admins only)
+  students:    [],      // shared roster: {id, first_name, last_name, grade, homeroom, student_ref, race_ethnicity, gender, iep, active}
 };
 
 // ── Navigation ───────────────────────────────────────────────────────────────
@@ -93,6 +98,7 @@ function refNavigateTo(view) {
   if (view === 'settings') renderRefSettings();
   if (view === 'list')     loadReferrals();
   if (view === 'reports')  initReportsView();
+  if (view === 'review')   loadReviewQueue();
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -139,14 +145,19 @@ async function seedDefaultList(table, defaults) {
 async function loadRefData() {
   try {
     const { data: profile } = await SupabaseClient
-      .from('profiles').select('school_id, full_name, school_name').eq('id', RefState.currentUser.id).single();
-    RefState.profile  = { ...profile, email: RefState.currentUser.email };
-    RefState.schoolId = profile?.school_id || null;
+      .from('profiles').select('school_id, full_name, school_name, role').eq('id', RefState.currentUser.id).single();
+    RefState.profile    = { ...profile, email: RefState.currentUser.email };
+    RefState.schoolId   = profile?.school_id || null;
+    RefState.role       = profile?.role || 'user';
+    RefState.isReviewer = ['school_admin', 'super_admin'].includes(RefState.role);
 
     // RLS scopes everything to my_school_id(); the order makes lists stable.
     const fetches = REF_LISTS.map(l =>
       SupabaseClient.from(l.table).select('*').order('sort_order').order('label'));
     fetches.push(SupabaseClient.from('students').select('*').eq('active', true).order('last_name').order('first_name'));
+    fetches.push(SupabaseClient.from('referral_custom_fields').select('*').eq('active', true).order('sort_order'));
+    fetches.push(SupabaseClient.from('referral_custom_field_options').select('*').eq('active', true).order('sort_order'));
+    fetches.push(SupabaseClient.from('referral_settings').select('*').maybeSingle());
 
     const results = await Promise.all(fetches);
 
@@ -160,6 +171,25 @@ async function loadRefData() {
       RefState[l.key] = rows;
     }
     RefState.students = results[REF_LISTS.length].data || [];
+
+    // Custom fields: nest each field's options under it.
+    const fields  = results[REF_LISTS.length + 1].data || [];
+    const options = results[REF_LISTS.length + 2].data || [];
+    fields.forEach(f => { f.options = options.filter(o => o.field_id === f.id); });
+    RefState.customFields = fields;
+
+    RefState.settings = results[REF_LISTS.length + 3].data || { default_reviewer_id: null };
+
+    // Reviewers (admins) also load the school staff list for the default-reviewer
+    // picker. RLS lets admins read their school's profiles; plain users can't, so
+    // we only attempt it for reviewers.
+    if (RefState.isReviewer && RefState.schoolId) {
+      const { data: staff } = await SupabaseClient
+        .from('profiles').select('id, full_name, email')
+        .eq('school_id', RefState.schoolId).eq('approved', true)
+        .order('full_name');
+      RefState.schoolStaff = staff || [];
+    }
 
   } catch (err) {
     console.error('Failed to load referral data:', err);
@@ -208,6 +238,15 @@ function bindRefEvents() {
   if (typeof bindConfigEvents  === 'function') bindConfigEvents();
   if (typeof bindListEvents    === 'function') bindListEvents();
   if (typeof bindReportEvents  === 'function') bindReportEvents();
+  if (typeof bindReviewEvents  === 'function') bindReviewEvents();
+}
+
+// Show/hide reviewer-only UI (Review nav item + admin settings) based on role.
+function applyReviewerVisibility() {
+  const reviewNav = document.querySelector('.cico-nav-item[data-view="review"]');
+  if (reviewNav) reviewNav.style.display = RefState.isReviewer ? '' : 'none';
+  document.body.classList.toggle('ref-reviewer', RefState.isReviewer);
+  if (RefState.isReviewer && typeof refreshReviewBadge === 'function') refreshReviewBadge();
 }
 
 // ── App bootstrap ─────────────────────────────────────────────────────────────
@@ -223,6 +262,7 @@ async function initRefApp() {
 
   await loadRefData();
   bindRefEvents();
+  applyReviewerVisibility();
   if (typeof initEntryView === 'function') initEntryView();
 }
 
