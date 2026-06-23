@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Referral Tracking — Cohort Logic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth-gate.js"></script>
+  <!-- SheetJS for Excel/CSV roster import -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js for reports -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Reuse the CICO design system (cico-* layout classes) -->
+  <link rel="stylesheet" href="css/checkin.css" />
+  <link rel="stylesheet" href="css/referral.css" />
+</head>
+<body>
+  <div id="cico-app">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside id="cico-sidebar">
+      <div id="cico-logo">
+        <a href="dashboard.html" class="logo-link">
+          <img src="images/logo.png" alt="Cohort Logic" style="height:30px;width:auto;filter:brightness(0) invert(1);" />
+        </a>
+        <span class="app-badge">Referral Tracking</span>
+        <button id="cico-mobile-btn" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+
+      <nav id="cico-nav">
+        <a class="cico-nav-item" data-view="settings">
+          <span class="nav-icon">⚙️</span> Settings
+        </a>
+        <a class="cico-nav-item" data-view="students">
+          <span class="nav-icon">👥</span> Students
+        </a>
+        <hr class="nav-divider" />
+        <a class="cico-nav-item active" data-view="entry">
+          <span class="nav-icon">🚩</span> New Referral
+        </a>
+        <a class="cico-nav-item" data-view="list">
+          <span class="nav-icon">📋</span> Referrals
+        </a>
+        <a class="cico-nav-item" data-view="reports">
+          <span class="nav-icon">📊</span> Reports
+        </a>
+      </nav>
+
+      <div id="cico-sidebar-footer">
+        <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
+      </div>
+    </aside>
+
+    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <main id="cico-main">
+
+      <!-- Toast -->
+      <div id="cico-toast" class="cico-toast hidden"></div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: New Referral
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-entry" class="cico-view active">
+        <div class="view-header">
+          <h1>New Referral</h1>
+          <p class="view-subtitle">Record a behavior referral. Fields marked <span class="req-star">★</span> are required.</p>
+        </div>
+
+        <div class="ref-form-grid">
+          <!-- Left column: the core referral fields -->
+          <div class="ref-form-main">
+            <div class="field-group">
+              <label class="field-label">Referral Type</label>
+              <select id="ref-type" class="cico-input cico-select">
+                <option value="major">Administrator-managed (Major)</option>
+                <option value="minor">Staff-managed (Minor)</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Student <span class="req-star">★</span></label>
+              <div class="student-search-wrap" id="ref-student-wrap">
+                <input type="text" id="ref-student-search" class="cico-input" placeholder="Search by name or ID…" autocomplete="off" />
+                <div id="ref-student-dropdown" class="student-dropdown hidden"></div>
+                <input type="hidden" id="ref-student-id" />
+              </div>
+            </div>
+
+            <div class="ref-row-2">
+              <div class="field-group">
+                <label class="field-label">Grade</label>
+                <input type="text" id="ref-grade" class="cico-input" readonly placeholder="—" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">IEP Status</label>
+                <input type="text" id="ref-iep" class="cico-input" readonly placeholder="—" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Staff (reporting / involved)</label>
+              <input type="text" id="ref-staff" class="cico-input" placeholder="e.g. Ms. Smith" />
+            </div>
+
+            <div class="ref-row-2">
+              <div class="field-group">
+                <label class="field-label">Date <span class="req-star">★</span></label>
+                <input type="date" id="ref-date" class="cico-input" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Time</label>
+                <input type="time" id="ref-time" class="cico-input" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Location</label>
+              <select id="ref-location" class="cico-input cico-select"></select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Behavior <span class="req-star">★</span></label>
+              <select id="ref-behavior" class="cico-input cico-select"></select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Perceived Motivation</label>
+              <select id="ref-motivation" class="cico-input cico-select"></select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Others Involved</label>
+              <select id="ref-others" class="cico-input cico-select"></select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Action Taken <span class="req-star">★</span></label>
+              <select id="ref-action" class="cico-input cico-select"></select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Seclusion / Restraint</label>
+              <select id="ref-seclusion" class="cico-input cico-select">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Right column: notes -->
+          <div class="ref-form-side">
+            <div class="field-group">
+              <label class="field-label">Notes</label>
+              <textarea id="ref-notes" class="cico-input ref-notes" placeholder="Describe what happened…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="ref-form-actions">
+          <button class="btn-cico btn-outline-cico btn-sm-cico" id="clear-referral-btn">Clear</button>
+          <button class="btn-cico btn-primary-cico" id="save-referral-btn">Save Referral</button>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Referrals (list)
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-list" class="cico-view">
+        <div class="view-header">
+          <h1>Referrals</h1>
+          <p class="view-subtitle">Browse and filter logged referrals.</p>
+        </div>
+
+        <div class="ref-list-filters">
+          <div class="field-group">
+            <label class="field-label">Student</label>
+            <select id="list-student-sel" class="cico-input cico-select"><option value="">All students</option></select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Type</label>
+            <select id="list-type-sel" class="cico-input cico-select">
+              <option value="">All types</option>
+              <option value="major">Major</option>
+              <option value="minor">Minor</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">From</label>
+            <input type="date" id="list-from" class="cico-input" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">To</label>
+            <input type="date" id="list-to" class="cico-input" />
+          </div>
+          <div class="field-group" style="align-self:flex-end;">
+            <button class="btn-cico btn-primary-cico btn-sm-cico" id="list-search-btn">Search</button>
+          </div>
+        </div>
+
+        <div id="ref-list-results"></div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Students (shared roster)
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-students" class="cico-view">
+        <div class="view-header">
+          <h1>Students</h1>
+          <p class="view-subtitle">Your school roster, shared with Check-in / Check-out.</p>
+        </div>
+
+        <div class="ref-students-toolbar">
+          <input type="text" id="ref-students-search" class="cico-input" placeholder="Search students…" style="max-width:280px;" />
+          <div style="flex:1;"></div>
+          <button class="btn-cico btn-outline-cico btn-sm-cico" id="ref-import-btn">Import from Excel/CSV</button>
+          <button class="btn-cico btn-primary-cico btn-sm-cico" id="ref-add-student-btn">+ Add Student</button>
+        </div>
+
+        <div id="ref-student-list"></div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Settings (dropdown list config)
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-settings" class="cico-view">
+        <div class="view-header">
+          <h1>Settings</h1>
+          <p class="view-subtitle">Configure the options that appear on the referral form.</p>
+        </div>
+        <div id="settings-container"></div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           VIEW: Reports (Phase 2 placeholder)
+           ════════════════════════════════════════════════════════════════ -->
+      <div id="view-reports" class="cico-view">
+        <div class="view-header">
+          <h1>Reports</h1>
+          <p class="view-subtitle">Referral patterns across your school. Set a date range and outcome, then explore.</p>
+        </div>
+
+        <!-- Shared report controls -->
+        <div class="report-controls">
+          <div class="field-group">
+            <label class="field-label">Outcome</label>
+            <select id="rep-outcome" class="cico-input cico-select">
+              <option value="">All referrals</option>
+              <option value="major">Administrator-managed (Major)</option>
+              <option value="minor">Staff-managed (Minor)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">From</label>
+            <input type="date" id="rep-from" class="cico-input" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">To</label>
+            <input type="date" id="rep-to" class="cico-input" />
+          </div>
+          <div class="field-group" style="align-self:flex-end;">
+            <button class="btn-cico btn-primary-cico btn-sm-cico" id="rep-generate-btn">Generate</button>
+          </div>
+        </div>
+
+        <div class="report-tabs">
+          <button class="report-tab active" data-report="location">By Location</button>
+          <button class="report-tab" data-report="behavior">By Behavior</button>
+          <button class="report-tab" data-report="time">By Time of Day</button>
+          <button class="report-tab" data-report="grade">By Grade</button>
+          <button class="report-tab" data-report="drilldown">Drill Down</button>
+          <button class="report-tab" data-report="equity">Equity</button>
+        </div>
+
+        <div id="rep-summary" class="rep-summary"></div>
+
+        <div id="panel-location" class="report-panel active">
+          <div class="chart-wrap chart-tall"><canvas id="chart-location"></canvas></div>
+        </div>
+        <div id="panel-behavior" class="report-panel">
+          <div class="chart-wrap chart-tall"><canvas id="chart-behavior"></canvas></div>
+        </div>
+        <div id="panel-time" class="report-panel">
+          <div class="chart-wrap chart-tall"><canvas id="chart-time"></canvas></div>
+        </div>
+        <div id="panel-grade" class="report-panel">
+          <div class="chart-wrap chart-tall"><canvas id="chart-grade"></canvas></div>
+        </div>
+
+        <div id="panel-drilldown" class="report-panel">
+          <div class="drilldown-filters">
+            <div class="field-group">
+              <label class="field-label">Behaviors <span style="opacity:.6;font-weight:400;">(none = all)</span></label>
+              <select id="dd-behavior" class="cico-input" multiple size="5"></select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Locations <span style="opacity:.6;font-weight:400;">(none = all)</span></label>
+              <select id="dd-location" class="cico-input" multiple size="5"></select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Actions <span style="opacity:.6;font-weight:400;">(none = all)</span></label>
+              <select id="dd-action" class="cico-input" multiple size="5"></select>
+            </div>
+            <div class="drilldown-controls">
+              <div class="field-group">
+                <label class="field-label">Type</label>
+                <select id="dd-type" class="cico-input cico-select">
+                  <option value="">All</option>
+                  <option value="major">Major</option>
+                  <option value="minor">Minor</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Group by</label>
+                <select id="dd-groupby" class="cico-input cico-select">
+                  <option value="location">Location</option>
+                  <option value="behavior">Behavior</option>
+                  <option value="action">Action Taken</option>
+                  <option value="motivation">Perceived Motivation</option>
+                  <option value="grade">Grade</option>
+                  <option value="type">Referral Type</option>
+                  <option value="month">Month</option>
+                </select>
+              </div>
+              <div class="field-group" style="align-self:flex-end;">
+                <button class="btn-cico btn-primary-cico btn-sm-cico" id="dd-apply-btn">Apply</button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-wrap chart-tall"><canvas id="chart-drilldown"></canvas></div>
+        </div>
+
+        <div id="panel-equity" class="report-panel">
+          <div class="field-group" style="max-width:240px;margin-bottom:16px;">
+            <label class="field-label">Student Group</label>
+            <select id="eq-group" class="cico-input cico-select">
+              <option value="race">Race/Ethnicity</option>
+              <option value="gender">Gender</option>
+              <option value="grade">Grade</option>
+              <option value="iep">IEP Status</option>
+            </select>
+          </div>
+          <div class="chart-wrap chart-tall"><canvas id="chart-equity"></canvas></div>
+          <div id="eq-output"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── Student add/edit modal ──────────────────────────────────────── -->
+  <div id="ref-student-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop"></div>
+    <div class="cico-modal-box">
+      <div class="cico-modal-header">
+        <h2 id="rstudent-modal-title">Add Student</h2>
+        <button class="modal-close-btn" id="rstudent-modal-close">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <input type="hidden" id="edit-rstudent-id" />
+        <div class="modal-field-row">
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">First Name *</label>
+            <input type="text" id="rstudent-first" class="cico-input" />
+          </div>
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Last Name *</label>
+            <input type="text" id="rstudent-last" class="cico-input" />
+          </div>
+        </div>
+        <div class="modal-field-row">
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Grade</label>
+            <input type="text" id="rstudent-grade" class="cico-input" placeholder="e.g. 3" />
+          </div>
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Homeroom Teacher</label>
+            <input type="text" id="rstudent-homeroom" class="cico-input" placeholder="e.g. Ms. Smith" />
+          </div>
+        </div>
+        <div class="modal-field-row">
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Race / Ethnicity</label>
+            <select id="rstudent-race" class="cico-input cico-select"></select>
+          </div>
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Gender</label>
+            <select id="rstudent-gender" class="cico-input cico-select">
+              <option value="">—</option>
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Non-binary">Non-binary</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-field-row">
+          <div class="field-group" style="flex:1;">
+            <label class="field-label">Student ID <span style="opacity:.6;font-weight:400;">(optional)</span></label>
+            <input type="text" id="rstudent-ref" class="cico-input" placeholder="e.g. 12345" />
+          </div>
+          <div class="field-group" style="flex:1;display:flex;align-items:flex-end;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+              <input type="checkbox" id="rstudent-iep" /> Has an IEP
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="rstudent-modal-cancel">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico" id="rstudent-modal-save">Save Student</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Roster import modal ─────────────────────────────────────────── -->
+  <div id="ref-import-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop"></div>
+    <div class="cico-modal-box">
+      <div class="cico-modal-header">
+        <h2>Import Students</h2>
+        <button class="modal-close-btn" id="ref-import-close">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <p style="font-size:13px;color:#6b7280;margin:0 0 14px;">
+          Upload an Excel (.xlsx) or CSV file. The first row should be column headers.
+          Recognized columns: <strong>First Name, Last Name, Grade, Homeroom, Student ID,
+          Race/Ethnicity, Gender, IEP</strong>. First and Last Name are required.
+        </p>
+        <input type="file" id="ref-import-file" accept=".xlsx,.xls,.csv" style="display:none;" />
+        <button class="btn-cico btn-outline-cico btn-sm-cico" id="ref-browse-btn">Choose File…</button>
+        <div id="ref-import-preview" style="margin-top:16px;"></div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="ref-import-cancel">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico" id="ref-import-confirm" disabled>Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Config item add/edit modal ──────────────────────────────────── -->
+  <div id="cfg-modal" class="cico-modal hidden">
+    <div class="cico-modal-backdrop"></div>
+    <div class="cico-modal-box" style="max-width:420px;">
+      <div class="cico-modal-header">
+        <h2 id="cfg-modal-title">Add Option</h2>
+        <button class="modal-close-btn" id="cfg-modal-close">✕</button>
+      </div>
+      <div class="cico-modal-body">
+        <input type="hidden" id="cfg-edit-id" />
+        <input type="hidden" id="cfg-edit-table" />
+        <div class="field-group">
+          <label class="field-label">Label *</label>
+          <input type="text" id="cfg-label" class="cico-input" placeholder="e.g. Hallway" />
+        </div>
+      </div>
+      <div class="cico-modal-footer">
+        <button class="btn-cico btn-ghost-cico btn-sm-cico" id="cfg-modal-cancel">Cancel</button>
+        <button class="btn-cico btn-primary-cico btn-sm-cico" id="cfg-modal-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App scripts -->
+  <script src="js/referral-state.js"></script>
+  <script src="js/referral-students.js"></script>
+  <script src="js/referral-config.js"></script>
+  <script src="js/referral-entry.js"></script>
+  <script src="js/referral-list.js"></script>
+  <script src="js/referral-reports.js"></script>
+</body>
+</html>

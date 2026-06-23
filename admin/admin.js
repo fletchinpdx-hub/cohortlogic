@@ -1053,8 +1053,8 @@ async function loadErrors(append = false) {
   _errorOffset += (data?.length || 0);
 
   const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO' }[p] || p);
-  const productColor = p => ({ class_builder: '#e0f2fe;color:#0369a1', cico: '#d1fae5;color:#065f46' }[p] || '#f3f4f6;color:#374151');
+  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO', referrals: 'Referral Tracking' }[p] || p);
+  const productColor = p => ({ class_builder: '#e0f2fe;color:#0369a1', cico: '#d1fae5;color:#065f46', referrals: '#eef0fb;color:#3b3f9e' }[p] || '#f3f4f6;color:#374151');
 
   const rows = _errorRecords.map(r => `
     <tr>
@@ -1147,7 +1147,7 @@ async function loadCicoStats() {
   const todayStart = new Date().toISOString().split('T')[0];
 
   const [studentsRes, checkinsRes, todayRes] = await Promise.all([
-    db.from('cico_students').select('school_id'),
+    db.from('students').select('school_id'),
     db.from('cico_checkins').select('school_id, created_at').gte('created_at', thirtyAgo),
     db.from('cico_checkins').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
   ]);
@@ -1257,10 +1257,13 @@ async function confirmWipeSchoolData(id, el) {
     ]);
   }
 
-  // Delete all school-scoped tables in parallel
+  // Delete all CICO-specific school-scoped tables in parallel.
+  // NOTE: the `students` roster is intentionally NOT wiped here — it is now a
+  // SHARED roster (CICO + Referral Tracking), so it is no longer CICO-owned
+  // data. Clearing it would also orphan/block referral records. Roster cleanup
+  // is a separate concern handled at the school level.
   const results = await Promise.all([
     db.from('cico_checkins').delete().eq('school_id', id),
-    db.from('cico_students').delete().eq('school_id', id),
     db.from('cico_settings').delete().eq('school_id', id),
     db.from('cico_categories').delete().eq('school_id', id),
     db.from('cico_incident_types').delete().eq('school_id', id),

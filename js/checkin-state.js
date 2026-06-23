@@ -110,7 +110,7 @@ async function loadCicoData() {
       SupabaseClient.from('cico_settings').select('*').order('is_default', { ascending: false }).order('name'),
       SupabaseClient.from('cico_categories').select('*').eq('active', true).order('display_order'),
       SupabaseClient.from('cico_incident_types').select('*').eq('active', true).order('display_order'),
-      SupabaseClient.from('cico_students').select('*').eq('active', true).order('last_name').order('first_name')
+      SupabaseClient.from('students').select('*').eq('active', true).order('last_name').order('first_name')
     ]);
 
     CicoState.schedules     = settRes.data || [];

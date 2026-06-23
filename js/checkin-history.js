@@ -46,7 +46,7 @@ async function loadHistory() {
         check_in_date,
         notes,
         student_id,
-        cico_students ( first_name, last_name, grade, homeroom ),
+        student:students ( first_name, last_name, grade, homeroom ),
         cico_period_scores ( period_number, category_id, score ),
         cico_incidents ( period_number, incident_type_id, minutes, notes,
           cico_incident_types ( abbreviation, description ) )
@@ -76,7 +76,7 @@ async function loadHistory() {
 
 // ── Render a single check-in card ──────────────────────────────────────────
 function renderCheckinCard(checkin) {
-  const student  = checkin.cico_students;
+  const student  = checkin.student;
   const name     = student ? `${student.first_name} ${student.last_name}` : 'Unknown Student';
   const meta     = student ? [student.grade ? 'Grade ' + student.grade : '', student.homeroom].filter(Boolean).join(' · ') : '';
   const dateStr  = formatDate(checkin.check_in_date);

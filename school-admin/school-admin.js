@@ -147,27 +147,39 @@ function loadAll() {
   loadUsers();
 }
 
+// Backend-gated products (school-wide master switches live in enabled_products).
+// Class Builder has no backend and is never gated here.
+const SCHOOL_PRODUCTS = [
+  { key: 'cico',      label: 'Check-in / Check-out (CICO)', short: 'CICO' },
+  { key: 'referrals', label: 'Referral Tracking',           short: 'Referrals' },
+];
+
 // ── Tool settings (school-wide default) ──
 function renderToolSettings() {
-  const wrap    = document.getElementById('tool-settings');
-  const cicoOn  = _me.enabledProducts.includes('cico');
-  wrap.innerHTML = `
-    <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;">
-      <input type="checkbox" id="cico-school-toggle" ${cicoOn ? 'checked' : ''}
-             data-change="toggleSchoolCico" style="width:18px;height:18px;cursor:pointer;" />
-      <span><strong>Check-in / Check-out (CICO)</strong> — master switch for your whole school</span>
-    </label>
-    <p style="font-size:12px;color:#9ca3af;margin-top:8px;">When this is off, <strong>no one</strong> at your school can use CICO — including anyone individually allowed. Class Builder is always available and isn't restricted here.</p>`;
+  const wrap = document.getElementById('tool-settings');
+  wrap.innerHTML = SCHOOL_PRODUCTS.map(p => {
+    const on = _me.enabledProducts.includes(p.key);
+    return `
+    <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;margin-bottom:10px;">
+      <input type="checkbox" data-change="toggleSchoolProduct" data-product="${p.key}" ${on ? 'checked' : ''}
+             style="width:18px;height:18px;cursor:pointer;" />
+      <span><strong>${esc(p.label)}</strong> — master switch for your whole school</span>
+    </label>`;
+  }).join('') +
+    `<p style="font-size:12px;color:#9ca3af;margin-top:4px;">When a tool is off, <strong>no one</strong> at your school can use it — including anyone individually allowed. Class Builder is always available and isn't restricted here.</p>`;
 }
 
-async function toggleSchoolCico(_id, el) {
-  const on = el.checked;
-  const products = on ? ['cico'] : [];
+// Toggle one product without disturbing the others already in enabled_products.
+async function toggleSchoolProduct(_id, el) {
+  const product = el.dataset.product;
+  const set = new Set(_me.enabledProducts);
+  if (el.checked) set.add(product); else set.delete(product);
+  const products = Array.from(set);
   const { error } = await db.rpc('set_school_products', { products });
   if (error) { alert('Error updating tools: ' + error.message); renderToolSettings(); return; }
   _me.enabledProducts = products;
   renderToolSettings();
-  loadUsers(); // refresh the "school default" labels in the per-user controls
+  loadUsers(); // refresh the per-user access controls
 }
 
 // ── Pending approvals (this school) ──
@@ -281,21 +293,29 @@ async function loadUsers() {
 
   users.forEach(u => { _nameById[u.id] = u.full_name || 'this user'; });
 
-  // CICO master switch is off for the school → nobody has access; the per-user
-  // control is moot. When on, the control can only BLOCK an individual.
-  const cicoOn = _me.enabledProducts.includes('cico');
+  // A tool's master switch being off → nobody at the school has access, so the
+  // per-user control is moot for that tool. When on, the control can only BLOCK.
+  const enabled = SCHOOL_PRODUCTS.filter(p => _me.enabledProducts.includes(p.key));
 
   const rows = users.map(u => {
     const date    = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const isAdmin = u.role !== 'user';
-    const blocked = cicoAccessValue(u) === 'deny';
-    const sel = !cicoOn
-      ? '<span style="font-size:12px;color:#9ca3af;">School CICO off</span>'
-      : `
-      <select id="cico-sel-${u.id}" data-change="setUserCico" data-id="${u.id}" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;">
-        <option value="inherit" ${!blocked ? 'selected' : ''}>Allowed</option>
-        <option value="deny"    ${blocked  ? 'selected' : ''}>Blocked</option>
-      </select>`;
+
+    let accessCells;
+    if (!enabled.length) {
+      accessCells = '<td><span style="font-size:12px;color:#9ca3af;">No tools enabled</span></td>';
+    } else if (isAdmin) {
+      accessCells = enabled.map(() => '<td><span style="font-size:12px;color:#9ca3af;">—</span></td>').join('');
+    } else {
+      accessCells = enabled.map(p => {
+        const blocked = productAccessValue(u, p.key) === 'deny';
+        return `<td>
+          <select data-change="setUserProduct" data-id="${u.id}" data-product="${p.key}" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;">
+            <option value="inherit" ${!blocked ? 'selected' : ''}>Allowed</option>
+            <option value="deny"    ${blocked  ? 'selected' : ''}>Blocked</option>
+          </select></td>`;
+      }).join('');
+    }
 
     const roleBadge = u.role === 'super_admin'
       ? '<span style="background:#1e3a5f;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;margin-left:6px;">Super Admin</span>'
@@ -316,11 +336,15 @@ async function loadUsers() {
           <strong>${esc(u.full_name || '(no name)')}</strong>${roleBadge}
           ${u.email ? `<br><a href="mailto:${esc(u.email)}" style="font-size:11px;color:#6b7280;">${esc(u.email)}</a>` : ''}
         </td>
-        <td>${isAdmin ? '<span style="font-size:12px;color:#9ca3af;">—</span>' : sel}</td>
+        ${accessCells}
         <td style="font-size:11px;color:#9ca3af;">${date}</td>
         <td>${actions}</td>
       </tr>`;
   }).join('');
+
+  const productHeaders = enabled.length
+    ? enabled.map(p => `<th>${esc(p.short)} Access</th>`).join('')
+    : '<th>Tool Access</th>';
 
   container.innerHTML = `
     <div style="overflow-x:auto;">
@@ -328,7 +352,7 @@ async function loadUsers() {
         <thead>
           <tr>
             <th>Name</th>
-            <th>CICO Access</th>
+            ${productHeaders}
             <th>Joined</th>
             <th></th>
           </tr>
@@ -339,18 +363,18 @@ async function loadUsers() {
 }
 
 // 'inherit' (no override) | 'allow' | 'deny'
-function cicoAccessValue(u) {
+function productAccessValue(u, product) {
   const ov = u.product_overrides || {};
-  if (Object.prototype.hasOwnProperty.call(ov, 'cico')) return ov.cico ? 'allow' : 'deny';
+  if (Object.prototype.hasOwnProperty.call(ov, product)) return ov[product] ? 'allow' : 'deny';
   return 'inherit';
 }
 
-async function setUserCico(id, el) {
-  const access = el.value;
-  const sel = document.getElementById(`cico-sel-${id}`);
-  if (sel) sel.disabled = true;
-  const { error } = await db.rpc('set_user_product_override', { target: id, product: 'cico', access });
-  if (sel) sel.disabled = false;
+async function setUserProduct(id, el) {
+  const product = el.dataset.product;
+  const access  = el.value;
+  el.disabled = true;
+  const { error } = await db.rpc('set_user_product_override', { target: id, product, access });
+  el.disabled = false;
   if (error) { alert('Error updating access: ' + error.message); loadUsers(); }
 }
 
@@ -413,7 +437,7 @@ const ACTIONS = {
   approvePending, declinePending, confirmDecline, loadPending,
   deactivateUser, removeUser, confirmDeactivate, confirmRemove, loadUsers,
 };
-const CHANGE_ACTIONS = { setUserCico, toggleSchoolCico };
+const CHANGE_ACTIONS = { setUserProduct, toggleSchoolProduct };
 
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-act]');

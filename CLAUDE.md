@@ -46,6 +46,16 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 - Score colors: 0=red (#EF4444), 1=amber (#F59E0B), 2=green (#22C55E)
 - 15-minute inactivity session timeout with 60-second warning banner
 
+### 3. Referral Tracking (`referral-app.html`)
+Tier 1 behavior / office-discipline referral tracker, modeled on PBISApps/SWIS. Supabase-backed, multi-school. Product key `referrals` (gated via `enabled_products` + `can_access_product('referrals')`, same as CICO).
+- Views: New Referral, Referrals (list), Students, Settings, Reports
+- **Shared roster**: uses the `students` table (renamed from `cico_students`), shared with CICO; added demographic cols `race_ethnicity, gender, iep`
+- Config: `referral_locations/behaviors/motivations/actions/others_involved` (school-scoped, full settings UI, default PBIS lists seeded client-side on first load); records in `referral_referrals`
+- Reports (Chart.js): By Location / Behavior / Time of Day / Grade, Drill Down (filter + group-by), Equity (Risk Index / Risk Ratio / Interpretations by race/gender/grade/IEP)
+- JS: `js/referral-{state,students,config,entry,list,reports}.js`; styles reuse `css/checkin.css` (cico-* classes) + `css/referral.css`
+- Compat shim: a `cico_students` view (security_invoker) over `students` exists so pre-rename code keeps working; safe to drop now that the new code is deployed
+- DEFERRED: reviewer/"send to reviewer" workflow + dynamic custom fields (Phase 4); staff is free-text (no staff roster yet)
+
 ---
 
 ## Infrastructure

@@ -105,14 +105,14 @@ async function saveStudent() {
   try {
     if (id) {
       // Update
-      const { error } = await SupabaseClient.from('cico_students').update(payload).eq('id', id);
+      const { error } = await SupabaseClient.from('students').update(payload).eq('id', id);
       if (error) throw error;
       const idx = CicoState.students.findIndex(s => s.id === id);
       if (idx >= 0) CicoState.students[idx] = { ...CicoState.students[idx], ...payload };
       showToast('Student updated.', 'success');
     } else {
       // Insert
-      const { data, error } = await SupabaseClient.from('cico_students').insert(payload).select().single();
+      const { data, error } = await SupabaseClient.from('students').insert(payload).select().single();
       if (error) throw error;
       CicoState.students.push(data);
       // Re-sort
@@ -136,7 +136,7 @@ async function deleteStudent(id) {
   if (!confirm(`Remove ${name} from Check-in / Check-out?\n\nThis will mark them inactive. Existing check-in records will be preserved.`)) return;
 
   try {
-    const { error } = await SupabaseClient.from('cico_students').update({ active: false }).eq('id', id);
+    const { error } = await SupabaseClient.from('students').update({ active: false }).eq('id', id);
     if (error) throw error;
     CicoState.students = CicoState.students.filter(st => st.id !== id);
     renderStudentList();
@@ -307,7 +307,7 @@ async function confirmStudentImport() {
   btn.textContent = 'Importing…';
 
   try {
-    const { data, error } = await SupabaseClient.from('cico_students').insert(rows).select();
+    const { data, error } = await SupabaseClient.from('students').insert(rows).select();
     if (error) throw error;
 
     (data || []).forEach(s => CicoState.students.push(s));
