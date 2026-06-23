@@ -184,7 +184,8 @@ pricing.html            — Pricing page
 contact.html            — Contact page
 class-builder.html      — Class Builder marketing/product page
 resources.html          — Resources
-netlify.toml            — Netlify security headers (CSP, X-Frame-Options, etc.)
+wrangler.toml           — Cloudflare Workers static asset config (no build step)
+_headers                — Security headers for all routes (CSP, X-Frame-Options, etc.)
 admin/
   index.html            — Super-admin panel
   admin.js              — All super-admin logic
@@ -248,15 +249,16 @@ supabase/migrations/
 - **No framework** — vanilla HTML/CSS/JS only
 - **SheetJS** — CDN, Excel + CSV parsing/export
 - **Chart.js** — CDN, CICO reports
-- **Safari quirk** — use `onclick="fn()"` attributes, not `addEventListener`, for reliable clicks
+- **Event handling** — all `onclick=`/`onchange=`/`oninput=` attributes have been removed and replaced with `addEventListener` calls (required for CSP `script-src` without `unsafe-inline`). Modern Safari handles this fine.
 
 ---
 
 ## Deployment
-- Claude pushes to `main` → Netlify auto-deploys (no manual step needed)
-- Netlify is on a paid plan
-- DNS at Porkbun: A → 75.2.60.5, CNAME www → gleeful-banoffee-050c62.netlify.app
-- Plan: switch to Cloudflare Pages soon
+- Claude pushes to `main` → Cloudflare Workers auto-deploys (no manual step needed)
+- Hosted at: https://cohortlogic.fletchinpdx.workers.dev (production URL pending DNS cutover)
+- DNS cutover still pending: Porkbun still points A → 75.2.60.5 (Netlify) — needs to change to Cloudflare after DNS cutover is confirmed
+- `wrangler.toml` configures static asset deployment (no build step)
+- `_headers` file sets all security headers (supported by Cloudflare Workers static assets)
 
 ---
 
@@ -274,10 +276,11 @@ supabase/migrations/
 | MFA on admin account | ✅ Done |
 | MFA enforced in code (aal2) on both admin panels | ✅ Done — `js/admin-mfa.js`; strict when a factor is enrolled, soft "enroll" reminder otherwise; fails open on SDK error to avoid lockout |
 | Session timeout — CICO + admin (15 min) | ✅ Done |
-| Security headers via netlify.toml | ✅ Done (CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) |
+| Security headers via `_headers` | ✅ Done (CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) — applied by Cloudflare Workers |
 | Privacy policy page | ✅ Done (`privacy.html`) |
 | Google Sheets URL import removed | ✅ Done (privacy concern) |
-| CSP `script-src` without `unsafe-inline` | ⏳ Pending — requires migrating `onclick=` to `addEventListener` (test on Safari) |
+| CSP `script-src` without `unsafe-inline` | ✅ Done — all `onclick=`/`onchange=`/`oninput=` migrated to `addEventListener` |
+| CSP `style-src` without `unsafe-inline` | ⚠️ Intentionally not done — 1,193 inline `style=""` attributes site-wide; no injection vector on a static site, so the security benefit is negligible. `unsafe-inline` stays in `style-src` permanently. |
 | Supabase DPA | ⏳ Pending (needed for formal FERPA) |
 | Demo access code in client JS | ⚠️ Known limitation (v1 intentional) |
 
@@ -302,10 +305,10 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 - **Teacher-level RLS** — on hold; needs product decisions on role model and homeroom assignment UX
 - **CICO weekly trend chart** — 8-week bar chart in CICO Analytics to show usage trajectory
 - **Pending Approvals UX** — edge cases for returning deactivated users (currently uses 3-day heuristic)
-- **CSP script-src unsafe-inline** — migrate `onclick=` to `addEventListener`; test Safari carefully
+- **Cloudflare DNS cutover** — update Porkbun DNS from Netlify to Cloudflare, then disable Netlify site
+- **Safari smoke test** — test login, CICO app, and dashboard on Safari after addEventListener migration
 - **Supabase Pro upgrade** — prevents pausing in active use; needed before onboarding paying schools
 - **Supabase DPA** — formal FERPA compliance (requires Pro)
 - **Data retention policy** — process decision, not yet defined
-- **Switch to Cloudflare Pages**
 - Class Builder: print view, lock student to class
 - CICO: mobile polish, print-friendly check-in sheets
