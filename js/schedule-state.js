@@ -5,10 +5,34 @@ const SchedState = {
   school: {
     name: '',
     year: '2026-2027',
-    grades: [],           // e.g. ['K', '1', '2', '3', '4', '5']
+    grades: [],
+
+    // School day time boundaries
+    teacherContractStart: '07:30',
+    teacherContractEnd:   '15:00',
+    studentCampusStart:   '07:45',  // breakfast / non-teacher supervision
+    studentCampusEnd:     '15:15',  // after-school / non-teacher supervision
+    firstBell:            '08:00',  // teacher instructional day begins
+    dismissal:            '14:30',  // teacher instructional day ends
+
+    // Morning meeting (optional)
+    morningMeetingEnabled: false,
+    morningMeetingStart:   '',
+    morningMeetingEnd:     '',
+
+    // Lunch periods: [{ id, start, duration (min), grades[] }]
+    lunchPeriods: [],
+
+    // Recess slots: [{ id, name, start, duration (min), grades[] }]
+    recessSlots: [],
+
+    // Alternate schedule days: [{ day, lateStart, earlyRelease, altLunchRecess }]
+    altDays: [],
+
+    // Legacy fields kept for backward-compat with saved data
     dayStart: '07:30',
     dayEnd: '14:30',
-    earlyReleaseDays: [], // e.g. ['Wednesday']
+    earlyReleaseDays: [],
     earlyReleaseEnd: '12:30',
   },
 
@@ -115,7 +139,18 @@ function loadFromLocal() {
     const raw = localStorage.getItem('cl_schedule_data');
     if (!raw) return false;
     const data = JSON.parse(raw);
-    if (data.school)         Object.assign(SchedState.school, data.school);
+    if (data.school) {
+      Object.assign(SchedState.school, data.school);
+      // Migrate legacy earlyReleaseDays → altDays
+      if (!SchedState.school.altDays?.length && SchedState.school.earlyReleaseDays?.length) {
+        SchedState.school.altDays = SchedState.school.earlyReleaseDays.map(day => ({
+          day, lateStart: '', earlyRelease: SchedState.school.earlyReleaseEnd || '12:30', altLunchRecess: false,
+        }));
+      }
+      if (!SchedState.school.lunchPeriods)  SchedState.school.lunchPeriods  = [];
+      if (!SchedState.school.recessSlots)   SchedState.school.recessSlots   = [];
+      if (!SchedState.school.altDays)       SchedState.school.altDays       = [];
+    }
     if (data.staff)          SchedState.staff = data.staff;
     if (data.blockTypes)     SchedState.blockTypes = data.blockTypes;
     if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
@@ -185,10 +220,11 @@ function uid() {
   return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-const GRADE_ORDER = { TK: -1, K: 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8 };
+const GRADE_ORDER = { TK: -1, K: 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, '11': 11, '12': 12 };
 const GRADE_LABELS = { TK: 'TK', K: 'Kindergarten', '1': '1st Grade', '2': '2nd Grade',
   '3': '3rd Grade', '4': '4th Grade', '5': '5th Grade', '6': '6th Grade',
-  '7': '7th Grade', '8': '8th Grade' };
+  '7': '7th Grade', '8': '8th Grade', '9': '9th Grade', '10': '10th Grade',
+  '11': '11th Grade', '12': '12th Grade' };
 
 const ROLE_LABELS = {
   classroom_teacher: 'Classroom Teacher',

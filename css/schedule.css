@@ -479,6 +479,7 @@
   flex: 1;
   flex-wrap: wrap;
 }
+.alt-day-row .input-sm { width: 110px; }
 
 .add-alt-day-row {
   display: flex;
@@ -884,4 +885,197 @@
   color: var(--gray-400);
   margin-top: 2px;
   line-height: 1.4;
+}
+
+/* ── School Day Hours — time bounds grid ───────────────────────── */
+.time-bounds-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.time-bound-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.time-bound-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.time-bound-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  min-width: 200px;
+  flex: 1;
+}
+.time-bound-label .form-hint-sm { display: block; font-weight: 400; margin-top: 3px; }
+
+.time-bound-inputs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Lunch / Recess period rows ────────────────────────────────── */
+#lunch-list, #recess-list { display: flex; flex-direction: column; gap: 12px; }
+
+.period-row {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.period-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.period-sep {
+  font-size: 13px;
+  color: var(--gray-400);
+  white-space: nowrap;
+}
+
+.period-grades {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.period-grades-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--gray-400);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+/* Tiny grade chips for period rows */
+.grade-chip-xs {
+  padding: 3px 9px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-400);
+  cursor: pointer;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.grade-chip-xs:hover { border-color: var(--blue); color: var(--blue); }
+.grade-chip-xs.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+
+/* ── Alt day rows (updated) ────────────────────────────────────── */
+.alt-day-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.alt-day-option input[type="checkbox"] { cursor: pointer; }
+
+/* ── Generic icon button ───────────────────────────────────────── */
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--gray-400);
+  transition: color .12s, background .12s;
+}
+.btn-icon:hover { color: #ef4444; background: #fef2f2; }
+
+/* ── Framework grid ────────────────────────────────────────────── */
+.fw-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  max-height: 440px;
+  overflow-y: auto;
+}
+
+.fw-table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12px;
+}
+
+.fw-th-time {
+  width: 56px;
+  min-width: 56px;
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.fw-th {
+  min-width: 88px;
+  padding: 6px 8px;
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-align: center;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-100);
+}
+
+.fw-row td, .fw-row-hour td { border-bottom: 1px solid var(--gray-100); }
+.fw-row-hour td { border-bottom-color: var(--gray-200); }
+
+.fw-time {
+  font-size: 10px;
+  color: var(--gray-400);
+  padding: 1px 6px;
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: top;
+  width: 56px;
+  background: #fafafa;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: 1px solid var(--gray-200);
+}
+.fw-row-hour .fw-time { color: var(--gray-600); font-weight: 600; }
+
+.fw-td {
+  height: 20px;
+  min-width: 88px;
+  padding: 1px 4px;
+  vertical-align: middle;
+  border-left: 1px solid var(--gray-100);
+  transition: background .1s;
+}
+
+.fw-label {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }

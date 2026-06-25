@@ -1,7 +1,32 @@
 // ── Step 1: School Info ───────────────────────────────────────────────────────
+const ALL_GRADES = ['TK','K','1','2','3','4','5','6','7','8','9','10','11','12'];
+const WEEK_DAYS  = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+
+function gradeChipLabel(g) {
+  if (g === 'TK') return 'TK';
+  if (g === 'K')  return 'K';
+  return g + ({ '1': 'st', '2': 'nd', '3': 'rd' }[g] || 'th');
+}
+
+function timeToMins(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function timeSlots15(start, end) {
+  const slots = [];
+  let cur = timeToMins(start);
+  const fin = timeToMins(end);
+  while (cur <= fin) {
+    slots.push(String(Math.floor(cur / 60)).padStart(2, '0') + ':' + String(cur % 60).padStart(2, '0'));
+    cur += 15;
+  }
+  return slots;
+}
+
 function renderSchoolInfo() {
-  const GRADES = ['TK','K','1','2','3','4','5','6','7','8'];
-  const DAYS   = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  const s = SchedState.school;
 
   document.getElementById('view-school').innerHTML = `
     <div class="view-header">
@@ -11,56 +36,123 @@ function renderSchoolInfo() {
 
     <div class="setup-form">
 
+      <!-- School Details -->
       <div class="form-section">
         <h2 class="form-section-title">School Details</h2>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">School Name</label>
-            <input type="text" class="input" id="school-name" placeholder="e.g. Lincoln Elementary" value="${SchedState.school.name}" />
+            <input type="text" class="input" id="school-name" placeholder="e.g. Lincoln Elementary" value="${s.name}" />
           </div>
           <div class="form-group form-group-sm">
             <label class="form-label">School Year</label>
-            <input type="text" class="input" id="school-year" placeholder="e.g. 2026-2027" value="${SchedState.school.year}" />
+            <input type="text" class="input" id="school-year" placeholder="e.g. 2026-2027" value="${s.year}" />
           </div>
         </div>
       </div>
 
+      <!-- Grade Levels -->
       <div class="form-section">
         <h2 class="form-section-title">Grade Levels</h2>
         <p class="form-hint">Select all grade levels in your building.</p>
-        <div class="grade-chips">
-          ${GRADES.map(g => `
-            <button type="button" class="grade-chip ${SchedState.school.grades.includes(g) ? 'active' : ''}" data-grade="${g}">
-              ${g === 'TK' ? 'TK' : g === 'K' ? 'K' : g + (g==='1'?'st':g==='2'?'nd':g==='3'?'rd':'th')}
-            </button>
-          `).join('')}
+        <div class="grade-chips" id="school-grade-chips">
+          ${ALL_GRADES.map(g => `<button type="button" class="grade-chip ${s.grades.includes(g) ? 'active' : ''}" data-grade="${g}">${gradeChipLabel(g)}</button>`).join('')}
         </div>
       </div>
 
+      <!-- School Day Hours -->
       <div class="form-section">
         <h2 class="form-section-title">School Day Hours</h2>
-        <div class="form-row">
-          <div class="form-group form-group-sm">
-            <label class="form-label">Day Starts</label>
-            <input type="time" class="input" id="day-start" value="${SchedState.school.dayStart}" />
+        <p class="form-hint">Define each time boundary. These drive the framework grid below.</p>
+        <div class="time-bounds-grid">
+
+          <div class="time-bound-row">
+            <span class="time-bound-label">Teacher Contract</span>
+            <div class="time-bound-inputs">
+              <div class="form-group form-group-sm">
+                <label class="form-label">Start</label>
+                <input type="time" class="input" id="teacher-contract-start" value="${s.teacherContractStart || '07:30'}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">End</label>
+                <input type="time" class="input" id="teacher-contract-end" value="${s.teacherContractEnd || '15:00'}" />
+              </div>
+            </div>
           </div>
-          <div class="form-group form-group-sm">
-            <label class="form-label">Day Ends</label>
-            <input type="time" class="input" id="day-end" value="${SchedState.school.dayEnd}" />
+
+          <div class="time-bound-row">
+            <span class="time-bound-label">Student Campus Hours <span class="form-hint-sm">(non-teacher supervision at start &amp; end)</span></span>
+            <div class="time-bound-inputs">
+              <div class="form-group form-group-sm">
+                <label class="form-label">Start</label>
+                <input type="time" class="input" id="student-campus-start" value="${s.studentCampusStart || '07:45'}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">End</label>
+                <input type="time" class="input" id="student-campus-end" value="${s.studentCampusEnd || '15:15'}" />
+              </div>
+            </div>
+          </div>
+
+          <div class="time-bound-row">
+            <span class="time-bound-label">First Bell &amp; Dismissal <span class="form-hint-sm">(teacher instructional day)</span></span>
+            <div class="time-bound-inputs">
+              <div class="form-group form-group-sm">
+                <label class="form-label">First Bell</label>
+                <input type="time" class="input" id="first-bell" value="${s.firstBell || '08:00'}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">Dismissal</label>
+                <input type="time" class="input" id="dismissal" value="${s.dismissal || '14:30'}" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="mm-enabled" ${s.morningMeetingEnabled ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;flex-shrink:0" />
+          <label for="mm-enabled" style="font-size:14px;font-weight:500;cursor:pointer;margin:0">Standard morning meeting</label>
+        </div>
+        <div id="mm-times" style="display:${s.morningMeetingEnabled ? 'flex' : 'none'};gap:16px;margin-top:12px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-group form-group-sm" style="margin:0">
+            <label class="form-label">Start</label>
+            <input type="time" class="input" id="mm-start" value="${s.morningMeetingStart || ''}" />
+          </div>
+          <div class="form-group form-group-sm" style="margin:0">
+            <label class="form-label">End</label>
+            <input type="time" class="input" id="mm-end" value="${s.morningMeetingEnd || ''}" />
           </div>
         </div>
       </div>
 
+      <!-- Lunch Periods -->
+      <div class="form-section">
+        <h2 class="form-section-title">Lunch Periods</h2>
+        <p class="form-hint">Define each lunch wave. Multiple grades can share one period.</p>
+        <div id="lunch-list">${s.lunchPeriods.map(renderLunchRow).join('')}</div>
+        <button class="btn btn-outline btn-sm" id="add-lunch-btn" style="margin-top:8px">+ Add Lunch Period</button>
+      </div>
+
+      <!-- Recess Slots -->
+      <div class="form-section">
+        <h2 class="form-section-title">Recess</h2>
+        <p class="form-hint">Define each recess. One grade can appear in multiple slots (morning + afternoon), and grades can share a slot.</p>
+        <div id="recess-list">${s.recessSlots.map(renderRecessRow).join('')}</div>
+        <button class="btn btn-outline btn-sm" id="add-recess-btn" style="margin-top:8px">+ Add Recess</button>
+      </div>
+
+      <!-- Alternate Schedule Days -->
       <div class="form-section">
         <h2 class="form-section-title">Alternate Schedule Days</h2>
-        <p class="form-hint">Select days that run on a different schedule, such as early release or late start.</p>
+        <p class="form-hint">Days that run on a different schedule — late start, early release, or both.</p>
         <div id="alt-days-list">
-          ${SchedState.school.earlyReleaseDays.map(day => renderAltDayRow(day, SchedState.school.earlyReleaseEnd)).join('')}
+          ${(s.altDays || []).map(renderAltDayRow).join('')}
         </div>
-        <div class="add-alt-day-row">
+        <div class="add-alt-day-row" style="margin-top:12px">
           <select class="input input-sm" id="alt-day-select">
-            <option value="">Select a day...</option>
-            ${DAYS.filter(d => !SchedState.school.earlyReleaseDays.includes(d))
+            <option value="">Select a day…</option>
+            ${WEEK_DAYS.filter(d => !(s.altDays || []).some(ad => ad.day === d))
               .map(d => `<option value="${d}">${d}</option>`).join('')}
           </select>
           <button class="btn btn-outline btn-sm" id="add-alt-day-btn">+ Add</button>
@@ -69,17 +161,39 @@ function renderSchoolInfo() {
 
     </div>
 
+    <!-- Framework Preview -->
+    <div class="form-section" style="border-top:2px solid var(--indigo,#6366f1);margin-top:0">
+      <h2 class="form-section-title" style="color:var(--indigo,#6366f1)">Schedule Framework</h2>
+      <p class="form-hint">Based on your saved settings. Fixed blocks shown by grade — open (white) time is available for the master schedule.</p>
+      <div id="framework-grid"></div>
+    </div>
+
     <div class="view-actions">
       <button class="btn btn-primary" id="school-next-btn">Save & Continue to Staff</button>
       <div class="save-status" id="school-save-status"></div>
     </div>
   `;
 
-  // Grade chip toggles
-  document.querySelectorAll('.grade-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      chip.classList.toggle('active');
-    });
+  // School-level grade chips
+  document.querySelectorAll('#school-grade-chips .grade-chip').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+
+  // Morning meeting toggle
+  document.getElementById('mm-enabled').addEventListener('change', e => {
+    document.getElementById('mm-times').style.display = e.target.checked ? 'flex' : 'none';
+  });
+
+  // Lunch add
+  document.getElementById('add-lunch-btn').addEventListener('click', () => {
+    SchedState.school.lunchPeriods.push({ id: uid(), start: '11:00', duration: 30, grades: [] });
+    refreshLunchList();
+  });
+
+  // Recess add
+  document.getElementById('add-recess-btn').addEventListener('click', () => {
+    SchedState.school.recessSlots.push({ id: uid(), name: '', start: '10:00', duration: 15, grades: [] });
+    refreshRecessList();
   });
 
   // Alt day add
@@ -87,68 +201,273 @@ function renderSchoolInfo() {
     const sel = document.getElementById('alt-day-select');
     const day = sel.value;
     if (!day) return;
-    const list = document.getElementById('alt-days-list');
-    list.insertAdjacentHTML('beforeend', renderAltDayRow(day, SchedState.school.earlyReleaseEnd || '12:30'));
-    sel.querySelector(`option[value="${day}"]`).remove();
+    SchedState.school.altDays = SchedState.school.altDays || [];
+    SchedState.school.altDays.push({ day, lateStart: '', earlyRelease: '', altLunchRecess: false });
+    const ad = SchedState.school.altDays.find(a => a.day === day);
+    document.getElementById('alt-days-list').insertAdjacentHTML('beforeend', renderAltDayRow(ad));
+    sel.querySelector(`option[value="${day}"]`)?.remove();
     sel.value = '';
     wireAltDayRemove();
   });
 
   wireAltDayRemove();
+  wireLunchRecessEvents();
+  renderFrameworkGrid();
 
   document.getElementById('school-next-btn').addEventListener('click', saveSchoolAndContinue);
 }
 
-function renderAltDayRow(day, endTime) {
+function renderLunchRow(lp) {
   return `
-    <div class="alt-day-row" data-day="${day}">
-      <span class="alt-day-label">${day}</span>
-      <div class="alt-day-fields">
-        <label class="form-label-inline">Ends at</label>
-        <input type="time" class="input input-sm alt-day-end" value="${endTime || '12:30'}" />
-        <label class="form-label-inline">Label</label>
-        <input type="text" class="input input-sm alt-day-note" placeholder="e.g. Early Release" style="width:140px" />
+    <div class="period-row" data-id="${lp.id}">
+      <div class="period-row-main">
+        <input type="time" class="input input-sm period-start" value="${lp.start}" data-id="${lp.id}" />
+        <span class="period-sep">for</span>
+        <input type="number" class="input input-sm period-dur" style="width:64px" min="5" max="120" step="5" value="${lp.duration}" data-id="${lp.id}" />
+        <span class="period-sep">min</span>
+        <button class="remove-period-btn btn-icon" data-id="${lp.id}" data-ptype="lunch">×</button>
       </div>
-      <button class="btn btn-sm remove-alt-day" data-day="${day}" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:18px;line-height:1;padding:0 4px">×</button>
+      <div class="period-grades">
+        <span class="period-grades-label">Grades:</span>
+        ${ALL_GRADES.map(g => `<button type="button" class="grade-chip grade-chip-xs ${lp.grades.includes(g) ? 'active' : ''}" data-id="${lp.id}" data-grade="${g}" data-ptype="lunch">${gradeChipLabel(g)}</button>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderRecessRow(rs) {
+  return `
+    <div class="period-row" data-id="${rs.id}">
+      <div class="period-row-main">
+        <input type="text" class="input input-sm period-name" placeholder="e.g. Morning Recess" style="width:160px" value="${rs.name || ''}" data-id="${rs.id}" />
+        <input type="time" class="input input-sm period-start" value="${rs.start}" data-id="${rs.id}" />
+        <span class="period-sep">for</span>
+        <input type="number" class="input input-sm period-dur" style="width:64px" min="5" max="60" step="5" value="${rs.duration}" data-id="${rs.id}" />
+        <span class="period-sep">min</span>
+        <button class="remove-period-btn btn-icon" data-id="${rs.id}" data-ptype="recess">×</button>
+      </div>
+      <div class="period-grades">
+        <span class="period-grades-label">Grades:</span>
+        ${ALL_GRADES.map(g => `<button type="button" class="grade-chip grade-chip-xs ${rs.grades.includes(g) ? 'active' : ''}" data-id="${rs.id}" data-grade="${g}" data-ptype="recess">${gradeChipLabel(g)}</button>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function refreshLunchList() {
+  document.getElementById('lunch-list').innerHTML = SchedState.school.lunchPeriods.map(renderLunchRow).join('');
+  wireLunchRecessEvents();
+}
+
+function refreshRecessList() {
+  document.getElementById('recess-list').innerHTML = SchedState.school.recessSlots.map(renderRecessRow).join('');
+  wireLunchRecessEvents();
+}
+
+function wireLunchRecessEvents() {
+  document.querySelectorAll('.grade-chip-xs').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const { id, grade, ptype } = chip.dataset;
+      const list = ptype === 'lunch' ? SchedState.school.lunchPeriods : SchedState.school.recessSlots;
+      const item = list.find(x => x.id === id);
+      if (!item) return;
+      if (item.grades.includes(grade)) {
+        item.grades = item.grades.filter(g => g !== grade);
+        chip.classList.remove('active');
+      } else {
+        item.grades.push(grade);
+        chip.classList.add('active');
+      }
+    });
+  });
+
+  document.querySelectorAll('.period-start').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const item = [...SchedState.school.lunchPeriods, ...SchedState.school.recessSlots].find(x => x.id === inp.dataset.id);
+      if (item) item.start = inp.value;
+    });
+  });
+
+  document.querySelectorAll('.period-dur').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const item = [...SchedState.school.lunchPeriods, ...SchedState.school.recessSlots].find(x => x.id === inp.dataset.id);
+      if (item) item.duration = parseInt(inp.value, 10);
+    });
+  });
+
+  document.querySelectorAll('.period-name').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const item = SchedState.school.recessSlots.find(x => x.id === inp.dataset.id);
+      if (item) item.name = inp.value;
+    });
+  });
+
+  document.querySelectorAll('.remove-period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const { id, ptype } = btn.dataset;
+      if (ptype === 'lunch') {
+        SchedState.school.lunchPeriods = SchedState.school.lunchPeriods.filter(x => x.id !== id);
+        refreshLunchList();
+      } else {
+        SchedState.school.recessSlots = SchedState.school.recessSlots.filter(x => x.id !== id);
+        refreshRecessList();
+      }
+    });
+  });
+}
+
+function renderAltDayRow(ad) {
+  return `
+    <div class="alt-day-row" data-day="${ad.day}">
+      <span class="alt-day-label">${ad.day}</span>
+      <div class="alt-day-fields">
+        <label class="alt-day-option">
+          <input type="checkbox" class="alt-late-start-cb" ${ad.lateStart ? 'checked' : ''} />
+          Late start
+        </label>
+        <input type="time" class="input input-sm alt-late-start-time" value="${ad.lateStart || ''}" style="opacity:${ad.lateStart ? '1' : '.35'}" />
+        <label class="alt-day-option">
+          <input type="checkbox" class="alt-early-release-cb" ${ad.earlyRelease ? 'checked' : ''} />
+          Early release
+        </label>
+        <input type="time" class="input input-sm alt-early-release-time" value="${ad.earlyRelease || ''}" style="opacity:${ad.earlyRelease ? '1' : '.35'}" />
+        <label class="alt-day-option" style="font-size:12px;color:var(--gray-500)">
+          <input type="checkbox" class="alt-lunch-recess-cb" ${ad.altLunchRecess ? 'checked' : ''} />
+          Lunch/recess differ
+        </label>
+      </div>
+      <button class="remove-alt-day btn-icon" data-day="${ad.day}" style="color:#ef4444">×</button>
     </div>
   `;
 }
 
 function wireAltDayRemove() {
   document.querySelectorAll('.remove-alt-day').forEach(btn => {
-    btn.onclick = () => {
+    btn.addEventListener('click', () => {
       const day = btn.dataset.day;
       btn.closest('.alt-day-row').remove();
+      SchedState.school.altDays = (SchedState.school.altDays || []).filter(ad => ad.day !== day);
       const sel = document.getElementById('alt-day-select');
       if (sel) {
         const opt = document.createElement('option');
-        opt.value = day;
-        opt.textContent = day;
+        opt.value = day; opt.textContent = day;
         sel.appendChild(opt);
       }
-    };
+    });
   });
+
+  document.querySelectorAll('.alt-late-start-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const inp = cb.closest('.alt-day-fields').querySelector('.alt-late-start-time');
+      inp.style.opacity = cb.checked ? '1' : '.35';
+      if (!cb.checked) inp.value = '';
+    });
+  });
+
+  document.querySelectorAll('.alt-early-release-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const inp = cb.closest('.alt-day-fields').querySelector('.alt-early-release-time');
+      inp.style.opacity = cb.checked ? '1' : '.35';
+      if (!cb.checked) inp.value = '';
+    });
+  });
+}
+
+function renderFrameworkGrid() {
+  const el = document.getElementById('framework-grid');
+  if (!el) return;
+  const s = SchedState.school;
+  const grades = gradesSorted();
+
+  if (!grades.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--gray-400)">Select grade levels and save to see the framework.</p>';
+    return;
+  }
+
+  const campStart  = s.studentCampusStart || '07:45';
+  const campEnd    = s.studentCampusEnd   || '15:15';
+  const fbMins     = timeToMins(s.firstBell || '08:00');
+  const disMins    = timeToMins(s.dismissal  || '14:30');
+  const mmOn       = s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd;
+  const mmS        = mmOn ? timeToMins(s.morningMeetingStart) : null;
+  const mmE        = mmOn ? timeToMins(s.morningMeetingEnd)   : null;
+
+  function block(grade, mins) {
+    if (mins < fbMins)   return { label: 'Before School',   bg: '#f1f5f9', tc: '#94a3b8' };
+    if (mins >= disMins) return { label: 'After School',    bg: '#f1f5f9', tc: '#94a3b8' };
+    if (mmS !== null && mins >= mmS && mins < mmE) return { label: 'Morning Meeting', bg: '#ede9fe', tc: '#5b21b6' };
+    const lp = s.lunchPeriods.find(x => x.grades.includes(grade) && mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
+    if (lp) return { label: 'Lunch',  bg: '#d1fae5', tc: '#065f46' };
+    const rs = s.recessSlots.find(x => x.grades.includes(grade) && mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
+    if (rs) return { label: rs.name || 'Recess', bg: '#cffafe', tc: '#164e63' };
+    return null;
+  }
+
+  const slots = timeSlots15(campStart, campEnd);
+  const prev  = {};
+
+  const rows = slots.map(slot => {
+    const mins   = timeToMins(slot);
+    const isHour = slot.endsWith(':00');
+    const cells  = grades.map(g => {
+      const blk  = block(g, mins);
+      const key  = blk ? blk.label : '';
+      const show = key && key !== (prev[g] || '');
+      prev[g] = key;
+      return `<td class="fw-td" style="${blk ? `background:${blk.bg}` : ''}">${show ? `<span class="fw-label" style="color:${blk.tc}">${blk.label}</span>` : ''}</td>`;
+    }).join('');
+    return `<tr class="${isHour ? 'fw-row-hour' : 'fw-row'}"><td class="fw-time">${isHour ? slot : ''}</td>${cells}</tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="fw-scroll">
+      <table class="fw-table">
+        <thead><tr>
+          <th class="fw-th-time"></th>
+          ${grades.map(g => `<th class="fw-th">${g === 'TK' || g === 'K' ? g : 'Gr ' + g}</th>`).join('')}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 async function saveSchoolAndContinue() {
   const name = document.getElementById('school-name').value.trim();
-  if (!name) {
-    showFormError('school-save-status', 'Please enter a school name.');
-    return;
-  }
+  if (!name) { showFormError('school-save-status', 'Please enter a school name.'); return; }
 
-  SchedState.school.name      = name;
-  SchedState.school.year      = document.getElementById('school-year').value.trim() || '2026-2027';
-  SchedState.school.dayStart  = document.getElementById('day-start').value;
-  SchedState.school.dayEnd    = document.getElementById('day-end').value;
-  SchedState.school.grades    = [...document.querySelectorAll('.grade-chip.active')].map(c => c.dataset.grade);
+  const s = SchedState.school;
+  s.name  = name;
+  s.year  = document.getElementById('school-year').value.trim() || '2026-2027';
+  s.grades = [...document.querySelectorAll('#school-grade-chips .grade-chip.active')].map(c => c.dataset.grade);
 
-  const altRows = document.querySelectorAll('.alt-day-row');
-  SchedState.school.earlyReleaseDays = [];
-  altRows.forEach(row => {
-    SchedState.school.earlyReleaseDays.push(row.dataset.day);
-    SchedState.school.earlyReleaseEnd = row.querySelector('.alt-day-end').value;
+  s.teacherContractStart = document.getElementById('teacher-contract-start').value;
+  s.teacherContractEnd   = document.getElementById('teacher-contract-end').value;
+  s.studentCampusStart   = document.getElementById('student-campus-start').value;
+  s.studentCampusEnd     = document.getElementById('student-campus-end').value;
+  s.firstBell            = document.getElementById('first-bell').value;
+  s.dismissal            = document.getElementById('dismissal').value;
+  s.dayStart = s.firstBell;
+  s.dayEnd   = s.dismissal;
+
+  s.morningMeetingEnabled = document.getElementById('mm-enabled').checked;
+  s.morningMeetingStart   = s.morningMeetingEnabled ? document.getElementById('mm-start').value : '';
+  s.morningMeetingEnd     = s.morningMeetingEnabled ? document.getElementById('mm-end').value   : '';
+
+  s.altDays = [];
+  document.querySelectorAll('.alt-day-row').forEach(row => {
+    const lsCb = row.querySelector('.alt-late-start-cb');
+    const erCb = row.querySelector('.alt-early-release-cb');
+    const lrCb = row.querySelector('.alt-lunch-recess-cb');
+    s.altDays.push({
+      day:           row.dataset.day,
+      lateStart:     lsCb?.checked ? row.querySelector('.alt-late-start-time').value    : '',
+      earlyRelease:  erCb?.checked ? row.querySelector('.alt-early-release-time').value : '',
+      altLunchRecess: lrCb?.checked || false,
+    });
   });
+  s.earlyReleaseDays = s.altDays.filter(a => a.earlyRelease).map(a => a.day);
+  s.earlyReleaseEnd  = s.altDays.find(a => a.earlyRelease)?.earlyRelease || '';
 
   saveToLocal();
   showSaveStatus('school-save-status', 'Saving…');
@@ -159,9 +478,11 @@ async function saveSchoolAndContinue() {
     showSaveStatus('school-save-status', 'Saved locally (Supabase unavailable)');
   }
 
+  renderFrameworkGrid();
   updateSidebarStatus();
-  setTimeout(() => { navigateTo('staff'); renderStaff(); }, 600);
+  setTimeout(() => { navigateTo('staff'); renderStaff(); }, 800);
 }
+
 
 // ── Step 2: Staff Roster ─────────────────────────────────────────────────────
 function renderStaff() {
