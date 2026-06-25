@@ -4,17 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Building Schedule Builder — Cohort Logic</title>
-  <script>
-    if (!sessionStorage.getItem('cl_sched_access')) {
-      window.location.replace('schedule.html');
-    }
-  </script>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/schedule.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
-<body>
+<body style="visibility:hidden">
   <div id="app">
 
     <!-- Sidebar -->
@@ -69,7 +64,7 @@
       </div>
 
       <div class="sidebar-footer">
-        <a href="schedule.html" class="sidebar-link">← Back to home</a>
+        <a href="dashboard.html" class="sidebar-link">← Back to dashboard</a>
       </div>
     </aside>
 
@@ -107,6 +102,32 @@
     });
 
     async function boot() {
+      // Auth + product access gate
+      const { data: { session } } = await SupabaseClient.auth.getSession();
+      if (!session) { window.location.replace('login.html'); return; }
+
+      const { data: profile } = await SupabaseClient
+        .from('profiles')
+        .select('school_id, approved')
+        .eq('id', session.user.id)
+        .single();
+      if (!profile?.approved) { window.location.replace('login.html'); return; }
+
+      if (profile.school_id) {
+        const { data: school } = await SupabaseClient
+          .from('schools')
+          .select('enabled_products')
+          .eq('id', profile.school_id)
+          .single();
+        if (!school?.enabled_products?.includes('schedule_builder')) {
+          window.location.replace('dashboard.html');
+          return;
+        }
+      }
+
+      document.body.style.visibility = '';
+
+      // Load saved schedule data
       const savedId = localStorage.getItem('cl_schedule_id');
       if (savedId) {
         const result = await loadFromSupabase(savedId);
