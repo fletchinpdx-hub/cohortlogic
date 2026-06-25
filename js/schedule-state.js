@@ -23,7 +23,11 @@ const SchedState = {
     // Lunch periods: [{ id, start, duration (min), grades[] }]
     lunchPeriods: [],
 
-    // Recess slots: [{ id, name, start, duration (min), grades[] }]
+    // Per-grade recess config: { gradeKey: [{ id, duration, lunchAdjacent, lunchSide }] }
+    // lunchSide: 'before' | 'after' | null (null = software picks 'after')
+    gradeRecesses: {},
+
+    // Legacy — kept for backward-compat with saved data
     recessSlots: [],
 
     // Alternate schedule days: [{ day, lateStart, earlyRelease, altLunchRecess }]
@@ -150,6 +154,7 @@ function loadFromLocal() {
       if (!SchedState.school.lunchPeriods)  SchedState.school.lunchPeriods  = [];
       if (!SchedState.school.recessSlots)   SchedState.school.recessSlots   = [];
       if (!SchedState.school.altDays)       SchedState.school.altDays       = [];
+      if (!SchedState.school.gradeRecesses) SchedState.school.gradeRecesses = {};
     }
     if (data.staff)          SchedState.staff = data.staff;
     if (data.blockTypes)     SchedState.blockTypes = data.blockTypes;

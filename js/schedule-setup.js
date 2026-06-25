@@ -134,12 +134,11 @@ function renderSchoolInfo() {
         <button class="btn btn-outline btn-sm" id="add-lunch-btn" style="margin-top:8px">+ Add Lunch Period</button>
       </div>
 
-      <!-- Recess Slots -->
+      <!-- Recess — per grade -->
       <div class="form-section">
         <h2 class="form-section-title">Recess</h2>
-        <p class="form-hint">Define each recess. One grade can appear in multiple slots (morning + afternoon), and grades can share a slot.</p>
-        <div id="recess-list">${s.recessSlots.map(renderRecessRow).join('')}</div>
-        <button class="btn btn-outline btn-sm" id="add-recess-btn" style="margin-top:8px">+ Add Recess</button>
+        <p class="form-hint">Set how many recesses each grade has and the duration of each. One recess per grade will be placed immediately before or after that grade's lunch.</p>
+        <div id="recess-grade-list">${renderGradeRecessHTML(s)}</div>
       </div>
 
       <!-- Alternate Schedule Days -->
@@ -190,11 +189,7 @@ function renderSchoolInfo() {
     refreshLunchList();
   });
 
-  // Recess add
-  document.getElementById('add-recess-btn').addEventListener('click', () => {
-    SchedState.school.recessSlots.push({ id: uid(), name: '', start: '10:00', duration: 15, grades: [] });
-    refreshRecessList();
-  });
+  wireRecessEvents();
 
   // Alt day add
   document.getElementById('add-alt-day-btn').addEventListener('click', () => {
@@ -211,7 +206,7 @@ function renderSchoolInfo() {
   });
 
   wireAltDayRemove();
-  wireLunchRecessEvents();
+  wireLunchEvents();
   renderFrameworkGrid();
 
   document.getElementById('school-next-btn').addEventListener('click', saveSchoolAndContinue);
@@ -235,41 +230,17 @@ function renderLunchRow(lp) {
   `;
 }
 
-function renderRecessRow(rs) {
-  return `
-    <div class="period-row" data-id="${rs.id}">
-      <div class="period-row-main">
-        <input type="text" class="input input-sm period-name" placeholder="e.g. Morning Recess" style="width:160px" value="${rs.name || ''}" data-id="${rs.id}" />
-        <input type="time" class="input input-sm period-start" value="${rs.start}" data-id="${rs.id}" />
-        <span class="period-sep">for</span>
-        <input type="number" class="input input-sm period-dur" style="width:64px" min="5" max="60" step="5" value="${rs.duration}" data-id="${rs.id}" />
-        <span class="period-sep">min</span>
-        <button class="remove-period-btn btn-icon" data-id="${rs.id}" data-ptype="recess">×</button>
-      </div>
-      <div class="period-grades">
-        <span class="period-grades-label">Grades:</span>
-        ${ALL_GRADES.map(g => `<button type="button" class="grade-chip grade-chip-xs ${rs.grades.includes(g) ? 'active' : ''}" data-id="${rs.id}" data-grade="${g}" data-ptype="recess">${gradeChipLabel(g)}</button>`).join('')}
-      </div>
-    </div>
-  `;
-}
-
+// ── Lunch events (formerly wireLunchRecessEvents, now lunch-only) ─────────────
 function refreshLunchList() {
   document.getElementById('lunch-list').innerHTML = SchedState.school.lunchPeriods.map(renderLunchRow).join('');
-  wireLunchRecessEvents();
+  wireLunchEvents();
 }
 
-function refreshRecessList() {
-  document.getElementById('recess-list').innerHTML = SchedState.school.recessSlots.map(renderRecessRow).join('');
-  wireLunchRecessEvents();
-}
-
-function wireLunchRecessEvents() {
+function wireLunchEvents() {
   document.querySelectorAll('.grade-chip-xs').forEach(chip => {
     chip.addEventListener('click', () => {
-      const { id, grade, ptype } = chip.dataset;
-      const list = ptype === 'lunch' ? SchedState.school.lunchPeriods : SchedState.school.recessSlots;
-      const item = list.find(x => x.id === id);
+      const { id, grade } = chip.dataset;
+      const item = SchedState.school.lunchPeriods.find(x => x.id === id);
       if (!item) return;
       if (item.grades.includes(grade)) {
         item.grades = item.grades.filter(g => g !== grade);
@@ -283,35 +254,174 @@ function wireLunchRecessEvents() {
 
   document.querySelectorAll('.period-start').forEach(inp => {
     inp.addEventListener('change', () => {
-      const item = [...SchedState.school.lunchPeriods, ...SchedState.school.recessSlots].find(x => x.id === inp.dataset.id);
+      const item = SchedState.school.lunchPeriods.find(x => x.id === inp.dataset.id);
       if (item) item.start = inp.value;
     });
   });
 
   document.querySelectorAll('.period-dur').forEach(inp => {
     inp.addEventListener('change', () => {
-      const item = [...SchedState.school.lunchPeriods, ...SchedState.school.recessSlots].find(x => x.id === inp.dataset.id);
+      const item = SchedState.school.lunchPeriods.find(x => x.id === inp.dataset.id);
       if (item) item.duration = parseInt(inp.value, 10);
-    });
-  });
-
-  document.querySelectorAll('.period-name').forEach(inp => {
-    inp.addEventListener('change', () => {
-      const item = SchedState.school.recessSlots.find(x => x.id === inp.dataset.id);
-      if (item) item.name = inp.value;
     });
   });
 
   document.querySelectorAll('.remove-period-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const { id, ptype } = btn.dataset;
-      if (ptype === 'lunch') {
-        SchedState.school.lunchPeriods = SchedState.school.lunchPeriods.filter(x => x.id !== id);
-        refreshLunchList();
-      } else {
-        SchedState.school.recessSlots = SchedState.school.recessSlots.filter(x => x.id !== id);
-        refreshRecessList();
+      SchedState.school.lunchPeriods = SchedState.school.lunchPeriods.filter(x => x.id !== btn.dataset.id);
+      refreshLunchList();
+    });
+  });
+}
+
+// ── Per-grade recess ──────────────────────────────────────────────────────────
+
+function renderGradeRecessHTML(s) {
+  const grades = gradesSorted();
+  if (!grades.length) {
+    return '<p class="form-hint" style="margin:0">Select grade levels above first.</p>';
+  }
+  const gr = s.gradeRecesses || {};
+  return grades.map(g => {
+    const slots = gr[g] || [];
+    return renderGradeRecessItem(g, slots);
+  }).join('');
+}
+
+function renderGradeRecessItem(g, slots) {
+  const count = slots.length;
+  const lunchIdx = slots.findIndex(sl => sl.lunchAdjacent);
+
+  const slotsHTML = count === 0 ? '' : `
+    <div class="recess-slots-wrap">
+      ${slots.map((sl, i) => {
+        const isOnly = count === 1;
+        const isLunch = sl.lunchAdjacent;
+        const side = sl.lunchSide || 'after';
+        return `
+          <div class="recess-slot-row" data-grade="${g}" data-idx="${i}">
+            <span class="recess-slot-num">${i + 1}</span>
+            <input type="number" class="input input-sm recess-slot-dur"
+              value="${sl.duration}" min="5" max="60" step="5"
+              data-grade="${g}" data-idx="${i}" />
+            <span class="period-sep">min</span>
+            ${isOnly
+              ? `<span class="recess-auto-label">Lunch recess</span>`
+              : `<label class="alt-day-option recess-lunch-label">
+                  <input type="checkbox" class="recess-lunch-cb" ${isLunch ? 'checked' : ''}
+                    data-grade="${g}" data-idx="${i}" />
+                  Lunch recess
+                </label>`
+            }
+            ${isLunch ? `
+              <span class="recess-side-wrap">
+                <label class="alt-day-option">
+                  <input type="radio" name="rs-side-${g}" class="recess-side-r" value="before"
+                    ${side === 'before' ? 'checked' : ''} data-grade="${g}" data-idx="${i}" />
+                  Before
+                </label>
+                <label class="alt-day-option">
+                  <input type="radio" name="rs-side-${g}" class="recess-side-r" value="after"
+                    ${side !== 'before' ? 'checked' : ''} data-grade="${g}" data-idx="${i}" />
+                  After
+                </label>
+              </span>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  return `
+    <div class="recess-grade-item" data-grade="${g}">
+      <div class="recess-grade-header">
+        <span class="recess-grade-name">${GRADE_LABELS[g] || g}</span>
+        <div class="recess-count-ctrl">
+          <button class="btn-icon recess-dec" data-grade="${g}">−</button>
+          <span class="recess-count-num">${count}</span>
+          <button class="btn-icon recess-inc" data-grade="${g}">+</button>
+          <span class="period-sep">${count === 1 ? 'recess' : 'recesses'}</span>
+        </div>
+      </div>
+      ${slotsHTML}
+    </div>
+  `;
+}
+
+function refreshGradeRecessItem(g) {
+  const slots = (SchedState.school.gradeRecesses || {})[g] || [];
+  const el = document.querySelector(`.recess-grade-item[data-grade="${g}"]`);
+  if (el) el.outerHTML = renderGradeRecessItem(g, slots);
+  wireRecessEvents();
+}
+
+function wireRecessEvents() {
+  // + / − count buttons
+  document.querySelectorAll('.recess-inc').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = btn.dataset.grade;
+      const gr = SchedState.school.gradeRecesses || {};
+      const slots = gr[g] || [];
+      if (slots.length >= 4) return;
+      const newSlot = { id: uid(), duration: 15, lunchAdjacent: slots.length === 0, lunchSide: 'after' };
+      gr[g] = [...slots, newSlot];
+      SchedState.school.gradeRecesses = gr;
+      refreshGradeRecessItem(g);
+    });
+  });
+
+  document.querySelectorAll('.recess-dec').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = btn.dataset.grade;
+      const gr = SchedState.school.gradeRecesses || {};
+      const slots = gr[g] || [];
+      if (slots.length === 0) return;
+      const updated = slots.slice(0, -1);
+      // Ensure at least one is lunch-adjacent if any remain
+      if (updated.length > 0 && !updated.some(s => s.lunchAdjacent)) {
+        updated[0].lunchAdjacent = true;
       }
+      gr[g] = updated;
+      SchedState.school.gradeRecesses = gr;
+      refreshGradeRecessItem(g);
+    });
+  });
+
+  // Duration change
+  document.querySelectorAll('.recess-slot-dur').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const { grade, idx } = inp.dataset;
+      const slots = (SchedState.school.gradeRecesses || {})[grade] || [];
+      if (slots[idx]) slots[idx].duration = parseInt(inp.value, 10);
+    });
+  });
+
+  // Lunch-adjacent checkbox — enforce exactly one per grade
+  document.querySelectorAll('.recess-lunch-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const { grade, idx } = cb.dataset;
+      const slots = (SchedState.school.gradeRecesses || {})[grade] || [];
+      if (cb.checked) {
+        // Uncheck all others for this grade
+        slots.forEach((sl, i) => { sl.lunchAdjacent = (i === parseInt(idx)); });
+      } else {
+        // Don't allow unchecking the only lunch-adjacent
+        if (!slots.some((sl, i) => sl.lunchAdjacent && i !== parseInt(idx))) {
+          cb.checked = true; return;
+        }
+        slots[parseInt(idx)].lunchAdjacent = false;
+      }
+      // Re-render to show/hide the before/after toggle
+      refreshGradeRecessItem(grade);
+    });
+  });
+
+  // Before / After radio
+  document.querySelectorAll('.recess-side-r').forEach(r => {
+    r.addEventListener('change', () => {
+      const { grade, idx } = r.dataset;
+      const slots = (SchedState.school.gradeRecesses || {})[grade] || [];
+      if (slots[parseInt(idx)]) slots[parseInt(idx)].lunchSide = r.value;
     });
   });
 }
@@ -373,6 +483,86 @@ function wireAltDayRemove() {
   });
 }
 
+// ── Recess auto-scheduler ─────────────────────────────────────────────────────
+// Returns { gradeKey: [{ id, duration, start, name }] }
+function computeRecessTimes(s) {
+  const result = {};
+  const grades = gradesSorted();
+  const fbMins = timeToMins(s.firstBell || '08:00');
+  const gr     = s.gradeRecesses || {};
+
+  // Collect grades that have a non-lunch-adjacent recess needing a morning slot
+  // Sort youngest first so they get priority
+  const morningQueue = [];
+  grades.forEach(g => {
+    const slots = gr[g] || [];
+    const extras = slots.filter(sl => !sl.lunchAdjacent);
+    extras.forEach((sl, i) => morningQueue.push({ g, sl, extraIdx: i }));
+  });
+
+  // Assign morning times: youngest grade starts at fb+60min, each subsequent grade
+  // shifts right by (prev recess duration + 10 min) to stagger playground use
+  let nextMorning = fbMins + 60;
+  const morningTimes = new Map(); // key = `${g}-${extraIdx}` → start mins
+  morningQueue.forEach(({ g, sl, extraIdx }) => {
+    const lp = s.lunchPeriods.find(x => x.grades.includes(g));
+    const lunchStart = lp ? timeToMins(lp.start) : fbMins + 4 * 60;
+    // Clamp: must end at least 30 min before lunch
+    const maxStart = lunchStart - sl.duration - 30;
+    const assigned = Math.min(nextMorning, maxStart);
+    const rounded  = Math.round(Math.max(assigned, fbMins + 30) / 5) * 5;
+    morningTimes.set(`${g}-${extraIdx}`, rounded);
+    nextMorning = rounded + sl.duration + 10;
+  });
+
+  grades.forEach(g => {
+    const slots = gr[g] || [];
+    if (!slots.length) return;
+
+    const lp        = s.lunchPeriods.find(x => x.grades.includes(g));
+    const lunchS    = lp ? timeToMins(lp.start) : null;
+    const lunchE    = lp ? lunchS + lp.duration  : null;
+    let extraCount  = 0;
+
+    result[g] = slots.map((sl, i) => {
+      let startMins;
+      let name;
+
+      if (sl.lunchAdjacent) {
+        const side = sl.lunchSide || 'after';
+        if (lunchS !== null) {
+          startMins = side === 'before' ? lunchS - sl.duration : lunchE;
+          name = side === 'before' ? 'Pre-Lunch Recess' : 'Lunch Recess';
+        } else {
+          // No lunch — put it in the morning with the rest
+          const key = `${g}-${extraCount}`;
+          startMins = morningTimes.get(key) || (fbMins + 90 + extraCount * 15);
+          name = 'Morning Recess';
+          extraCount++;
+        }
+      } else {
+        const key = `${g}-${extraCount}`;
+        if (extraCount === 0) {
+          startMins = morningTimes.get(key) || (fbMins + 90);
+          name = 'Morning Recess';
+        } else {
+          // Second non-lunch recess → afternoon, ~45 min after lunch ends
+          startMins = lunchE ? Math.round((lunchE + 45) / 5) * 5 : (fbMins + 6 * 60);
+          name = 'Afternoon Recess';
+        }
+        extraCount++;
+      }
+
+      startMins = Math.round(startMins / 5) * 5;
+      const h = String(Math.floor(startMins / 60)).padStart(2, '0');
+      const m = String(startMins % 60).padStart(2, '0');
+      return { id: sl.id, duration: sl.duration, start: `${h}:${m}`, name, lunchAdjacent: sl.lunchAdjacent };
+    });
+  });
+
+  return result;
+}
+
 function renderFrameworkGrid() {
   const el = document.getElementById('framework-grid');
   if (!el) return;
@@ -391,15 +581,17 @@ function renderFrameworkGrid() {
   const mmOn       = s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd;
   const mmS        = mmOn ? timeToMins(s.morningMeetingStart) : null;
   const mmE        = mmOn ? timeToMins(s.morningMeetingEnd)   : null;
+  const recessMap  = computeRecessTimes(s);
 
   function block(grade, mins) {
-    if (mins < fbMins)   return { label: 'Before School',   bg: '#f1f5f9', tc: '#94a3b8' };
-    if (mins >= disMins) return { label: 'After School',    bg: '#f1f5f9', tc: '#94a3b8' };
+    if (mins < fbMins)   return { label: 'Before School',  bg: '#f1f5f9', tc: '#94a3b8' };
+    if (mins >= disMins) return { label: 'After School',   bg: '#f1f5f9', tc: '#94a3b8' };
     if (mmS !== null && mins >= mmS && mins < mmE) return { label: 'Morning Meeting', bg: '#ede9fe', tc: '#5b21b6' };
     const lp = s.lunchPeriods.find(x => x.grades.includes(grade) && mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
-    if (lp) return { label: 'Lunch',  bg: '#d1fae5', tc: '#065f46' };
-    const rs = s.recessSlots.find(x => x.grades.includes(grade) && mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
-    if (rs) return { label: rs.name || 'Recess', bg: '#cffafe', tc: '#164e63' };
+    if (lp) return { label: 'Lunch', bg: '#d1fae5', tc: '#065f46' };
+    const grSlots = recessMap[grade] || [];
+    const rs = grSlots.find(x => mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
+    if (rs) return { label: rs.name, bg: '#cffafe', tc: '#164e63' };
     return null;
   }
 
