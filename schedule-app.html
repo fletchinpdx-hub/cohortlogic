@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Schedule Builder — Cohort Logic</title>
+  <script>
+    if (!sessionStorage.getItem('cl_sched_access')) {
+      window.location.replace('schedule.html');
+    }
+  </script>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/schedule.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div id="logo">
+        <span class="logo-icon">📅</span>
+        <span class="logo-text">Schedule Builder</span>
+      </div>
+
+      <nav id="nav">
+        <div class="nav-section-label">SETUP</div>
+        <a class="nav-item active" data-view="school">
+          <span class="nav-icon">🏫</span> School Info
+        </a>
+        <a class="nav-item" data-view="staff">
+          <span class="nav-icon">👥</span> Staff Roster
+        </a>
+        <a class="nav-item" data-view="blocks">
+          <span class="nav-icon">🟦</span> Block Types
+        </a>
+
+        <div class="nav-section-label">BUILD</div>
+        <a class="nav-item" data-view="master">
+          <span class="nav-icon">📋</span> Master Schedule
+        </a>
+        <a class="nav-item nav-item-locked" data-view="specials">
+          <span class="nav-icon">🎨</span> Specials
+        </a>
+        <a class="nav-item nav-item-locked" data-view="ia">
+          <span class="nav-icon">🧑‍🏫</span> IA Schedule
+        </a>
+
+        <div class="nav-section-label">FINISH</div>
+        <a class="nav-item nav-item-locked" data-view="export">
+          <span class="nav-icon">📤</span> Export
+        </a>
+      </nav>
+
+      <div id="sidebar-status">
+        <div class="status-item" id="status-school">
+          <span class="status-dot"></span>
+          <span id="status-school-text">No school info yet</span>
+        </div>
+        <div class="status-item" id="status-staff">
+          <span class="status-dot"></span>
+          <span id="status-staff-text">No staff added</span>
+        </div>
+        <div class="status-item" id="status-blocks">
+          <span class="status-dot"></span>
+          <span id="status-blocks-text">Block types</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="schedule.html" class="sidebar-link">← Back to home</a>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main id="main">
+      <div id="view-school"  class="view active"></div>
+      <div id="view-staff"   class="view"></div>
+      <div id="view-blocks"  class="view"></div>
+      <div id="view-master"  class="view view-full"></div>
+      <div id="view-specials" class="view"></div>
+      <div id="view-ia"      class="view"></div>
+      <div id="view-export"  class="view"></div>
+    </main>
+  </div>
+
+  <script src="js/supabase-config.js"></script>
+  <script src="js/schedule-state.js"></script>
+  <script src="js/schedule-setup.js"></script>
+  <script src="js/schedule-grid.js"></script>
+  <script>
+    if (typeof trackSession === 'function') trackSession();
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const view = item.dataset.view;
+        navigateTo(view);
+        if (view === 'school')   renderSchoolInfo();
+        if (view === 'staff')    renderStaff();
+        if (view === 'blocks')   renderBlocks();
+        if (view === 'master')   renderMasterSchedule();
+        if (view === 'specials') renderSpecialsPlaceholder();
+        if (view === 'ia')       renderIAPlaceholder();
+        if (view === 'export')   renderExportPlaceholder();
+      });
+    });
+
+    async function boot() {
+      const savedId = localStorage.getItem('cl_schedule_id');
+      if (savedId) {
+        const result = await loadFromSupabase(savedId);
+        if (!result.ok) loadFromLocal();
+      } else {
+        loadFromLocal();
+      }
+      updateSidebarStatus();
+      renderSchoolInfo();
+    }
+
+    boot();
+  </script>
+</body>
+</html>

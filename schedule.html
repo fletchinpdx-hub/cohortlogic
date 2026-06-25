@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Schedule Builder — Cohort Logic</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 20px 40px;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand { font-size: 15px; font-weight: 700; color: #1e293b; letter-spacing: -.01em; }
+    .brand-sub { font-size: 13px; color: #94a3b8; font-weight: 400; }
+    .divider { width: 1px; height: 18px; background: #e2e8f0; margin: 0 4px; }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 48px 48px 40px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.06);
+    }
+
+    .card-badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #3b82f6;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #bfdbfe;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+
+    .tagline {
+      font-size: 15px;
+      color: #64748b;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .features {
+      list-style: none;
+      margin-bottom: 32px;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 24px;
+    }
+    .features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: #475569;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+    .features li .icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+
+    .resume-banner {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .resume-banner-text { font-size: 13.5px; color: #166534; }
+    .resume-banner-text strong { display: block; font-size: 14px; margin-bottom: 2px; }
+    .resume-btn {
+      padding: 7px 14px;
+      background: #22c55e;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .resume-btn:hover { background: #16a34a; }
+
+    .gate-label { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+
+    .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+
+    input[type="text"], input[type="password"] {
+      flex: 1;
+      padding: 11px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 15px;
+      color: #111827;
+      background: #fff;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input[type="text"]:focus, input[type="password"]:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+
+    button.enter-btn {
+      padding: 11px 22px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    button.enter-btn:hover { background: #2563eb; }
+
+    .error-msg {
+      font-size: 13px;
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      padding: 8px 12px;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    .demo-note {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f1f5f9;
+      line-height: 1.5;
+    }
+
+    .load-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .load-label { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+    .load-row { display: flex; gap: 8px; }
+    .load-row input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .load-row input:focus { border-color: #3b82f6; }
+    .load-btn {
+      padding: 8px 14px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      cursor: pointer;
+    }
+    .load-btn:hover { background: #e2e8f0; }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">Cohort Logic</span>
+    <div class="divider"></div>
+    <span class="brand-sub">Building Schedule Builder</span>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="card-badge">Early Access</div>
+      <h1>Build your school's master schedule — visually.</h1>
+      <p class="tagline">Set up your staff and programs, then drag and drop blocks onto a live grid. Export to Excel or share with your team.</p>
+
+      <ul class="features">
+        <li><span class="icon">📅</span> Visual schedule grid with 5-minute time blocks, Monday through Friday</li>
+        <li><span class="icon">⚠️</span> Real-time conflict detection — catch double-bookings and coverage gaps as you build</li>
+        <li><span class="icon">👥</span> IA minute tracking across Gen Ed, Title, ELD, and intervention programs</li>
+        <li><span class="icon">📊</span> Export the full building schedule or individual staff views to Excel</li>
+        <li><span class="icon">💾</span> Schedule saves automatically — return any time to pick up where you left off</li>
+      </ul>
+
+      <div id="resume-banner" class="resume-banner" style="display:none">
+        <div class="resume-banner-text">
+          <strong>You have a schedule in progress</strong>
+          <span id="resume-label">Continue where you left off</span>
+        </div>
+        <button class="resume-btn" id="resume-btn">Resume</button>
+      </div>
+
+      <div class="gate-label">Enter your access code to continue</div>
+      <div class="input-row">
+        <input type="password" id="code-input" placeholder="Access code" autocomplete="off" />
+        <button class="enter-btn" id="enter-btn">Enter</button>
+      </div>
+      <div class="error-msg" id="error-msg">That code doesn't look right. Please try again.</div>
+
+      <div class="load-section">
+        <div class="load-label">Have a schedule code from a colleague? Load it here after entering your access code.</div>
+        <div class="load-row">
+          <input type="text" id="load-code-input" placeholder="Schedule code (e.g. abc12345)" maxlength="12" />
+          <button class="load-btn" id="load-btn">Load</button>
+        </div>
+        <div class="error-msg" id="load-error-msg" style="margin-top:8px">Schedule not found. Check the code and try again.</div>
+      </div>
+
+      <p class="demo-note">
+        This is an early-access demo. Please use sample or anonymized data only during this phase.
+      </p>
+    </div>
+  </main>
+
+  <footer>© 2026 Cohort Logic</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    // Check if Schedule Builder is enabled before showing the access form
+    (async function() {
+      try {
+        const { data } = await SupabaseClient.from('features').select('enabled').eq('key', 'schedule_builder').single();
+        if (data && data.enabled === false) {
+          document.querySelector('.card').innerHTML = `
+            <div class="card-badge" style="background:#fef2f2;color:#dc2626;border-color:#fecaca;">Not Available</div>
+            <h1 style="margin-bottom:12px;">Schedule Builder isn't available right now.</h1>
+            <p class="tagline">This product hasn't been enabled yet. Check back soon or contact your Cohort Logic administrator.</p>`;
+        }
+      } catch (e) { /* default to available on any error */ }
+    })();
+
+    const ACCESS_CODE = 'demoschedule';
+    const SESSION_KEY = 'cl_sched_access';
+    const SCHEDULE_KEY = 'cl_schedule_id';
+    const SCHEDULE_NAME_KEY = 'cl_schedule_name';
+
+    // Show resume banner if a schedule exists locally
+    const savedId = localStorage.getItem(SCHEDULE_KEY);
+    const savedName = localStorage.getItem(SCHEDULE_NAME_KEY);
+    if (savedId) {
+      document.getElementById('resume-banner').style.display = 'flex';
+      if (savedName) {
+        document.getElementById('resume-label').textContent = savedName;
+      }
+    }
+
+    document.getElementById('resume-btn').addEventListener('click', () => {
+      if (!sessionStorage.getItem(SESSION_KEY)) {
+        document.getElementById('error-msg').textContent = 'Please enter your access code first.';
+        document.getElementById('error-msg').classList.add('visible');
+        document.getElementById('code-input').focus();
+        return;
+      }
+      window.location.href = 'schedule-app.html';
+    });
+
+    function attempt() {
+      const val = document.getElementById('code-input').value.trim().toLowerCase();
+      if (val === ACCESS_CODE) {
+        sessionStorage.setItem(SESSION_KEY, '1');
+        const loadCode = document.getElementById('load-code-input').value.trim();
+        if (loadCode) {
+          localStorage.setItem(SCHEDULE_KEY, loadCode);
+          localStorage.removeItem(SCHEDULE_NAME_KEY);
+        }
+        if (typeof trackEvent === 'function') trackEvent('schedule_session_start');
+        window.location.href = 'schedule-app.html';
+      } else {
+        document.getElementById('error-msg').textContent = 'That code doesn\'t look right. Please try again.';
+        document.getElementById('error-msg').classList.add('visible');
+        document.getElementById('code-input').value = '';
+        document.getElementById('code-input').focus();
+      }
+    }
+
+    document.getElementById('enter-btn').addEventListener('click', attempt);
+    document.getElementById('code-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') attempt();
+    });
+
+    document.getElementById('load-btn').addEventListener('click', () => {
+      if (!sessionStorage.getItem(SESSION_KEY)) {
+        document.getElementById('error-msg').textContent = 'Please enter your access code first.';
+        document.getElementById('error-msg').classList.add('visible');
+        document.getElementById('code-input').focus();
+      } else {
+        attempt();
+      }
+    });
+  </script>
+</body>
+</html>

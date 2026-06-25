@@ -438,8 +438,9 @@ let _userNameById = {};  // id -> name, keeps user-controlled names out of inlin
 
 // Backend-gated products that can be switched per school (Class Builder is never gated).
 const ADMIN_PRODUCTS = [
-  { key: 'cico',      short: 'CICO' },
-  { key: 'referrals', short: 'Referrals' },
+  { key: 'cico',             short: 'CICO' },
+  { key: 'referrals',        short: 'Referrals' },
+  { key: 'schedule_builder', short: 'Schedule' },
 ];
 
 async function loadSchools() {
@@ -1096,8 +1097,8 @@ async function loadErrors(append = false) {
   _errorOffset += (data?.length || 0);
 
   const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO', referrals: 'Referral Tracking' }[p] || p);
-  const productColor = p => ({ class_builder: '#e0f2fe;color:#0369a1', cico: '#d1fae5;color:#065f46', referrals: '#eef0fb;color:#3b3f9e' }[p] || '#f3f4f6;color:#374151');
+  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO', referrals: 'Referral Tracking', schedule_builder: 'Schedule Builder' }[p] || p);
+  const productColor = p => ({ class_builder: '#e0f2fe;color:#0369a1', cico: '#d1fae5;color:#065f46', referrals: '#eef0fb;color:#3b3f9e', schedule_builder: '#ede9fe;color:#5b21b6' }[p] || '#f3f4f6;color:#374151');
 
   const rows = _errorRecords.map(r => `
     <tr>
@@ -1155,7 +1156,7 @@ async function loadFeedback() {
   }
 
   const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const productLabel = p => p === 'class_builder' ? 'Class Builder' : 'CICO';
+  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO', referrals: 'Referral Tracking', schedule_builder: 'Schedule Builder' }[p] || p);
 
   container.innerHTML = `
     <table class="event-table">

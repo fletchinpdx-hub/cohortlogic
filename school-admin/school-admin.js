@@ -150,8 +150,9 @@ function loadAll() {
 // Backend-gated products (school-wide master switches live in enabled_products).
 // Class Builder has no backend and is never gated here.
 const SCHOOL_PRODUCTS = [
-  { key: 'cico',      label: 'Check-in / Check-out (CICO)', short: 'CICO' },
-  { key: 'referrals', label: 'Referral Tracking',           short: 'Referrals' },
+  { key: 'cico',             label: 'Check-in / Check-out (CICO)', short: 'CICO'     },
+  { key: 'referrals',        label: 'Referral Tracking',           short: 'Referrals' },
+  { key: 'schedule_builder', label: 'Schedule Builder',            short: 'Schedule'  },
 ];
 
 // ── Tool settings (school-wide default) ──
