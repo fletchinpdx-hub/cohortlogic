@@ -85,7 +85,7 @@ function renderMasterSchedule() {
       <div class="empty-state">
         <div class="empty-icon">🏫</div>
         <p>Select grade levels in School Info before building the schedule.</p>
-        <button class="btn btn-primary mt-16" onclick="navigateTo('school'); renderSchoolInfo();">Go to School Info</button>
+        <button class="btn btn-primary mt-16" data-nav="school">Go to School Info</button>
       </div>
     `;
     return;
@@ -535,7 +535,7 @@ function renderSpecialsPlaceholder() {
       <div class="coming-next-icon">🎨</div>
       <h2>Coming next</h2>
       <p>Here you'll define the Specials rotation — which grades go where, when, and with which teacher. This step pulls directly from the broad Specials blocks you placed in the master schedule.</p>
-      <button class="btn btn-outline mt-16" onclick="navigateTo('master'); renderMasterSchedule();">← Back to Master Schedule</button>
+      <button class="btn btn-outline mt-16" data-nav="master">← Back to Master Schedule</button>
     </div>
   `;
 }
@@ -550,7 +550,7 @@ function renderIAPlaceholder() {
       <div class="coming-next-icon">🧑‍🏫</div>
       <h2>Coming next</h2>
       <p>After Specials are detailed, you'll build the IA schedule here — with automatic coverage gap detection and minute tracking by program type.</p>
-      <button class="btn btn-outline mt-16" onclick="navigateTo('specials'); renderSpecialsPlaceholder();">← Back to Specials</button>
+      <button class="btn btn-outline mt-16" data-nav="specials">← Back to Specials</button>
     </div>
   `;
 }
@@ -565,7 +565,7 @@ function renderExportPlaceholder() {
       <div class="coming-next-icon">📤</div>
       <h2>Coming next</h2>
       <p>Once your master schedule, Specials, and IA sections are complete, you'll export the full building schedule with tabs matching your existing Numbers file structure.</p>
-      <button class="btn btn-outline mt-16" onclick="navigateTo('master'); renderMasterSchedule();">← Back to Master Schedule</button>
+      <button class="btn btn-outline mt-16" data-nav="master">← Back to Master Schedule</button>
     </div>
   `;
 }
