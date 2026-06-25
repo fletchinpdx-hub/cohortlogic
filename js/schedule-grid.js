@@ -558,14 +558,161 @@ function renderIAPlaceholder() {
 function renderExportPlaceholder() {
   document.getElementById('view-export').innerHTML = `
     <div class="view-header">
-      <h1>Export</h1>
-      <p class="view-subtitle">Export your completed schedule to Excel, Google Sheets, or generate per-staff print views.</p>
+      <h1>Save &amp; Export</h1>
+      <p class="view-subtitle">Download your schedule as a backup file, restore from a previous file, or export to Excel.</p>
     </div>
-    <div class="coming-next-card">
-      <div class="coming-next-icon">📤</div>
-      <h2>Coming next</h2>
-      <p>Once your master schedule, Specials, and IA sections are complete, you'll export the full building schedule with tabs matching your existing Numbers file structure.</p>
-      <button class="btn btn-outline mt-16" data-nav="master">← Back to Master Schedule</button>
+
+    <div class="setup-form">
+
+      <div class="form-section">
+        <h2 class="form-section-title">Settings File</h2>
+        <p class="form-hint">Download your entire schedule — school info, staff, blocks, and the master schedule grid — as a .json file. Load it later to pick up exactly where you left off.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn btn-primary" id="export-json-btn">Download settings (.json)</button>
+          <label class="btn btn-outline" style="cursor:pointer;display:inline-flex;align-items:center">
+            Load from file
+            <input type="file" accept=".json" id="import-json-input" style="display:none" />
+          </label>
+        </div>
+        <div id="import-status" style="font-size:13px;margin-top:10px"></div>
+      </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Export to Spreadsheet</h2>
+        <p class="form-hint">Download the master schedule as an Excel workbook. Each weekday gets its own tab, plus tabs for School Info and Staff.</p>
+        <button class="btn btn-primary" id="export-xlsx-btn" style="margin-top:12px">Download Excel (.xlsx)</button>
+      </div>
+
+    </div>
+
+    <div class="view-actions">
+      <button class="btn btn-outline" data-nav="master">← Back to Master Schedule</button>
     </div>
   `;
+
+  document.getElementById('export-json-btn').addEventListener('click', exportJSON);
+  document.getElementById('import-json-input').addEventListener('change', importJSON);
+  document.getElementById('export-xlsx-btn').addEventListener('click', exportXLSX);
+}
+
+function exportJSON() {
+  const s = SchedState.school;
+  const filename = ((s.name || 'schedule').replace(/\s+/g, '_') + '_' + (s.year || '') + '.json').replace(/[^a-zA-Z0-9_.-]/g, '_');
+  const blob = new Blob([JSON.stringify(SchedState, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('import-status');
+  status.style.color = '';
+  status.textContent = 'Loading…';
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data.school || !Array.isArray(data.staff)) throw new Error('Unrecognized file — make sure you selected a Schedule Builder .json file.');
+    // Restore state
+    Object.assign(SchedState, data);
+    if (data.scheduleId) localStorage.setItem('cl_schedule_id', data.scheduleId);
+    // Guard new fields that old files may not have
+    SchedState.school.gradeRecesses  = SchedState.school.gradeRecesses  || {};
+    SchedState.school.lunchPeriods   = SchedState.school.lunchPeriods   || [];
+    SchedState.school.altDays        = SchedState.school.altDays        || [];
+    saveToLocal();
+    updateSidebarStatus();
+    status.style.color = 'var(--green)';
+    status.textContent = `Loaded "${data.school.name || 'schedule'}" (${data.school.year || ''}) — navigate to any section to review.`;
+  } catch (err) {
+    status.style.color = '#ef4444';
+    status.textContent = 'Error: ' + err.message;
+  }
+  e.target.value = '';
+}
+
+function exportXLSX() {
+  const s      = SchedState.school;
+  const grades = gradesSorted();
+  const DAYS   = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const slots  = generateTimeSlots(s.firstBell || s.dayStart || '08:00', s.dismissal || s.dayEnd || '14:30');
+
+  const blockName = id => {
+    const bt = (SchedState.blockTypes || []).find(b => b.id === id);
+    return bt ? bt.name : '';
+  };
+
+  const wb = XLSX.utils.book_new();
+
+  // ── One tab per weekday ──────────────────────────────────────────
+  DAYS.forEach(day => {
+    const dayData = ((SchedState.masterSchedule || {})[day]) || {};
+    const header  = ['Time', ...grades.map(g => GRADE_LABELS[g] || g)];
+    const rows    = [header, ...slots.map(slot => [
+      slot,
+      ...grades.map(g => {
+        const id = (dayData[g] || {})[slot];
+        return id ? blockName(id) : '';
+      })
+    ])];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 7 }, ...grades.map(() => ({ wch: 22 }))];
+    XLSX.utils.book_append_sheet(wb, ws, day.slice(0, 3));
+  });
+
+  // ── School Info tab ──────────────────────────────────────────────
+  const recessMap = typeof computeRecessTimes === 'function' ? computeRecessTimes(s) : {};
+  const infoRows  = [
+    ['School Name',          s.name || ''],
+    ['School Year',          s.year || ''],
+    [],
+    ['Teacher Contract',     (s.teacherContractStart || '') + ' – ' + (s.teacherContractEnd || '')],
+    ['Student Campus Hours', (s.studentCampusStart   || '') + ' – ' + (s.studentCampusEnd   || '')],
+    ['First Bell',           s.firstBell  || ''],
+    ['Dismissal',            s.dismissal  || ''],
+    [],
+    ['Morning Meeting',      s.morningMeetingEnabled ? 'Yes' : 'No'],
+    ...(s.morningMeetingEnabled ? [
+      ['  Start', s.morningMeetingStart || ''],
+      ['  End',   s.morningMeetingEnd   || ''],
+    ] : []),
+    [],
+    ['Lunch Periods'],
+    ...(s.lunchPeriods || []).map(lp => [
+      '  ' + lp.start + ' (' + lp.duration + ' min)',
+      'Grades: ' + (lp.grades || []).join(', '),
+    ]),
+    [],
+    ['Recess Schedule'],
+    ...grades.flatMap(g => {
+      const rs = recessMap[g] || [];
+      return rs.map(r => ['  ' + (GRADE_LABELS[g] || g) + ' — ' + r.name, r.start + ' (' + r.duration + ' min)']);
+    }),
+    [],
+    ['Alternate Days'],
+    ...(s.altDays || []).map(ad => [
+      '  ' + ad.day,
+      [ad.lateStart ? 'Late start ' + ad.lateStart : '', ad.earlyRelease ? 'Early release ' + ad.earlyRelease : ''].filter(Boolean).join(', ') || '—',
+    ]),
+  ];
+  const wsInfo  = XLSX.utils.aoa_to_sheet(infoRows);
+  wsInfo['!cols'] = [{ wch: 28 }, { wch: 36 }];
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'School Info');
+
+  // ── Staff tab ────────────────────────────────────────────────────
+  const staffRows = [
+    ['Name', 'Role', 'Grade Assignment'],
+    ...(SchedState.staff || []).map(st => [
+      st.name,
+      ROLE_LABELS[st.role] || st.role || '',
+      st.gradeAssignment ? (GRADE_LABELS[st.gradeAssignment] || st.gradeAssignment) : '',
+    ]),
+  ];
+  const wsStaff  = XLSX.utils.aoa_to_sheet(staffRows);
+  wsStaff['!cols'] = [{ wch: 24 }, { wch: 28 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, wsStaff, 'Staff');
+
+  const fname = ((s.name || 'schedule').replace(/\s+/g, '_') + '_' + (s.year || '') + '_schedule.xlsx').replace(/[^a-zA-Z0-9_.-]/g, '_');
+  XLSX.writeFile(wb, fname);
 }

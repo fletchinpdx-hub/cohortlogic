@@ -173,9 +173,14 @@ function renderSchoolInfo() {
     </div>
   `;
 
-  // School-level grade chips
+  // School-level grade chips — update state + recess section immediately on toggle
   document.querySelectorAll('#school-grade-chips .grade-chip').forEach(chip => {
-    chip.addEventListener('click', () => chip.classList.toggle('active'));
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+      SchedState.school.grades = [...document.querySelectorAll('#school-grade-chips .grade-chip.active')].map(c => c.dataset.grade);
+      document.getElementById('recess-grade-list').innerHTML = renderGradeRecessHTML(SchedState.school);
+      wireRecessEvents();
+    });
   });
 
   // Morning meeting toggle
