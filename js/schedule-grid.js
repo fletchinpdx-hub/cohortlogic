@@ -108,6 +108,19 @@ function renderMasterSchedule() {
   const dis = sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30';
   currentSlots = generateTimeSlots(fb, dis);
 
+  const lunchPeriods  = sc.lunchPeriods || [];
+  const hasLunch   = currentGrades.some(g =>
+    lunchPeriods.find(p => p.grades.includes(g) || !p.grades.length) );
+  const hasRecess  = Object.keys(sc.gradeRecesses || {}).length > 0;
+  const setupWarning = (!hasLunch || !hasRecess)
+    ? `<div class="setup-banner">
+        ${!hasLunch  ? '⚠ No lunch periods are configured.' : ''}
+        ${!hasRecess ? '⚠ No recess is configured.' : ''}
+        <button class="btn-link setup-banner-link" data-nav="school">
+          Go to School Info to set up lunch &amp; recess →
+        </button>
+       </div>` : '';
+
   document.getElementById('view-master').innerHTML = `
     <div class="master-shell">
 
@@ -150,6 +163,8 @@ function renderMasterSchedule() {
               ? `Alt days end at ${SchedState.school.earlyReleaseEnd}` : ''}
           </div>
         </div>
+
+        ${setupWarning}
 
         <div class="grid-scroll-wrap" id="grid-scroll-wrap">
           <table class="sched-table" id="sched-table" cellspacing="0">
