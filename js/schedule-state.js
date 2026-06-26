@@ -37,8 +37,6 @@ const DEFAULT_BLOCK_TYPES = [
 ];
 
 const SchedState = {
-  scheduleId: localStorage.getItem('cl_schedule_id') || null,
-
   school: {
     name: '',
     year: '2026-2027',
@@ -55,7 +53,9 @@ const SchedState = {
     firstBell:            '08:00',  // teacher instructional day begins
     dismissal:            '14:30',  // teacher instructional day ends
 
-    // Morning meeting (optional)
+    // Morning / community meetings: [{ id, name, start, end }]
+    morningMeetings: [],
+    // Legacy single-meeting fields (kept for backward-compat with saved data)
     morningMeetingEnabled: false,
     morningMeetingStart:   '',
     morningMeetingEnd:     '',
@@ -157,6 +157,9 @@ function saveToLocal() {
   if (SchedState.school.name) {
     localStorage.setItem('cl_schedule_name', SchedState.school.name + ' — ' + SchedState.school.year);
   }
+  // Flag that there are unsaved file changes
+  localStorage.removeItem('cl_schedule_downloaded');
+  updateDownloadBadge();
 }
 
 function loadFromLocal() {
@@ -172,11 +175,18 @@ function loadFromLocal() {
           day, lateStart: '', earlyRelease: SchedState.school.earlyReleaseEnd || '12:30', altLunchRecess: false,
         }));
       }
-      if (!SchedState.school.lunchPeriods)  SchedState.school.lunchPeriods  = [];
-      if (!SchedState.school.recessSlots)   SchedState.school.recessSlots   = [];
-      if (!SchedState.school.altDays)       SchedState.school.altDays       = [];
-      if (!SchedState.school.gradeRecesses) SchedState.school.gradeRecesses = {};
-      if (!SchedState.school.gradeBands)    SchedState.school.gradeBands    = [];
+      if (!SchedState.school.lunchPeriods)   SchedState.school.lunchPeriods   = [];
+      if (!SchedState.school.recessSlots)    SchedState.school.recessSlots    = [];
+      if (!SchedState.school.altDays)        SchedState.school.altDays        = [];
+      if (!SchedState.school.gradeRecesses)  SchedState.school.gradeRecesses  = {};
+      if (!SchedState.school.gradeBands)     SchedState.school.gradeBands     = [];
+      // Migrate legacy single-meeting → morningMeetings array
+      if (!SchedState.school.morningMeetings) {
+        const s = SchedState.school;
+        SchedState.school.morningMeetings = (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd)
+          ? [{ id: uid(), name: 'Morning Meeting', start: s.morningMeetingStart, end: s.morningMeetingEnd }]
+          : [];
+      }
     }
     if (data.staff) SchedState.staff = data.staff;
     if (data.blockTypes) {
@@ -196,59 +206,76 @@ function loadFromLocal() {
   }
 }
 
-// ── Persistence: Supabase (cross-session) ────────────────────────────────────
-function generateScheduleId() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+// ── File-based persistence ────────────────────────────────────────────────────
+// Schedule data never leaves the user's device unless they explicitly download it.
+// Supabase is used only for authentication and product gating, not data storage.
+
+function downloadScheduleFile() {
+  const payload = {
+    _version: 1,
+    _app: 'cohortlogic-schedule-builder',
+    school:         SchedState.school,
+    staff:          SchedState.staff,
+    blockTypes:     SchedState.blockTypes,
+    masterSchedule: SchedState.masterSchedule,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const name = (SchedState.school.name || 'schedule').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const year = (SchedState.school.year || '').replace(/[^a-z0-9]/gi, '-');
+  a.href     = url;
+  a.download = `${name}${year ? '-' + year : ''}.clsched`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  localStorage.setItem('cl_schedule_downloaded', '1');
+  updateDownloadBadge();
 }
 
-async function saveToSupabase() {
-  if (typeof SupabaseClient === 'undefined') return { ok: false, error: 'No Supabase client' };
-  try {
-    if (!SchedState.scheduleId) {
-      SchedState.scheduleId = generateScheduleId();
-      localStorage.setItem('cl_schedule_id', SchedState.scheduleId);
-    }
-    const payload = {
-      id:          SchedState.scheduleId,
-      school_name: SchedState.school.name,
-      school_year: SchedState.school.year,
-      data: {
-        school:         SchedState.school,
-        staff:          SchedState.staff,
-        blockTypes:     SchedState.blockTypes,
-        masterSchedule: SchedState.masterSchedule,
-      },
-      updated_at: new Date().toISOString(),
+function loadScheduleFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.school)         Object.assign(SchedState.school, data.school);
+        if (data.staff)          SchedState.staff = data.staff;
+        if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
+        if (data.blockTypes) {
+          const hasNewSchema = data.blockTypes.some(bt => 'required' in bt);
+          SchedState.blockTypes = hasNewSchema
+            ? data.blockTypes
+            : DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
+                { subBlocks: (bt.subBlocks||[]).map(s=>Object.assign({},s)), bandMinutes:{}, subBandMinutes:{} }));
+        }
+        // Ensure required arrays exist
+        if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
+        if (!SchedState.school.gradeRecesses)   SchedState.school.gradeRecesses   = {};
+        if (!SchedState.school.gradeBands)      SchedState.school.gradeBands      = [];
+        if (!SchedState.school.morningMeetings) SchedState.school.morningMeetings = [];
+        if (!SchedState.school.altDays)         SchedState.school.altDays         = [];
+        saveToLocal();
+        localStorage.setItem('cl_schedule_downloaded', '1');
+        resolve();
+      } catch (err) {
+        reject(new Error('Could not read file — make sure it\'s a valid .clsched file.'));
+      }
     };
-    const { error } = await SupabaseClient.from('schedules').upsert(payload, { onConflict: 'id' });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, id: SchedState.scheduleId };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
+    reader.onerror = () => reject(new Error('Could not read file.'));
+    reader.readAsText(file);
+  });
 }
 
-async function loadFromSupabase(id) {
-  if (typeof SupabaseClient === 'undefined') return { ok: false, error: 'No Supabase client' };
-  try {
-    const { data, error } = await SupabaseClient.from('schedules').select('*').eq('id', id).single();
-    if (error || !data) return { ok: false, error: error?.message || 'Not found' };
-    const d = data.data;
-    if (d.school)         Object.assign(SchedState.school, d.school);
-    if (d.staff)          SchedState.staff = d.staff;
-    if (d.blockTypes)     SchedState.blockTypes = d.blockTypes;
-    if (d.masterSchedule) SchedState.masterSchedule = d.masterSchedule;
-    SchedState.scheduleId = id;
-    localStorage.setItem('cl_schedule_id', id);
-    if (SchedState.school.name) {
-      localStorage.setItem('cl_schedule_name', SchedState.school.name + ' — ' + SchedState.school.year);
-    }
-    saveToLocal();
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
+function updateDownloadBadge() {
+  const btn = document.getElementById('download-sched-btn');
+  if (!btn) return;
+  const downloaded = localStorage.getItem('cl_schedule_downloaded') === '1';
+  btn.classList.toggle('btn-download-unsaved', !downloaded);
+  btn.title = downloaded
+    ? 'Download a copy of your schedule file'
+    : 'Unsaved changes — download your schedule file to save permanently';
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────

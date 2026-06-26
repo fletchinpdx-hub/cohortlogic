@@ -2,13 +2,13 @@ if (typeof trackSession === 'function') trackSession();
 
 // Delegated handler for data-nav buttons rendered inside view innerHTML
 const VIEW_RENDERERS = {
-  school: () => { navigateTo('school'); renderSchoolInfo(); },
-  staff:  () => { navigateTo('staff');  renderStaff(); },
-  blocks: () => { navigateTo('blocks'); renderBlocks(); },
-  master: () => { navigateTo('master'); renderMasterSchedule(); },
+  school:   () => { navigateTo('school');   renderSchoolInfo(); },
+  staff:    () => { navigateTo('staff');    renderStaff(); },
+  blocks:   () => { navigateTo('blocks');   renderBlocks(); },
+  master:   () => { navigateTo('master');   renderMasterSchedule(); },
   specials: () => { navigateTo('specials'); renderSpecialsPlaceholder(); },
-  ia:     () => { navigateTo('ia');     renderIAPlaceholder(); },
-  export: () => { navigateTo('export'); renderExportPlaceholder(); },
+  ia:       () => { navigateTo('ia');       renderIAPlaceholder(); },
+  export:   () => { navigateTo('export');   renderExportPlaceholder(); },
 };
 
 document.getElementById('main').addEventListener('click', e => {
@@ -20,16 +20,41 @@ document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     const view = item.dataset.view;
     navigateTo(view);
-    if (view === 'school')   renderSchoolInfo();
-    if (view === 'staff')    renderStaff();
-    if (view === 'blocks')   renderBlocks();
-    if (view === 'master')   renderMasterSchedule();
-    if (view === 'specials') renderSpecialsPlaceholder();
-    if (view === 'ia')       renderIAPlaceholder();
-    if (view === 'export')   renderExportPlaceholder();
+    if (VIEW_RENDERERS[view]) VIEW_RENDERERS[view]();
   });
 });
 
+// ── Download button (always visible in sidebar) ───────────────────────────────
+document.getElementById('download-sched-btn').addEventListener('click', () => {
+  if (!SchedState.school.name) {
+    alert('Nothing to download yet — fill in School Info first.');
+    return;
+  }
+  downloadScheduleFile();
+});
+
+// ── Load file (hidden input triggered by sidebar link) ────────────────────────
+const fileInput = document.getElementById('load-sched-file');
+document.getElementById('load-sched-link').addEventListener('click', e => {
+  e.preventDefault();
+  fileInput.click();
+});
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  try {
+    await loadScheduleFromFile(file);
+    updateSidebarStatus();
+    updateDownloadBadge();
+    navigateTo('school');
+    renderSchoolInfo();
+  } catch (err) {
+    alert(err.message);
+  }
+  fileInput.value = '';
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   const { data: { session } } = await SupabaseClient.auth.getSession();
   if (!session) { window.location.replace('login.html'); return; }
@@ -55,15 +80,42 @@ async function boot() {
 
   document.body.style.visibility = '';
 
-  const savedId = localStorage.getItem('cl_schedule_id');
-  if (savedId) {
-    const result = await loadFromSupabase(savedId);
-    if (!result.ok) loadFromLocal();
-  } else {
-    loadFromLocal();
-  }
+  const hasLocal = loadFromLocal();
   updateSidebarStatus();
-  renderSchoolInfo();
+  updateDownloadBadge();
+
+  if (hasLocal && SchedState.school.name) {
+    // Resume previous session
+    navigateTo('school');
+    renderSchoolInfo();
+  } else {
+    // No prior data — show landing screen
+    renderLanding();
+  }
+}
+
+function renderLanding() {
+  navigateTo('school');
+  document.getElementById('view-school').innerHTML = `
+    <div class="landing-wrap">
+      <div class="landing-card">
+        <div class="landing-icon">📅</div>
+        <h1 class="landing-title">Building Schedule Builder</h1>
+        <p class="landing-sub">Create master instructional schedules for your school. Your data stays on your device — download a file to save and share it.</p>
+        <div class="landing-actions">
+          <button class="btn btn-primary btn-lg" id="landing-new-btn">Start a New Schedule</button>
+          <div class="landing-divider">or</div>
+          <label class="btn btn-outline btn-lg landing-load-label" for="load-sched-file">
+            Load an Existing File
+          </label>
+        </div>
+        <p class="landing-hint">Files are saved as <code>.clsched</code> — load one from your computer or school drive to continue where you left off.</p>
+      </div>
+    </div>
+  `;
+  document.getElementById('landing-new-btn').addEventListener('click', () => {
+    renderSchoolInfo();
+  });
 }
 
 boot();

@@ -24,6 +24,18 @@ function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function renderMMRow(m) {
+  return `
+    <div class="mm-row" data-mm-id="${m.id}">
+      <input type="text" class="mm-name input" placeholder="Meeting name" value="${escHtml(m.name)}">
+      <input type="time" class="mm-start input" value="${m.start || ''}">
+      <span style="color:var(--gray-400)">–</span>
+      <input type="time" class="mm-end input" value="${m.end || ''}">
+      <button class="btn-icon remove-mm-btn" data-mm-id="${m.id}" title="Remove">×</button>
+    </div>
+  `;
+}
+
 function timeSlots15(start, end) {
   const slots = [];
   let cur = timeToMins(start);
@@ -120,20 +132,12 @@ function renderSchoolInfo() {
 
         </div>
 
-        <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="mm-enabled" ${s.morningMeetingEnabled ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;flex-shrink:0" />
-          <label for="mm-enabled" style="font-size:14px;font-weight:500;cursor:pointer;margin:0">Standard morning meeting</label>
+        <div class="form-section-title" style="font-size:13px;font-weight:600;color:var(--gray-600);margin-top:16px">Morning / Community Meetings</div>
+        <p class="form-hint" style="margin:4px 0 8px">Daily meetings blocked on the schedule. Add as many as needed.</p>
+        <div id="mm-list">
+          ${(s.morningMeetings || []).map(m => renderMMRow(m)).join('')}
         </div>
-        <div id="mm-times" style="display:${s.morningMeetingEnabled ? 'flex' : 'none'};gap:16px;margin-top:12px;flex-wrap:wrap;align-items:flex-end">
-          <div class="form-group form-group-sm" style="margin:0">
-            <label class="form-label">Start</label>
-            <input type="time" class="input" id="mm-start" value="${s.morningMeetingStart || ''}" />
-          </div>
-          <div class="form-group form-group-sm" style="margin:0">
-            <label class="form-label">End</label>
-            <input type="time" class="input" id="mm-end" value="${s.morningMeetingEnd || ''}" />
-          </div>
-        </div>
+        <button class="btn btn-outline btn-sm" id="add-mm-btn">+ Add Meeting</button>
       </div>
 
       <!-- Lunch Periods -->
@@ -186,10 +190,22 @@ function renderSchoolInfo() {
     });
   });
 
-  // Morning meeting toggle
-  document.getElementById('mm-enabled').addEventListener('change', e => {
-    document.getElementById('mm-times').style.display = e.target.checked ? 'flex' : 'none';
+  // Morning meetings — add / remove
+  document.getElementById('add-mm-btn').addEventListener('click', () => {
+    const newM = { id: uid(), name: '', start: '', end: '' };
+    document.getElementById('mm-list').insertAdjacentHTML('beforeend', renderMMRow(newM));
+    wireMMRemove();
   });
+  wireMMRemove();
+
+  function wireMMRemove() {
+    document.querySelectorAll('.remove-mm-btn').forEach(btn => {
+      btn.replaceWith(btn.cloneNode(true));
+    });
+    document.querySelectorAll('.remove-mm-btn').forEach(btn => {
+      btn.addEventListener('click', () => btn.closest('.mm-row').remove());
+    });
+  }
 
   // Lunch add
   document.getElementById('add-lunch-btn').addEventListener('click', () => {
@@ -593,10 +609,14 @@ function preFillFixedBlocks() {
       // Clear old auto-placed fixed blocks
       Object.keys(sched).forEach(slot => { if (fixedIds.has(sched[slot])) delete sched[slot]; });
 
-      // Morning Meeting (all grades)
-      if (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd) {
-        generateTimeSlots(s.morningMeetingStart, s.morningMeetingEnd).forEach(slot => { sched[slot] = mmBT; });
-      }
+      // Morning / community meetings (all grades)
+      const meetings = s.morningMeetings?.length
+        ? s.morningMeetings
+        : (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd
+          ? [{ start: s.morningMeetingStart, end: s.morningMeetingEnd }] : []);
+      meetings.forEach(m => {
+        if (m.start && m.end) generateTimeSlots(m.start, m.end).forEach(slot => { sched[slot] = mmBT; });
+      });
 
       // Lunch
       const lp = (s.lunchPeriods || []).find(p => p.grades.includes(g));
@@ -612,7 +632,7 @@ function preFillFixedBlocks() {
   });
 }
 
-async function saveSchoolAndContinue() {
+function saveSchoolAndContinue() {
   const name = document.getElementById('school-name').value.trim();
   if (!name) { showFormError('school-save-status', 'Please enter a school name.'); return; }
 
@@ -630,9 +650,16 @@ async function saveSchoolAndContinue() {
   s.dayStart = s.firstBell;
   s.dayEnd   = s.dismissal;
 
-  s.morningMeetingEnabled = document.getElementById('mm-enabled').checked;
-  s.morningMeetingStart   = s.morningMeetingEnabled ? document.getElementById('mm-start').value : '';
-  s.morningMeetingEnd     = s.morningMeetingEnabled ? document.getElementById('mm-end').value   : '';
+  s.morningMeetings = [...document.querySelectorAll('.mm-row')].map(row => ({
+    id:    row.dataset.mmId,
+    name:  row.querySelector('.mm-name').value.trim() || 'Meeting',
+    start: row.querySelector('.mm-start').value,
+    end:   row.querySelector('.mm-end').value,
+  })).filter(m => m.start && m.end);
+  // Keep legacy fields in sync for backward-compat
+  s.morningMeetingEnabled = s.morningMeetings.length > 0;
+  s.morningMeetingStart   = s.morningMeetings[0]?.start || '';
+  s.morningMeetingEnd     = s.morningMeetings[0]?.end   || '';
 
   s.altDays = [];
   document.querySelectorAll('.alt-day-row').forEach(row => {
@@ -650,17 +677,10 @@ async function saveSchoolAndContinue() {
   s.earlyReleaseEnd  = s.altDays.find(a => a.earlyRelease)?.earlyRelease || '';
 
   saveToLocal();
-  showSaveStatus('school-save-status', 'Saving…');
-  const result = await saveToSupabase();
-  if (result.ok) {
-    showSaveStatus('school-save-status', `Saved ✓  Schedule code: ${result.id}`);
-  } else {
-    showSaveStatus('school-save-status', 'Saved locally (Supabase unavailable)');
-  }
-
   preFillFixedBlocks();
   updateSidebarStatus();
-  setTimeout(() => { navigateTo('blocks'); renderBlocks(); }, 800);
+  navigateTo('blocks');
+  renderBlocks();
 }
 
 
@@ -684,14 +704,14 @@ function renderStaff() {
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-outline" id="staff-back-btn">← Back</button>
-      <button class="btn btn-primary" id="staff-next-btn">Save & Continue to Block Types</button>
+      <button class="btn btn-outline" id="staff-back-btn">← Back to Master Schedule</button>
+      <button class="btn btn-primary" id="staff-next-btn">Save Staff Roster</button>
       <div class="save-status" id="staff-save-status"></div>
     </div>
   `;
 
   document.getElementById('add-staff-btn').addEventListener('click', () => showAddStaffForm());
-  document.getElementById('staff-back-btn').addEventListener('click', () => { navigateTo('school'); renderSchoolInfo(); });
+  document.getElementById('staff-back-btn').addEventListener('click', () => { navigateTo('master'); renderMasterSchedule(); });
   document.getElementById('staff-next-btn').addEventListener('click', saveStaffAndContinue);
   wireStaffTable();
 }
@@ -826,13 +846,11 @@ function wireStaffTable() {
   });
 }
 
-async function saveStaffAndContinue() {
+function saveStaffAndContinue() {
   saveToLocal();
-  showSaveStatus('staff-save-status', 'Saving…');
-  const result = await saveToSupabase();
-  showSaveStatus('staff-save-status', result.ok ? 'Saved ✓' : 'Saved locally');
   updateSidebarStatus();
-  setTimeout(() => { navigateTo('blocks'); renderBlocks(); }, 600);
+  navigateTo('master');
+  renderMasterSchedule();
 }
 
 // ── Step 3: Block Types ───────────────────────────────────────────────────────
@@ -857,11 +875,14 @@ function collectReqFromDOM() {
     const colorEl = row.querySelector('.req-color-input');
     if (nameEl)  bt.name  = nameEl.value.trim()  || bt.name;
     if (colorEl) bt.color = colorEl.value;
-    bt.bandMinutes = bt.bandMinutes || {};
-    row.querySelectorAll('.req-min-input').forEach(inp => {
-      const val = parseInt(inp.value, 10);
-      bt.bandMinutes[inp.dataset.bandId] = isNaN(val) ? 0 : val;
-    });
+    const hasSubs = (bt.subBlocks || []).length > 0;
+    if (!hasSubs) {
+      bt.bandMinutes = bt.bandMinutes || {};
+      row.querySelectorAll('.req-min-input').forEach(inp => {
+        const val = parseInt(inp.value, 10);
+        bt.bandMinutes[inp.dataset.bandId] = isNaN(val) ? 0 : val;
+      });
+    }
     // Sub-block minutes
     bt.subBandMinutes = bt.subBandMinutes || {};
     const subSection = document.querySelector(`#sub-section-${btId}`);
@@ -876,6 +897,14 @@ function collectReqFromDOM() {
           const val = parseInt(inp.value, 10);
           bt.subBandMinutes[subId][inp.dataset.bandId] = isNaN(val) ? 0 : val;
         });
+      });
+    }
+    // For blocks with sub-blocks, derive bandMinutes from sub sums
+    if ((bt.subBlocks || []).length > 0) {
+      bt.bandMinutes = {};
+      (SchedState.school.gradeBands || []).forEach(band => {
+        bt.bandMinutes[band.id] = (bt.subBlocks || []).reduce((sum, sub) =>
+          sum + ((bt.subBandMinutes[sub.id] || {})[band.id] || 0), 0);
       });
     }
   });
@@ -927,7 +956,15 @@ function renderReqRow(bt, bands) {
         <span class="req-color-swatch" style="background:${bt.color}"></span>
         <input type="color" class="req-color-input" value="${bt.color}">
       </td>
-      ${bands.map(b => `<td class="req-td-min"><input type="number" class="req-min-input" data-bt-id="${bt.id}" data-band-id="${b.id}" min="0" max="360" step="5" value="${(bt.bandMinutes || {})[b.id] || 0}"></td>`).join('')}
+      ${bands.map(b => {
+        const hasSubs = (bt.subBlocks || []).length > 0;
+        if (hasSubs) {
+          const total = (bt.subBlocks || []).reduce((sum, sub) =>
+            sum + (((bt.subBandMinutes || {})[sub.id] || {})[b.id] || 0), 0);
+          return `<td class="req-td-min req-td-calc"><span class="req-calc-total" data-bt-id="${bt.id}" data-band-id="${b.id}">${total}</span><span class="req-calc-hint">auto</span></td>`;
+        }
+        return `<td class="req-td-min"><input type="number" class="req-min-input" data-bt-id="${bt.id}" data-band-id="${b.id}" min="0" max="360" step="5" value="${(bt.bandMinutes || {})[b.id] || 0}"></td>`;
+      }).join('')}
       <td class="req-td-actions">
         <button class="btn-sm req-sub-toggle" data-bt-id="${bt.id}">${hasSubs ? `Sub-blocks (${bt.subBlocks.length})` : 'Sub-blocks'}</button>
         <button class="btn-icon req-delete-btn" data-bt-id="${bt.id}" title="Remove block">×</button>
@@ -960,7 +997,10 @@ function renderBlocks() {
       <div id="bands-list">
         ${bands.length ? bands.map(renderBandRow).join('') : '<p class="text-muted" style="margin:0 0 12px">No bands yet — add one to start.</p>'}
       </div>
-      <button class="btn btn-outline btn-sm" id="add-band-btn">+ Add Band</button>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <button class="btn btn-outline btn-sm" id="add-band-btn">+ Add Band</button>
+        ${bands.length ? '<button class="btn btn-primary btn-sm" id="refresh-req-btn">Update Requirements Table →</button>' : ''}
+      </div>
     </div>
 
     <div class="form-section">
@@ -1016,7 +1056,7 @@ function renderBlocks() {
 
     <div class="view-actions">
       <button class="btn btn-outline" id="blocks-back-btn">← Back to School Info</button>
-      <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Staff Roster →</button>
+      <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Master Schedule →</button>
       <div class="save-status" id="blocks-save-status"></div>
     </div>
   `;
@@ -1055,6 +1095,16 @@ function wireBandsSection() {
       renderBlocks();
     });
   }
+
+  const refreshBtn = document.getElementById('refresh-req-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      saveToLocal();
+      renderBlocks();
+    });
+  }
 }
 
 // ── Requirements table wiring ─────────────────────────────────────────────────
@@ -1064,6 +1114,17 @@ function wireReqTable() {
     inp.addEventListener('input', () => {
       const swatch = inp.closest('.req-td-color')?.querySelector('.req-color-swatch');
       if (swatch) swatch.style.background = inp.value;
+    });
+  });
+
+  // Sub-block minutes → live-update calculated totals
+  document.querySelectorAll('.sub-min-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const { parentId, bandId } = inp.dataset;
+      const sum = [...document.querySelectorAll(`.sub-min-input[data-parent-id="${parentId}"][data-band-id="${bandId}"]`)]
+        .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+      const el = document.querySelector(`.req-calc-total[data-bt-id="${parentId}"][data-band-id="${bandId}"]`);
+      if (el) el.textContent = sum;
     });
   });
 
@@ -1213,15 +1274,13 @@ function showOtherBlockForm(existingId) {
   });
 }
 
-async function saveBlocksAndContinue() {
+function saveBlocksAndContinue() {
   collectBandsFromDOM();
   collectReqFromDOM();
   saveToLocal();
-  showSaveStatus('blocks-save-status', 'Saving…');
-  const result = await saveToSupabase();
-  showSaveStatus('blocks-save-status', result.ok ? 'Saved ✓' : 'Saved locally');
   updateSidebarStatus();
-  setTimeout(() => { navigateTo('staff'); renderStaff(); }, 600);
+  navigateTo('master');
+  renderMasterSchedule();
 }
 
 // ── Step 4: Review & Save ────────────────────────────────────────────────────
@@ -1245,8 +1304,6 @@ function renderReview() {
     if (!blocksByCategory[label]) blocksByCategory[label] = [];
     blocksByCategory[label].push(bt);
   });
-
-  const schedId = SchedState.scheduleId;
 
   document.getElementById('view-review').innerHTML = `
     <div class="view-header">
@@ -1312,28 +1369,9 @@ function renderReview() {
 
     </div>
 
-    ${schedId ? `
-      <div class="schedule-code-banner">
-        <span class="schedule-code-label">Your schedule code</span>
-        <span class="schedule-code-value" id="schedule-code-display">${schedId}</span>
-        <button class="btn btn-sm btn-outline" id="copy-code-btn">Copy</button>
-        <span class="code-hint">Share this code with colleagues so they can load this schedule.</span>
-      </div>
-    ` : ''}
-
     <div class="view-actions">
       <button class="btn btn-outline" id="review-back-btn">← Back</button>
       <button class="btn btn-primary btn-lg" id="review-save-btn">Save Setup</button>
-      <div class="save-status" id="review-save-status"></div>
-    </div>
-
-    <div id="save-complete-banner" class="save-complete-banner hidden">
-      <div class="save-complete-icon">✅</div>
-      <div class="save-complete-text">
-        <strong>Setup saved!</strong>
-        <p>The visual schedule grid builder is the next step — it will be added to this tool shortly.</p>
-        ${schedId ? `<p>Your schedule code: <strong>${schedId}</strong> — bookmark this page or save the code to return later.</p>` : ''}
-      </div>
     </div>
   `;
 
@@ -1349,41 +1387,16 @@ function renderReview() {
 
   document.getElementById('review-back-btn').addEventListener('click', () => { navigateTo('blocks'); renderBlocks(); });
   document.getElementById('review-save-btn').addEventListener('click', finalSave);
-
-  const copyBtn = document.getElementById('copy-code-btn');
-  if (copyBtn) {
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(SchedState.scheduleId).then(() => {
-        copyBtn.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-      });
-    });
-  }
 }
 
-async function finalSave() {
-  showSaveStatus('review-save-status', 'Saving…');
+function finalSave() {
   saveToLocal();
-  const result = await saveToSupabase();
-  if (result.ok) {
-    showSaveStatus('review-save-status', `Saved ✓  Code: ${result.id}`);
-    // Update the code display if it's a new ID
-    const display = document.getElementById('schedule-code-display');
-    if (display) display.textContent = result.id;
-  } else {
-    showSaveStatus('review-save-status', 'Saved locally (Supabase unavailable)');
-  }
   updateSidebarStatus();
-  document.getElementById('save-complete-banner').classList.remove('hidden');
-  document.getElementById('review-save-btn').textContent = 'Saved ✓';
-  document.getElementById('review-save-btn').disabled = true;
-
+  const btn = document.getElementById('review-save-btn');
+  btn.textContent = 'Saved ✓';
+  btn.disabled = true;
   if (typeof trackEvent === 'function') {
     trackEvent('schedule_setup_complete', { school: SchedState.school.name, staffCount: SchedState.staff.length });
-  }
-  // Re-render review to pick up the code banner if first save
-  if (result.ok && !document.getElementById('schedule-code-display')) {
-    setTimeout(() => renderReview(), 800);
   }
 }
 

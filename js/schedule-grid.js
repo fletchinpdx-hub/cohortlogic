@@ -11,15 +11,20 @@ const gridUI = {
   activeBtId: null,
 };
 
-// Rectangle drag state
+// Drag / paint state
 const drag = {
   active:     false,
   hasMoved:   false,
+  mode:       'paint',  // 'paint' | 'move'
   startGrade: null,
   startSlot:  null,
   endGrade:   null,
   endSlot:    null,
-  paintValue: null,  // btId to write, or null (erase)
+  paintValue: null,     // btId to write, or null (erase)
+  // Move-mode fields:
+  moveValue:  null,     // btId being moved
+  moveSlots:  [],       // original slots of the block being picked up
+  moveGrade:  null,     // original grade
 };
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
@@ -91,8 +96,12 @@ function renderMasterSchedule() {
     return;
   }
 
-  const fb  = SchedState.school.firstBell  || SchedState.school.dayStart  || '08:00';
-  const dis = SchedState.school.dismissal  || SchedState.school.dayEnd    || '14:30';
+  // Start from the earliest of firstBell / studentCampusStart so the grid
+  // reflects the full school day even if firstBell hasn't been explicitly saved.
+  const sc = SchedState.school;
+  const candidates = [sc.firstBell, sc.studentCampusStart, sc.dayStart].filter(t => t && /^\d\d:\d\d/.test(t));
+  const fb  = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
+  const dis = sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30';
   currentSlots = generateTimeSlots(fb, dis);
 
   document.getElementById('view-master').innerHTML = `
@@ -121,7 +130,6 @@ function renderMasterSchedule() {
           <div class="grid-top-actions">
             <button class="btn btn-outline btn-sm" id="copy-day-btn">Copy day to…</button>
             <button class="btn btn-primary btn-sm" id="master-save-btn">Save</button>
-            <div class="save-status" id="master-save-status"></div>
           </div>
         </div>
 
@@ -155,14 +163,14 @@ function renderMasterSchedule() {
 
         <div class="grid-footer">
           <button class="btn btn-outline" id="master-back-btn">← Back to Block Types</button>
-          <button class="btn btn-primary btn-lg" id="master-next-btn">Save & Continue to Specials →</button>
-          <div class="save-status" id="master-save-status2"></div>
+          <button class="btn btn-primary btn-lg" id="master-next-btn">Continue to Staff Roster →</button>
         </div>
       </div>
     </div>
   `;
 
   wirePalette();
+  syncPaletteHighlight();
   wireGridPointer();
   wireDayTabs();
   wireGradeHeaders();
@@ -170,6 +178,9 @@ function renderMasterSchedule() {
   document.getElementById('master-save-btn').addEventListener('click', saveMaster);
   document.getElementById('master-next-btn').addEventListener('click', saveMasterAndNext);
   document.getElementById('master-back-btn').addEventListener('click', () => { navigateTo('blocks'); renderBlocks(); });
+
+  // Auto-populate all grades on first entry if no instructional blocks are placed yet
+  autoPopulateIfEmpty();
   document.getElementById('copy-day-btn').addEventListener('click', showCopyDayMenu);
 }
 
@@ -220,6 +231,9 @@ function syncPaletteHighlight() {
     item.classList.toggle('active', on);
     item.style.background = on && bt ? `${bt.color}22` : '';
   });
+  // Show grab cursor on filled cells when no block type is selected (move mode)
+  const wrap = document.getElementById('grid-scroll-wrap');
+  if (wrap) wrap.classList.toggle('no-tool', gridUI.activeBtId === null);
 }
 
 // ── Grid row/cell builders ────────────────────────────────────────────────────
@@ -281,17 +295,35 @@ function onPointerDown(e) {
   e.preventDefault();
   e.currentTarget.setPointerCapture(e.pointerId);
 
-  const grade = cell.dataset.grade;
-  const slot  = cell.dataset.time;
-
-  // Determine what value we're painting
-  // If eraser (activeBtId null) or clicking an already-filled same-block cell → erase
+  const grade    = cell.dataset.grade;
+  const slot     = cell.dataset.time;
   const existing = getBlock(gridUI.activeDay, grade, slot);
+
+  // Move mode: no active paint tool + clicking a filled block
+  if (!gridUI.activeBtId && existing) {
+    const blockStart = findBlockStart(gridUI.activeDay, grade, slot);
+    const blockLen   = findBlockLength(gridUI.activeDay, grade, blockStart);
+    const startIdx   = currentSlots.indexOf(blockStart);
+    drag.active     = true;
+    drag.hasMoved   = false;
+    drag.mode       = 'move';
+    drag.startGrade = grade;
+    drag.startSlot  = slot;
+    drag.endGrade   = grade;
+    drag.endSlot    = slot;
+    drag.moveValue  = existing;
+    drag.moveSlots  = currentSlots.slice(startIdx, startIdx + blockLen);
+    drag.moveGrade  = grade;
+    return;
+  }
+
+  // Paint mode (including eraser)
   const paintValue = (gridUI.activeBtId && existing === gridUI.activeBtId)
     ? null : gridUI.activeBtId;
 
   drag.active     = true;
   drag.hasMoved   = false;
+  drag.mode       = 'paint';
   drag.startGrade = grade;
   drag.startSlot  = slot;
   drag.endGrade   = grade;
@@ -311,16 +343,24 @@ function onPointerMove(e) {
   drag.hasMoved = true;
   drag.endGrade = grade;
   drag.endSlot  = slot;
-  showDragPreview();
+
+  if (drag.mode === 'move') {
+    showMovePreview();
+  } else {
+    showDragPreview();
+  }
 }
 
 function onPointerUp(e) {
   if (!drag.active) return;
   drag.active = false;
   clearDragPreview();
+  clearMovePreview();
 
-  if (!drag.hasMoved) {
-    // Single click — check for defaultDuration auto-fill
+  if (drag.mode === 'move') {
+    if (drag.hasMoved) commitMove();
+    // no-move click on a block: do nothing (don't delete it)
+  } else if (!drag.hasMoved) {
     commitClick();
   } else {
     commitRect();
@@ -405,6 +445,71 @@ function clearDragPreview() {
     c.classList.remove('drag-preview');
     c.style.removeProperty('--preview-color');
   });
+}
+
+// ── Block-find helpers for move mode ─────────────────────────────────────────
+
+function findBlockStart(day, grade, slot) {
+  const btId = getBlock(day, grade, slot);
+  if (!btId) return slot;
+  let idx = currentSlots.indexOf(slot);
+  while (idx > 0 && getBlock(day, grade, currentSlots[idx - 1]) === btId) idx--;
+  return currentSlots[idx];
+}
+
+function findBlockLength(day, grade, startSlot) {
+  const btId = getBlock(day, grade, startSlot);
+  if (!btId) return 0;
+  let idx = currentSlots.indexOf(startSlot);
+  let len = 0;
+  while (idx + len < currentSlots.length && getBlock(day, grade, currentSlots[idx + len]) === btId) len++;
+  return len;
+}
+
+function showMovePreview() {
+  clearMovePreview();
+  const bt = SchedState.blockTypes.find(b => b.id === drag.moveValue);
+  const color = bt ? bt.color : '#94a3b8';
+  // Highlight where block will land
+  const targetStartIdx = currentSlots.indexOf(drag.endSlot);
+  const len = drag.moveSlots.length;
+  for (let i = 0; i < len; i++) {
+    const s = targetStartIdx + i;
+    if (s >= currentSlots.length) break;
+    const cell = document.querySelector(
+      `.grid-cell[data-grade="${drag.endGrade}"][data-time="${currentSlots[s]}"]`);
+    if (cell) {
+      cell.classList.add('move-preview');
+      cell.style.setProperty('--preview-color', color);
+    }
+  }
+}
+
+function clearMovePreview() {
+  document.querySelectorAll('.move-preview').forEach(c => {
+    c.classList.remove('move-preview');
+    c.style.removeProperty('--preview-color');
+  });
+}
+
+function commitMove() {
+  const day          = gridUI.activeDay;
+  const srcGrade     = drag.moveGrade;
+  const destGrade    = drag.endGrade;
+  const destStartIdx = currentSlots.indexOf(drag.endSlot);
+  const len          = drag.moveSlots.length;
+
+  // Erase source
+  drag.moveSlots.forEach(s => setBlock(day, srcGrade, s, null));
+
+  // Write destination
+  for (let i = 0; i < len; i++) {
+    const destIdx = destStartIdx + i;
+    if (destIdx >= currentSlots.length) break;
+    setBlock(day, destGrade, currentSlots[destIdx], drag.moveValue);
+  }
+
+  rebuildTbody();
 }
 
 // ── DOM refresh helpers ───────────────────────────────────────────────────────
@@ -523,6 +628,19 @@ function autoPopulateGrade(grade) {
   rebuildTbody();
 }
 
+function autoPopulateIfEmpty() {
+  const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
+  // Check if any instructional block exists across all days/grades
+  const hasInstructional = Object.values(SchedState.masterSchedule).some(dayData =>
+    Object.values(dayData).some(gradeData =>
+      Object.values(gradeData).some(btId => btId && !fixedIds.has(btId))
+    )
+  );
+  if (hasInstructional) return;
+  // No instructional blocks yet — auto-fill all grades silently
+  gradesSorted().forEach(grade => autoPopulateGrade(grade));
+}
+
 function switchDay(day) {
   gridUI.activeDay = day;
   document.querySelectorAll('.day-tab').forEach(t =>
@@ -559,8 +677,9 @@ function showCopyDayMenu() {
       });
       menu.remove();
       saveToLocal();
-      showSaveStatus('master-save-status',
-        `Copied to ${opt.dataset.target === 'ALL' ? 'all days' : opt.dataset.target} ✓`);
+      const dest = opt.dataset.target === 'ALL' ? 'all days' : opt.dataset.target;
+      const saveBtn = document.getElementById('master-save-btn');
+      if (saveBtn) { saveBtn.textContent = `Copied to ${dest} ✓`; setTimeout(() => { saveBtn.textContent = 'Save'; }, 1800); }
     });
   });
 
@@ -573,20 +692,17 @@ function showCopyDayMenu() {
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 
-async function saveMaster() {
+function saveMaster() {
   saveToLocal();
-  showSaveStatus('master-save-status', 'Saving…');
-  const result = await saveToSupabase();
-  showSaveStatus('master-save-status', result.ok ? 'Saved ✓' : 'Saved locally');
+  const btn = document.getElementById('master-save-btn');
+  if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.textContent = 'Save'; }, 1500); }
   if (typeof trackEvent === 'function') trackEvent('master_schedule_saved');
 }
 
-async function saveMasterAndNext() {
+function saveMasterAndNext() {
   saveToLocal();
-  showSaveStatus('master-save-status2', 'Saving…');
-  const result = await saveToSupabase();
-  showSaveStatus('master-save-status2', result.ok ? 'Saved ✓' : 'Saved locally');
-  setTimeout(() => { navigateTo('specials'); renderSpecialsPlaceholder(); }, 500);
+  navigateTo('staff');
+  renderStaff();
 }
 
 // ── Placeholder views ─────────────────────────────────────────────────────────
@@ -682,7 +798,6 @@ async function importJSON(e) {
     if (!data.school || !Array.isArray(data.staff)) throw new Error('Unrecognized file — make sure you selected a Schedule Builder .json file.');
     // Restore state
     Object.assign(SchedState, data);
-    if (data.scheduleId) localStorage.setItem('cl_schedule_id', data.scheduleId);
     // Guard new fields that old files may not have
     SchedState.school.gradeRecesses  = SchedState.school.gradeRecesses  || {};
     SchedState.school.lunchPeriods   = SchedState.school.lunchPeriods   || [];
