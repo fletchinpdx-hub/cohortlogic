@@ -158,6 +158,35 @@ function ensureFixedBlockTypes() {
   });
 }
 
+// For blocks with sub-blocks (e.g. ELA), migrate legacy bandMinutes into
+// subBandMinutes when subBandMinutes is empty. Files saved before sub-block
+// minutes were configured will have bandMinutes (the old single total) but
+// empty subBandMinutes. Without migration, the requirements table shows 0,
+// and a subsequent save would overwrite bandMinutes with 0 — breaking auto-fill.
+function migrateSubBlockMinutes() {
+  const bands = SchedState.school.gradeBands || [];
+  SchedState.blockTypes.forEach(bt => {
+    if (!(bt.subBlocks || []).length) return;
+    bt.subBandMinutes = bt.subBandMinutes || {};
+    bt.bandMinutes    = bt.bandMinutes    || {};
+    bands.forEach(band => {
+      const legacyTotal = bt.bandMinutes[band.id] || 0;
+      if (!legacyTotal) return;
+      // Check if any sub-block already has minutes for this band
+      const hasSubData = bt.subBlocks.some(sub =>
+        ((bt.subBandMinutes[sub.id] || {})[band.id] || 0) > 0
+      );
+      if (hasSubData) return; // already configured — leave it alone
+      // No sub-block data yet: put the legacy total into the first sub-block
+      const first = bt.subBlocks[0];
+      if (first) {
+        bt.subBandMinutes[first.id] = bt.subBandMinutes[first.id] || {};
+        bt.subBandMinutes[first.id][band.id] = legacyTotal;
+      }
+    });
+  });
+}
+
 // ── Persistence: localStorage (immediate) ───────────────────────────────────
 function saveToLocal() {
   const payload = {
@@ -212,6 +241,7 @@ function loadFromLocal() {
           { subBlocks: (bt.subBlocks || []).map(s => Object.assign({}, s)), bandMinutes: {}, subBandMinutes: {} }));
       }
       ensureFixedBlockTypes();
+      migrateSubBlockMinutes();
     }
     if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
     return true;
@@ -264,6 +294,7 @@ function loadScheduleFromFile(file) {
             : DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
                 { subBlocks: (bt.subBlocks||[]).map(s=>Object.assign({},s)), bandMinutes:{}, subBandMinutes:{} }));
           ensureFixedBlockTypes();
+          migrateSubBlockMinutes();
         }
         // Ensure required arrays exist
         if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
