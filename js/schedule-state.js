@@ -145,6 +145,19 @@ function updateSidebarStatus() {
   blockDot.classList.add('blue');
 }
 
+// Ensure bt_mm / bt_lunch / bt_recess are always in SchedState.blockTypes.
+// Files saved before these were added to DEFAULT_BLOCK_TYPES won't have them,
+// causing buildCell() to render those slots as empty white cells.
+function ensureFixedBlockTypes() {
+  const FIXED_IDS = ['bt_mm', 'bt_lunch', 'bt_recess'];
+  FIXED_IDS.forEach(id => {
+    if (!SchedState.blockTypes.find(bt => bt.id === id)) {
+      const def = DEFAULT_BLOCK_TYPES.find(bt => bt.id === id);
+      if (def) SchedState.blockTypes.push(Object.assign({}, def));
+    }
+  });
+}
+
 // ── Persistence: localStorage (immediate) ───────────────────────────────────
 function saveToLocal() {
   const payload = {
@@ -198,6 +211,7 @@ function loadFromLocal() {
         SchedState.blockTypes = DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
           { subBlocks: (bt.subBlocks || []).map(s => Object.assign({}, s)), bandMinutes: {}, subBandMinutes: {} }));
       }
+      ensureFixedBlockTypes();
     }
     if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
     return true;
@@ -249,6 +263,7 @@ function loadScheduleFromFile(file) {
             ? data.blockTypes
             : DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
                 { subBlocks: (bt.subBlocks||[]).map(s=>Object.assign({},s)), bandMinutes:{}, subBandMinutes:{} }));
+          ensureFixedBlockTypes();
         }
         // Ensure required arrays exist
         if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
