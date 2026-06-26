@@ -175,7 +175,7 @@ function renderSchoolInfo() {
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-primary" id="school-next-btn">Save & Continue to Block Types →</button>
+      <button class="btn btn-primary" id="school-next-btn">Save & Build Schedule →</button>
       <div class="save-status" id="school-save-status"></div>
     </div>
   `;
@@ -679,8 +679,8 @@ function saveSchoolAndContinue() {
   saveToLocal();
   preFillFixedBlocks();
   updateSidebarStatus();
-  navigateTo('blocks');
-  renderBlocks();
+  navigateTo('master');
+  renderMasterSchedule();
 }
 
 

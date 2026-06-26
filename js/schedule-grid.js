@@ -582,12 +582,12 @@ const AUTO_FILL_PRIORITY = {
   bt_cm: 1, bt_ela: 2, bt_math: 3, bt_win: 4, bt_eld: 5, bt_ssh: 6, bt_spec: 7,
 };
 
-function autoPopulateGrade(grade) {
+function autoPopulateGrade(grade, silent = false) {
   const s     = SchedState.school;
   const bands = s.gradeBands || [];
   const band  = bands.find(b => b.grades.includes(grade));
   if (!band) {
-    alert(`${GRADE_LABELS[grade] || grade} is not assigned to a grade band.\nSet up grade bands in Block Types first.`);
+    if (!silent) alert(`${GRADE_LABELS[grade] || grade} is not assigned to a grade band.\nSet up grade bands in Block Types first.`);
     return;
   }
 
@@ -596,7 +596,7 @@ function autoPopulateGrade(grade) {
     .sort((a, b) => (AUTO_FILL_PRIORITY[a.id] || 99) - (AUTO_FILL_PRIORITY[b.id] || 99));
 
   if (!requirements.length) {
-    alert(`No time requirements are set for the "${band.name}" band.\nConfigure minutes in Block Types first.`);
+    if (!silent) alert(`No time requirements are set for the "${band.name}" band.\nConfigure minutes in Block Types first.`);
     return;
   }
 
@@ -641,8 +641,8 @@ function autoPopulateIfEmpty() {
     )
   );
   if (hasInstructional) return;
-  // No instructional blocks yet — auto-fill all grades silently
-  gradesSorted().forEach(grade => autoPopulateGrade(grade));
+  // No instructional blocks yet — auto-fill all grades silently (no alerts)
+  gradesSorted().forEach(grade => autoPopulateGrade(grade, true));
 }
 
 function switchDay(day) {
