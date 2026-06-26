@@ -1,4 +1,41 @@
 // Central state for the Building Schedule Builder
+
+// Default block types — matches PDF instructional requirements pattern
+const DEFAULT_BLOCK_TYPES = [
+  // Required instructional blocks (show in requirements table)
+  { id: 'bt_ela',    name: 'ELA / Literacy',          color: '#3b82f6', category: 'instruction',  required: true,
+    subBlocks: [
+      { id: 'sub_comp', name: 'Comprehension' },
+      { id: 'sub_fs',   name: 'Foundational Skills' },
+      { id: 'sub_dg',   name: 'Differentiated Groups' },
+      { id: 'sub_wr',   name: 'Writing' },
+    ], bandMinutes: {}, subBandMinutes: {} },
+  { id: 'bt_math',  name: 'Math',                      color: '#8b5cf6', category: 'instruction',  required: true,
+    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
+  { id: 'bt_cm',    name: 'Community Meeting / SEL',   color: '#06b6d4', category: 'sel',          required: true,
+    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
+  { id: 'bt_win',   name: 'WIN — What I Need',         color: '#10b981', category: 'intervention', required: true,
+    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
+  { id: 'bt_eld',   name: 'ELD / SLD',                 color: '#f59e0b', category: 'intervention', required: true,
+    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
+  { id: 'bt_ssh',   name: 'Science / SS / Health',     color: '#0ea5e9', category: 'instruction',  required: true,
+    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
+  { id: 'bt_spec',  name: 'Specials',                  color: '#f97316', category: 'specials',     required: true,
+    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
+  // Auto-placed fixed blocks (placed from School Info settings)
+  { id: 'bt_mm',    name: 'Morning Meeting',            color: '#6366f1', category: 'instruction',  required: false },
+  { id: 'bt_lunch', name: 'Lunch',                     color: '#84cc16', category: 'transition',   required: false },
+  { id: 'bt_recess',name: 'Recess',                    color: '#22d3ee', category: 'transition',   required: false },
+  // Other palette blocks
+  { id: 'bt_sdi',   name: 'SDI',                       color: '#ec4899', category: 'intervention', required: false },
+  { id: 'bt_cico',  name: 'CICO',                      color: '#e879f9', category: 'behavior',     required: false },
+  { id: 'bt_rrr',   name: 'Rest & Return',             color: '#64748b', category: 'behavior',     required: false },
+  { id: 'bt_thresh',name: 'Threshold Greetings',       color: '#fb923c', category: 'transition',   required: false },
+  { id: 'bt_prep',  name: 'Prep / Planning',           color: '#a855f7', category: 'admin',        required: false },
+  { id: 'bt_arr',   name: 'Arrival Duty',              color: '#78716c', category: 'admin',        required: false },
+  { id: 'bt_un',    name: 'Unassigned Time',           color: '#d1d5db', category: 'admin',        required: false },
+];
+
 const SchedState = {
   scheduleId: localStorage.getItem('cl_schedule_id') || null,
 
@@ -6,6 +43,9 @@ const SchedState = {
     name: '',
     year: '2026-2027',
     grades: [],
+
+    // Grade bands for instructional requirements: [{ id, name, grades[] }]
+    gradeBands: [],
 
     // School day time boundaries
     teacherContractStart: '07:30',
@@ -44,26 +84,7 @@ const SchedState = {
   // Each: { id, name, role, gradeAssignment, color }
   // role: 'classroom_teacher' | 'ia' | 'specialist' | 'eld' | 'sped' | 'admin' | 'other'
 
-  blockTypes: [
-    { id: 'bt_1',  name: 'Morning Meeting',               color: '#6366f1', category: 'instruction' },
-    { id: 'bt_2',  name: 'Literacy Block — Whole Group',  color: '#3b82f6', category: 'instruction' },
-    { id: 'bt_3',  name: 'Literacy Block — Small Group',  color: '#60a5fa', category: 'instruction' },
-    { id: 'bt_4',  name: 'Math — Core Instruction',       color: '#8b5cf6', category: 'instruction' },
-    { id: 'bt_5',  name: 'Math — Small Group',            color: '#a78bfa', category: 'instruction' },
-    { id: 'bt_6',  name: 'Science / Social Studies',      color: '#0ea5e9', category: 'instruction' },
-    { id: 'bt_7',  name: 'Specials',                      color: '#f59e0b', category: 'specials'    },
-    { id: 'bt_8',  name: 'ELD — Push In',                 color: '#10b981', category: 'intervention'},
-    { id: 'bt_9',  name: 'ELD — Pull Out',                color: '#059669', category: 'intervention'},
-    { id: 'bt_10', name: 'Intervention / High-Dose',      color: '#f97316', category: 'intervention'},
-    { id: 'bt_11', name: 'CICO',                          color: '#ec4899', category: 'behavior'    },
-    { id: 'bt_12', name: 'Rest & Return',                 color: '#64748b', category: 'behavior'    },
-    { id: 'bt_13', name: 'Lunch',                         color: '#84cc16', category: 'transition'  },
-    { id: 'bt_14', name: 'Recess',                        color: '#22d3ee', category: 'transition'  },
-    { id: 'bt_15', name: 'Threshold Greetings',           color: '#fb923c', category: 'transition'  },
-    { id: 'bt_16', name: 'Prep / Planning',               color: '#a855f7', category: 'admin'       },
-    { id: 'bt_17', name: 'Arrival Duty',                  color: '#78716c', category: 'admin'       },
-    { id: 'bt_18', name: 'Unassigned Time',               color: '#d1d5db', category: 'admin'       },
-  ],
+  blockTypes: DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt, { subBlocks: (bt.subBlocks || []).map(s => Object.assign({}, s)), bandMinutes: Object.assign({}, bt.bandMinutes || {}), subBandMinutes: Object.assign({}, bt.subBandMinutes || {}) })),
 
   // masterSchedule[day][grade][timeSlot] = blockTypeId | null
   // e.g. masterSchedule['Monday']['K']['07:30'] = 'bt_1'
@@ -155,9 +176,19 @@ function loadFromLocal() {
       if (!SchedState.school.recessSlots)   SchedState.school.recessSlots   = [];
       if (!SchedState.school.altDays)       SchedState.school.altDays       = [];
       if (!SchedState.school.gradeRecesses) SchedState.school.gradeRecesses = {};
+      if (!SchedState.school.gradeBands)    SchedState.school.gradeBands    = [];
     }
-    if (data.staff)          SchedState.staff = data.staff;
-    if (data.blockTypes)     SchedState.blockTypes = data.blockTypes;
+    if (data.staff) SchedState.staff = data.staff;
+    if (data.blockTypes) {
+      // Migrate old block types (no 'required' field) to new schema
+      const hasNewSchema = data.blockTypes.some(bt => 'required' in bt);
+      if (hasNewSchema) {
+        SchedState.blockTypes = data.blockTypes;
+      } else {
+        SchedState.blockTypes = DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
+          { subBlocks: (bt.subBlocks || []).map(s => Object.assign({}, s)), bandMinutes: {}, subBandMinutes: {} }));
+      }
+    }
     if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
     return true;
   } catch (e) {
@@ -243,6 +274,7 @@ const ROLE_LABELS = {
 
 const BLOCK_CATEGORIES = {
   instruction:  'Instruction',
+  sel:          'Community & SEL',
   specials:     'Specials',
   intervention: 'Intervention & Support',
   behavior:     'Behavior Support',

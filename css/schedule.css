@@ -1180,3 +1180,207 @@
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* ── Grade Bands ──────────────────────────────────────────────────── */
+#bands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.band-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.band-name-input {
+  width: 140px;
+  flex-shrink: 0;
+}
+.band-grade-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+.grade-chip-xs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--gray-100);
+  color: var(--gray-500);
+  cursor: pointer;
+  border: 1px solid var(--gray-200);
+  user-select: none;
+  transition: background .12s, color .12s;
+}
+.grade-chip-xs.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+/* ── Requirements Table ───────────────────────────────────────────── */
+.req-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 4px;
+}
+.req-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.req-table th, .req-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--gray-200);
+  text-align: left;
+}
+.req-table thead th {
+  background: var(--gray-50);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--gray-600);
+  white-space: nowrap;
+}
+.req-th-block { min-width: 130px; }
+.req-th-color { width: 56px; }
+.req-th-band  { min-width: 100px; }
+.req-th-actions { width: 160px; }
+.req-th-hint {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--gray-400);
+}
+.req-td-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--gray-200);
+}
+.req-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.req-color-input {
+  width: 28px;
+  height: 22px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: none;
+}
+.req-td-min input[type="number"] {
+  width: 70px;
+  padding: 4px 6px;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.req-td-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--gray-200);
+}
+.req-row input[type="text"] {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.req-sub-toggle {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  background: var(--gray-50);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.req-sub-toggle:hover { background: var(--gray-100); }
+.req-sub-row.hidden { display: none; }
+.req-sub-td { background: #f8faff; padding: 10px 12px !important; }
+
+/* ── Sub-blocks Table ─────────────────────────────────────────────── */
+.sub-block-section { padding: 4px 0; }
+.sub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.sub-table th, .sub-table td {
+  padding: 4px 8px;
+  border: 1px solid #dde4f0;
+  text-align: left;
+}
+.sub-table thead th {
+  background: #eef2fb;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+.sub-th-name { min-width: 130px; }
+.sub-th-min  { min-width: 80px; }
+.sub-name-input {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid var(--gray-200);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.sub-min-input {
+  width: 60px;
+  padding: 3px 5px;
+  border: 1px solid var(--gray-200);
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* ── Grade header auto-fill ───────────────────────────────────────── */
+.th-grade-fill {
+  cursor: pointer;
+  position: relative;
+  padding-bottom: 16px !important;
+}
+.th-grade-fill:hover { background: #eff6ff !important; }
+.th-fill-hint {
+  display: block;
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 500;
+  color: #93c5fd;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity .15s;
+}
+.th-grade-fill:hover .th-fill-hint { opacity: 1; }
+
+/* ── Utility ──────────────────────────────────────────────────────── */
+.mt-8  { margin-top: 8px; }
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+.btn-sm:hover { background: var(--gray-50); }

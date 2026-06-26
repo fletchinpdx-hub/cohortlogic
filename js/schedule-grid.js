@@ -91,7 +91,9 @@ function renderMasterSchedule() {
     return;
   }
 
-  currentSlots = generateTimeSlots(SchedState.school.dayStart, SchedState.school.dayEnd);
+  const fb  = SchedState.school.firstBell  || SchedState.school.dayStart  || '08:00';
+  const dis = SchedState.school.dismissal  || SchedState.school.dayEnd    || '14:30';
+  currentSlots = generateTimeSlots(fb, dis);
 
   document.getElementById('view-master').innerHTML = `
     <div class="master-shell">
@@ -142,7 +144,7 @@ function renderMasterSchedule() {
             <thead>
               <tr class="sched-head-row">
                 <th class="th-time"></th>
-                ${currentGrades.map(g => `<th class="th-grade">${GRADE_LABELS[g] || g}</th>`).join('')}
+                ${currentGrades.map(g => `<th class="th-grade th-grade-fill" data-grade="${g}" title="Click to auto-fill required blocks for this grade">${GRADE_LABELS[g] || g}<span class="th-fill-hint">auto-fill</span></th>`).join('')}
               </tr>
             </thead>
             <tbody id="sched-tbody">
@@ -163,6 +165,7 @@ function renderMasterSchedule() {
   wirePalette();
   wireGridPointer();
   wireDayTabs();
+  wireGradeHeaders();
 
   document.getElementById('master-save-btn').addEventListener('click', saveMaster);
   document.getElementById('master-next-btn').addEventListener('click', saveMasterAndNext);
@@ -455,6 +458,69 @@ function wireDayTabs() {
   document.querySelectorAll('.day-tab').forEach(tab => {
     tab.addEventListener('click', () => switchDay(tab.dataset.day));
   });
+}
+
+// ── Grade header auto-fill ────────────────────────────────────────────────────
+
+function wireGradeHeaders() {
+  document.querySelectorAll('.th-grade-fill').forEach(th => {
+    th.addEventListener('click', () => autoPopulateGrade(th.dataset.grade));
+  });
+}
+
+// Priority order for auto-placing blocks (lower = placed first)
+const AUTO_FILL_PRIORITY = {
+  bt_cm: 1, bt_ela: 2, bt_math: 3, bt_win: 4, bt_eld: 5, bt_ssh: 6, bt_spec: 7,
+};
+
+function autoPopulateGrade(grade) {
+  const s     = SchedState.school;
+  const bands = s.gradeBands || [];
+  const band  = bands.find(b => b.grades.includes(grade));
+  if (!band) {
+    alert(`${GRADE_LABELS[grade] || grade} is not assigned to a grade band.\nSet up grade bands in Block Types first.`);
+    return;
+  }
+
+  const requirements = SchedState.blockTypes
+    .filter(bt => bt.required && bt.bandMinutes && bt.bandMinutes[band.id] > 0)
+    .sort((a, b) => (AUTO_FILL_PRIORITY[a.id] || 99) - (AUTO_FILL_PRIORITY[b.id] || 99));
+
+  if (!requirements.length) {
+    alert(`No time requirements are set for the "${band.name}" band.\nConfigure minutes in Block Types first.`);
+    return;
+  }
+
+  const fb  = s.firstBell  || s.dayStart  || '08:00';
+  const dis = s.dismissal  || s.dayEnd    || '14:30';
+  const allSlots = generateTimeSlots(fb, dis);
+
+  DAYS.forEach(day => {
+    if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
+    if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+    const sched    = SchedState.masterSchedule[day][grade];
+    const occupied = new Set(allSlots.filter(slot => sched[slot]));
+
+    requirements.forEach(req => {
+      const slotsNeeded = Math.ceil(req.bandMinutes[band.id] / 5);
+      for (let i = 0; i <= allSlots.length - slotsNeeded; i++) {
+        let canPlace = true;
+        for (let j = 0; j < slotsNeeded; j++) {
+          if (occupied.has(allSlots[i + j])) { canPlace = false; break; }
+        }
+        if (canPlace) {
+          for (let j = 0; j < slotsNeeded; j++) {
+            sched[allSlots[i + j]] = req.id;
+            occupied.add(allSlots[i + j]);
+          }
+          break;
+        }
+      }
+    });
+  });
+
+  saveToLocal();
+  rebuildTbody();
 }
 
 function switchDay(day) {

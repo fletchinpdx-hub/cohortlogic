@@ -14,6 +14,16 @@ function timeToMins(t) {
   return h * 60 + m;
 }
 
+function minsToTime(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function timeSlots15(start, end) {
   const slots = [];
   let cur = timeToMins(start);
@@ -160,15 +170,8 @@ function renderSchoolInfo() {
 
     </div>
 
-    <!-- Framework Preview -->
-    <div class="form-section" style="border-top:2px solid var(--indigo,#6366f1);margin-top:0">
-      <h2 class="form-section-title" style="color:var(--indigo,#6366f1)">Schedule Framework</h2>
-      <p class="form-hint">Based on your saved settings. Fixed blocks shown by grade — open (white) time is available for the master schedule.</p>
-      <div id="framework-grid"></div>
-    </div>
-
     <div class="view-actions">
-      <button class="btn btn-primary" id="school-next-btn">Save & Continue to Staff</button>
+      <button class="btn btn-primary" id="school-next-btn">Save & Continue to Block Types →</button>
       <div class="save-status" id="school-save-status"></div>
     </div>
   `;
@@ -568,65 +571,46 @@ function computeRecessTimes(s) {
   return result;
 }
 
-function renderFrameworkGrid() {
-  const el = document.getElementById('framework-grid');
-  if (!el) return;
-  const s = SchedState.school;
+// Pre-fills the master schedule with fixed blocks from School Info settings.
+// Called on save. Clears and replaces any previously auto-placed lunch/recess/MM blocks.
+function preFillFixedBlocks() {
+  const s      = SchedState.school;
   const grades = gradesSorted();
+  if (!grades.length) return;
 
-  if (!grades.length) {
-    el.innerHTML = '<p style="font-size:13px;color:var(--gray-400)">Select grade levels and save to see the framework.</p>';
-    return;
-  }
+  const mmBT     = SchedState.blockTypes.find(bt => bt.id === 'bt_mm')?.id     || 'bt_mm';
+  const lunchBT  = SchedState.blockTypes.find(bt => bt.id === 'bt_lunch')?.id  || 'bt_lunch';
+  const recessBT = SchedState.blockTypes.find(bt => bt.id === 'bt_recess')?.id || 'bt_recess';
+  const fixedIds = new Set([mmBT, lunchBT, recessBT]);
+  const recessMap = computeRecessTimes(s);
 
-  const campStart  = s.studentCampusStart || '07:45';
-  const campEnd    = s.studentCampusEnd   || '15:15';
-  const fbMins     = timeToMins(s.firstBell || '08:00');
-  const disMins    = timeToMins(s.dismissal  || '14:30');
-  const mmOn       = s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd;
-  const mmS        = mmOn ? timeToMins(s.morningMeetingStart) : null;
-  const mmE        = mmOn ? timeToMins(s.morningMeetingEnd)   : null;
-  const recessMap  = computeRecessTimes(s);
+  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  DAYS.forEach(day => {
+    if (!SchedState.masterSchedule[day]) SchedState.masterSchedule[day] = {};
+    grades.forEach(g => {
+      if (!SchedState.masterSchedule[day][g]) SchedState.masterSchedule[day][g] = {};
+      const sched = SchedState.masterSchedule[day][g];
 
-  function block(grade, mins) {
-    if (mins < fbMins)   return { label: 'Before School',  bg: '#f1f5f9', tc: '#94a3b8' };
-    if (mins >= disMins) return { label: 'After School',   bg: '#f1f5f9', tc: '#94a3b8' };
-    if (mmS !== null && mins >= mmS && mins < mmE) return { label: 'Morning Meeting', bg: '#ede9fe', tc: '#5b21b6' };
-    const lp = s.lunchPeriods.find(x => x.grades.includes(grade) && mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
-    if (lp) return { label: 'Lunch', bg: '#d1fae5', tc: '#065f46' };
-    const grSlots = recessMap[grade] || [];
-    const rs = grSlots.find(x => mins >= timeToMins(x.start) && mins < timeToMins(x.start) + x.duration);
-    if (rs) return { label: rs.name, bg: '#cffafe', tc: '#164e63' };
-    return null;
-  }
+      // Clear old auto-placed fixed blocks
+      Object.keys(sched).forEach(slot => { if (fixedIds.has(sched[slot])) delete sched[slot]; });
 
-  const slots = timeSlots15(campStart, campEnd);
-  const prev  = {};
+      // Morning Meeting (all grades)
+      if (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd) {
+        generateTimeSlots(s.morningMeetingStart, s.morningMeetingEnd).forEach(slot => { sched[slot] = mmBT; });
+      }
 
-  const rows = slots.map(slot => {
-    const mins   = timeToMins(slot);
-    const isHour = slot.endsWith(':00');
-    const cells  = grades.map(g => {
-      const blk  = block(g, mins);
-      const key  = blk ? blk.label : '';
-      const show = key && key !== (prev[g] || '');
-      prev[g] = key;
-      return `<td class="fw-td" style="${blk ? `background:${blk.bg}` : ''}">${show ? `<span class="fw-label" style="color:${blk.tc}">${blk.label}</span>` : ''}</td>`;
-    }).join('');
-    return `<tr class="${isHour ? 'fw-row-hour' : 'fw-row'}"><td class="fw-time">${isHour ? slot : ''}</td>${cells}</tr>`;
-  }).join('');
+      // Lunch
+      const lp = (s.lunchPeriods || []).find(p => p.grades.includes(g));
+      if (lp) {
+        generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration)).forEach(slot => { sched[slot] = lunchBT; });
+      }
 
-  el.innerHTML = `
-    <div class="fw-scroll">
-      <table class="fw-table">
-        <thead><tr>
-          <th class="fw-th-time"></th>
-          ${grades.map(g => `<th class="fw-th">${g === 'TK' || g === 'K' ? g : 'Gr ' + g}</th>`).join('')}
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
+      // Recess
+      (recessMap[g] || []).forEach(rs => {
+        generateTimeSlots(rs.start, minsToTime(timeToMins(rs.start) + rs.duration)).forEach(slot => { sched[slot] = recessBT; });
+      });
+    });
+  });
 }
 
 async function saveSchoolAndContinue() {
@@ -675,9 +659,9 @@ async function saveSchoolAndContinue() {
     showSaveStatus('school-save-status', 'Saved locally (Supabase unavailable)');
   }
 
-  renderFrameworkGrid();
+  preFillFixedBlocks();
   updateSidebarStatus();
-  setTimeout(() => { navigateTo('staff'); renderStaff(); }, 800);
+  setTimeout(() => { navigateTo('blocks'); renderBlocks(); }, 800);
 }
 
 
@@ -853,66 +837,322 @@ async function saveStaffAndContinue() {
 }
 
 // ── Step 3: Block Types ───────────────────────────────────────────────────────
-function renderBlocks() {
-  const categorized = {};
-  SchedState.blockTypes.forEach(bt => {
-    if (!categorized[bt.category]) categorized[bt.category] = [];
-    categorized[bt.category].push(bt);
-  });
+// ── Block Types page helpers ──────────────────────────────────────────────────
 
-  const categoryOrder = ['instruction','specials','intervention','behavior','transition','admin'];
+function collectBandsFromDOM() {
+  const rows = document.querySelectorAll('.band-row');
+  if (!rows.length) return;
+  SchedState.school.gradeBands = [...rows].map(row => ({
+    id:     row.dataset.bandId,
+    name:   row.querySelector('.band-name-input').value.trim(),
+    grades: [...row.querySelectorAll('.grade-chip-xs.active')].map(c => c.dataset.grade),
+  }));
+}
+
+function collectReqFromDOM() {
+  document.querySelectorAll('#req-tbody .req-row').forEach(row => {
+    const btId = row.dataset.btId;
+    const bt   = SchedState.blockTypes.find(b => b.id === btId);
+    if (!bt) return;
+    const nameEl  = row.querySelector('.req-name-input');
+    const colorEl = row.querySelector('.req-color-input');
+    if (nameEl)  bt.name  = nameEl.value.trim()  || bt.name;
+    if (colorEl) bt.color = colorEl.value;
+    bt.bandMinutes = bt.bandMinutes || {};
+    row.querySelectorAll('.req-min-input').forEach(inp => {
+      const val = parseInt(inp.value, 10);
+      bt.bandMinutes[inp.dataset.bandId] = isNaN(val) ? 0 : val;
+    });
+    // Sub-block minutes
+    bt.subBandMinutes = bt.subBandMinutes || {};
+    const subSection = document.querySelector(`#sub-section-${btId}`);
+    if (subSection) {
+      subSection.querySelectorAll('.sub-row').forEach(srow => {
+        const subId = srow.dataset.subId;
+        const sub   = (bt.subBlocks || []).find(s => s.id === subId);
+        const snEl  = srow.querySelector('.sub-name-input');
+        if (sub && snEl) sub.name = snEl.value.trim() || sub.name;
+        if (!bt.subBandMinutes[subId]) bt.subBandMinutes[subId] = {};
+        srow.querySelectorAll('.sub-min-input').forEach(inp => {
+          const val = parseInt(inp.value, 10);
+          bt.subBandMinutes[subId][inp.dataset.bandId] = isNaN(val) ? 0 : val;
+        });
+      });
+    }
+  });
+}
+
+function renderBandRow(band) {
+  return `
+    <div class="band-row" data-band-id="${band.id}">
+      <input type="text" class="band-name-input input" placeholder="Band name (e.g. K-1)" value="${escHtml(band.name)}">
+      <div class="band-grade-chips">
+        ${gradesSorted().map(g => `<span class="grade-chip-xs ${band.grades.includes(g) ? 'active' : ''}" data-grade="${g}" data-band-id="${band.id}">${gradeChipLabel(g)}</span>`).join('')}
+      </div>
+      <button class="btn-icon remove-band-btn" data-band-id="${band.id}" title="Remove band">×</button>
+    </div>
+  `;
+}
+
+function renderSubTable(bt, bands) {
+  const subs = bt.subBlocks || [];
+  return `
+    <div class="sub-block-section" id="sub-section-${bt.id}">
+      <table class="sub-table">
+        <thead><tr>
+          <th class="sub-th-name">Sub-block</th>
+          ${bands.map(b => `<th class="sub-th-min">${escHtml(b.name)}</th>`).join('')}
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${subs.map(sub => `
+            <tr class="sub-row" data-sub-id="${sub.id}" data-parent-id="${bt.id}">
+              <td><input type="text" class="sub-name-input" value="${escHtml(sub.name)}" placeholder="Sub-block name"></td>
+              ${bands.map(b => `<td><input type="number" class="sub-min-input" data-sub-id="${sub.id}" data-band-id="${b.id}" data-parent-id="${bt.id}" min="0" max="300" step="5" value="${((bt.subBandMinutes || {})[sub.id] || {})[b.id] || 0}"></td>`).join('')}
+              <td><button class="btn-icon del-sub-btn" data-parent-id="${bt.id}" data-sub-id="${sub.id}" title="Remove">×</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <button class="btn btn-sm add-sub-btn" data-parent-id="${bt.id}">+ Add Sub-block</button>
+    </div>
+  `;
+}
+
+function renderReqRow(bt, bands) {
+  const hasSubs = (bt.subBlocks || []).length > 0;
+  return `
+    <tr class="req-row" data-bt-id="${bt.id}">
+      <td><input type="text" class="req-name-input" value="${escHtml(bt.name)}" placeholder="Block name"></td>
+      <td class="req-td-color">
+        <span class="req-color-swatch" style="background:${bt.color}"></span>
+        <input type="color" class="req-color-input" value="${bt.color}">
+      </td>
+      ${bands.map(b => `<td class="req-td-min"><input type="number" class="req-min-input" data-bt-id="${bt.id}" data-band-id="${b.id}" min="0" max="360" step="5" value="${(bt.bandMinutes || {})[b.id] || 0}"></td>`).join('')}
+      <td class="req-td-actions">
+        <button class="btn-sm req-sub-toggle" data-bt-id="${bt.id}">${hasSubs ? `Sub-blocks (${bt.subBlocks.length})` : 'Sub-blocks'}</button>
+        <button class="btn-icon req-delete-btn" data-bt-id="${bt.id}" title="Remove block">×</button>
+      </td>
+    </tr>
+    <tr class="req-sub-row ${hasSubs ? '' : 'hidden'}" data-parent-id="${bt.id}" id="req-sub-row-${bt.id}">
+      <td></td>
+      <td></td>
+      <td colspan="${bands.length + 1}" class="req-sub-td">${renderSubTable(bt, bands)}</td>
+    </tr>
+  `;
+}
+
+function renderBlocks() {
+  const s       = SchedState.school;
+  const bands   = s.gradeBands || [];
+  const reqBTs  = SchedState.blockTypes.filter(bt => bt.required);
+  const otherBTs = SchedState.blockTypes.filter(bt => !bt.required);
+  const catOrder = ['instruction','sel','specials','intervention','behavior','transition','admin'];
 
   document.getElementById('view-blocks').innerHTML = `
     <div class="view-header">
-      <h1>Block Types</h1>
-      <p class="view-subtitle">These are the activity blocks you'll place on the schedule. We've pre-loaded common types — add, edit, or remove as needed.</p>
+      <h1>Block Types &amp; Requirements</h1>
+      <p class="view-subtitle">Define grade bands and set required instructional minutes per block. These blocks will auto-fill into the Master Schedule.</p>
     </div>
 
-    <div class="blocks-toolbar">
-      <button class="btn btn-primary" id="add-block-btn">+ Add Block Type</button>
+    <div class="form-section">
+      <h2 class="form-section-title">Grade Bands</h2>
+      <p class="form-hint">Group grades that share the same instructional time requirements.</p>
+      <div id="bands-list">
+        ${bands.length ? bands.map(renderBandRow).join('') : '<p class="text-muted" style="margin:0 0 12px">No bands yet — add one to start.</p>'}
+      </div>
+      <button class="btn btn-outline btn-sm" id="add-band-btn">+ Add Band</button>
     </div>
 
-    <div id="add-block-form" class="inline-form hidden"></div>
+    <div class="form-section">
+      <h2 class="form-section-title">Instructional Time Requirements</h2>
+      <p class="form-hint">Required daily minutes per block, per grade band. Click "Sub-blocks" to define timed components within a block.</p>
+      ${bands.length === 0 ? '<p class="text-muted">Add grade bands above first.</p>' : `
+      <div class="req-table-wrap">
+        <table class="req-table">
+          <thead><tr>
+            <th class="req-th-block">Block</th>
+            <th class="req-th-color">Color</th>
+            ${bands.map(b => `<th class="req-th-band">${escHtml(b.name)}<span class="req-th-hint">min/day</span></th>`).join('')}
+            <th class="req-th-actions"></th>
+          </tr></thead>
+          <tbody id="req-tbody">
+            ${reqBTs.map(bt => renderReqRow(bt, bands)).join('')}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-outline btn-sm mt-8" id="add-req-btn">+ Add Required Block</button>
+      `}
+    </div>
 
-    <div id="blocks-list">
-      ${categoryOrder.map(cat => {
-        const blocks = categorized[cat];
-        if (!blocks?.length) return '';
-        return `
-          <div class="block-category-section">
-            <h3 class="block-category-label">${BLOCK_CATEGORIES[cat] || cat}</h3>
-            <div class="block-chips-grid">
-              ${blocks.map(bt => `
-                <div class="block-chip-card" data-id="${bt.id}">
-                  <span class="block-chip-dot" style="background:${bt.color}"></span>
-                  <span class="block-chip-name">${bt.name}</span>
-                  ${bt.defaultDuration ? `<span class="block-chip-duration">${bt.defaultDuration} min</span>` : ''}
-                  <div class="block-chip-actions">
-                    <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
-                    <button class="icon-btn remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
+    <div class="form-section">
+      <h2 class="form-section-title">Other Block Types</h2>
+      <p class="form-hint">Additional palette blocks — auto-placed items (Morning Meeting, Lunch, Recess) and support types. No time requirement.</p>
+      <div id="add-block-form" class="inline-form hidden"></div>
+      <div id="other-blocks-area">
+        ${catOrder.map(cat => {
+          const bks = otherBTs.filter(bt => bt.category === cat);
+          if (!bks.length) return '';
+          return `
+            <div class="block-category-section">
+              <h3 class="block-category-label">${BLOCK_CATEGORIES[cat] || cat}</h3>
+              <div class="block-chips-grid">
+                ${bks.map(bt => `
+                  <div class="block-chip-card" data-id="${bt.id}">
+                    <span class="block-chip-dot" style="background:${bt.color}"></span>
+                    <span class="block-chip-name">${escHtml(bt.name)}</span>
+                    <div class="block-chip-actions">
+                      <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
+                      <button class="icon-btn remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
+                    </div>
                   </div>
-                </div>
-              `).join('')}
+                `).join('')}
+              </div>
             </div>
-          </div>
-        `;
-      }).join('')}
+          `;
+        }).join('')}
+      </div>
+      <button class="btn btn-outline btn-sm mt-8" id="add-block-btn">+ Add Block Type</button>
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-outline" id="blocks-back-btn">← Back</button>
-      <button class="btn btn-primary" id="blocks-next-btn">Save Setup & Build Master Schedule →</button>
+      <button class="btn btn-outline" id="blocks-back-btn">← Back to School Info</button>
+      <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Staff Roster →</button>
       <div class="save-status" id="blocks-save-status"></div>
     </div>
   `;
 
-  document.getElementById('add-block-btn').addEventListener('click', () => showAddBlockForm());
-  document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('staff'); renderStaff(); });
+  wireBandsSection();
+  wireReqTable();
+  wireOtherBlocks();
+  document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('school'); renderSchoolInfo(); });
   document.getElementById('blocks-next-btn').addEventListener('click', saveBlocksAndContinue);
-  wireBlocksList();
 }
 
-function showAddBlockForm(existingId) {
+// ── Band section wiring ───────────────────────────────────────────────────────
+function wireBandsSection() {
+  document.querySelectorAll('.band-row .grade-chip-xs').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+
+  document.querySelectorAll('.remove-band-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      SchedState.school.gradeBands = (SchedState.school.gradeBands || []).filter(b => b.id !== btn.dataset.bandId);
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+
+  const addBtn = document.getElementById('add-band-btn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      if (!SchedState.school.gradeBands) SchedState.school.gradeBands = [];
+      SchedState.school.gradeBands.push({ id: uid(), name: '', grades: [] });
+      saveToLocal();
+      renderBlocks();
+    });
+  }
+}
+
+// ── Requirements table wiring ─────────────────────────────────────────────────
+function wireReqTable() {
+  // Color swatch live update
+  document.querySelectorAll('.req-color-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const swatch = inp.closest('.req-td-color')?.querySelector('.req-color-swatch');
+      if (swatch) swatch.style.background = inp.value;
+    });
+  });
+
+  // Toggle sub-block section
+  document.querySelectorAll('.req-sub-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = document.getElementById(`req-sub-row-${btn.dataset.btId}`);
+      if (row) row.classList.toggle('hidden');
+    });
+  });
+
+  // Delete required block
+  document.querySelectorAll('.req-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      SchedState.blockTypes = SchedState.blockTypes.filter(b => b.id !== btn.dataset.btId);
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+
+  // Add new required block
+  const addReqBtn = document.getElementById('add-req-btn');
+  if (addReqBtn) {
+    addReqBtn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      SchedState.blockTypes.push({
+        id: uid(), name: 'New Block', color: '#6366f1', category: 'instruction',
+        required: true, subBlocks: [], bandMinutes: {}, subBandMinutes: {},
+      });
+      saveToLocal();
+      renderBlocks();
+    });
+  }
+
+  // Add sub-block
+  document.querySelectorAll('.add-sub-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      const parentId = btn.dataset.parentId;
+      const bt = SchedState.blockTypes.find(b => b.id === parentId);
+      if (!bt) return;
+      if (!bt.subBlocks) bt.subBlocks = [];
+      const subId = uid();
+      bt.subBlocks.push({ id: subId, name: 'New Sub-block' });
+      if (!bt.subBandMinutes) bt.subBandMinutes = {};
+      bt.subBandMinutes[subId] = {};
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+
+  // Delete sub-block
+  document.querySelectorAll('.del-sub-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collectBandsFromDOM();
+      collectReqFromDOM();
+      const { parentId, subId } = btn.dataset;
+      const bt = SchedState.blockTypes.find(b => b.id === parentId);
+      if (!bt) return;
+      bt.subBlocks = (bt.subBlocks || []).filter(s => s.id !== subId);
+      if (bt.subBandMinutes) delete bt.subBandMinutes[subId];
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+}
+
+// ── Other blocks wiring ───────────────────────────────────────────────────────
+function wireOtherBlocks() {
+  document.querySelectorAll('.remove-block-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      SchedState.blockTypes = SchedState.blockTypes.filter(b => b.id !== btn.dataset.id);
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+  document.querySelectorAll('.edit-block-btn').forEach(btn => {
+    btn.addEventListener('click', () => showOtherBlockForm(btn.dataset.id));
+  });
+  const addBtn = document.getElementById('add-block-btn');
+  if (addBtn) addBtn.addEventListener('click', () => showOtherBlockForm());
+}
+
+function showOtherBlockForm(existingId) {
   const existing = existingId ? SchedState.blockTypes.find(b => b.id === existingId) : null;
   const form = document.getElementById('add-block-form');
   form.classList.remove('hidden');
@@ -920,30 +1160,21 @@ function showAddBlockForm(existingId) {
     <div class="inline-form-grid">
       <div class="form-group">
         <label class="form-label">Block Name</label>
-        <input type="text" class="input" id="bf-name" placeholder="e.g. Writing Workshop" value="${existing?.name || ''}" />
+        <input type="text" class="input" id="bf-name" placeholder="e.g. Advisory" value="${escHtml(existing?.name || '')}" />
       </div>
       <div class="form-group">
         <label class="form-label">Category</label>
         <select class="input" id="bf-category">
           ${Object.entries(BLOCK_CATEGORIES).map(([val, label]) =>
-            `<option value="${val}" ${(existing?.category || 'instruction') === val ? 'selected' : ''}>${label}</option>`
+            `<option value="${val}" ${(existing?.category || 'admin') === val ? 'selected' : ''}>${label}</option>`
           ).join('')}
         </select>
-      </div>
-      <div class="form-group form-group-sm">
-        <label class="form-label">Default Duration</label>
-        <div class="duration-input-row">
-          <input type="number" class="input" id="bf-duration" min="5" max="180" step="5"
-            placeholder="—" value="${existing?.defaultDuration || ''}" style="width:70px" />
-          <span class="duration-unit">min</span>
-        </div>
-        <div class="form-hint-sm">Auto-fills this many minutes on single click. Leave blank for manual.</div>
       </div>
       <div class="form-group form-group-color">
         <label class="form-label">Color</label>
         <div class="color-palette" id="bf-color-palette">
           ${STAFF_COLOR_PALETTE.map(c => `
-            <button type="button" class="color-dot ${(existing?.color || '#3b82f6') === c ? 'selected' : ''}" data-color="${c}" style="background:${c}"></button>
+            <button type="button" class="color-dot ${(existing?.color || '#a855f7') === c ? 'selected' : ''}" data-color="${c}" style="background:${c}"></button>
           `).join('')}
         </div>
       </div>
@@ -953,33 +1184,26 @@ function showAddBlockForm(existingId) {
       <button class="btn btn-outline" id="bf-cancel-btn">Cancel</button>
     </div>
   `;
-
   document.querySelectorAll('#bf-color-palette .color-dot').forEach(dot => {
     dot.addEventListener('click', () => {
       document.querySelectorAll('#bf-color-palette .color-dot').forEach(d => d.classList.remove('selected'));
       dot.classList.add('selected');
     });
   });
-
-  document.getElementById('bf-cancel-btn').addEventListener('click', () => {
-    form.classList.add('hidden');
-    form.innerHTML = '';
-  });
-
+  document.getElementById('bf-cancel-btn').addEventListener('click', () => { form.classList.add('hidden'); form.innerHTML = ''; });
   document.getElementById('bf-save-btn').addEventListener('click', () => {
     const name = document.getElementById('bf-name').value.trim();
     if (!name) { document.getElementById('bf-name').focus(); return; }
-    const durVal = parseInt(document.getElementById('bf-duration').value, 10);
     const block = {
-      id:              existing?.id || uid(),
+      id:       existing?.id || uid(),
       name,
-      category:        document.getElementById('bf-category').value,
-      color:           document.querySelector('#bf-color-palette .color-dot.selected')?.dataset.color || '#3b82f6',
-      defaultDuration: (!isNaN(durVal) && durVal >= 5) ? durVal : null,
+      category: document.getElementById('bf-category').value,
+      color:    document.querySelector('#bf-color-palette .color-dot.selected')?.dataset.color || '#a855f7',
+      required: false,
     };
     if (existing) {
       const idx = SchedState.blockTypes.findIndex(b => b.id === existingId);
-      SchedState.blockTypes[idx] = block;
+      SchedState.blockTypes[idx] = Object.assign({}, existing, block);
     } else {
       SchedState.blockTypes.push(block);
     }
@@ -990,26 +1214,15 @@ function showAddBlockForm(existingId) {
   });
 }
 
-function wireBlocksList() {
-  document.querySelectorAll('.remove-block-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      SchedState.blockTypes = SchedState.blockTypes.filter(b => b.id !== btn.dataset.id);
-      saveToLocal();
-      renderBlocks();
-    });
-  });
-  document.querySelectorAll('.edit-block-btn').forEach(btn => {
-    btn.addEventListener('click', () => showAddBlockForm(btn.dataset.id));
-  });
-}
-
 async function saveBlocksAndContinue() {
+  collectBandsFromDOM();
+  collectReqFromDOM();
   saveToLocal();
   showSaveStatus('blocks-save-status', 'Saving…');
   const result = await saveToSupabase();
   showSaveStatus('blocks-save-status', result.ok ? 'Saved ✓' : 'Saved locally');
   updateSidebarStatus();
-  setTimeout(() => { navigateTo('master'); renderMasterSchedule(); }, 600);
+  setTimeout(() => { navigateTo('staff'); renderStaff(); }, 600);
 }
 
 // ── Step 4: Review & Save ────────────────────────────────────────────────────
