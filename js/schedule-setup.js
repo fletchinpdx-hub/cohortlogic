@@ -215,7 +215,6 @@ function renderSchoolInfo() {
 
   wireAltDayRemove();
   wireLunchEvents();
-  renderFrameworkGrid();
 
   document.getElementById('school-next-btn').addEventListener('click', saveSchoolAndContinue);
 }
