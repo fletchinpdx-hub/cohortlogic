@@ -46,7 +46,46 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 - Score colors: 0=red (#EF4444), 1=amber (#F59E0B), 2=green (#22C55E)
 - 15-minute inactivity session timeout with 60-second warning banner
 
-### 3. Referral Tracking (`referral-app.html`)
+### 3. Building Schedule Builder (`schedule-app.html`)
+Master schedule builder for school administrators. Phase 1 is complete and live.
+
+**Data model — file-based, not Supabase:**
+- Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
+- `localStorage` is a session cache only (survives tab close, not device switch).
+- Supabase used only for auth + product gating (`enabled_products` includes `schedule_builder`).
+- `downloadScheduleFile()` / `loadScheduleFromFile(file)` in `schedule-state.js`.
+
+**Nav flow:**
+- Phase 1 Setup: School Info → Block Types → Master Schedule
+- Phase 2 Detail: Staff Roster → Specials (locked) → IA Schedule (locked)
+- Finish: Export (locked)
+
+**Key state — `SchedState` in `schedule-state.js`:**
+- `school` — name, year, grades, time bounds (firstBell, dismissal, studentCampusStart…), morningMeetings[], lunchPeriods[], gradeRecesses{}, gradeBands[]
+- `blockTypes[]` — DEFAULT_BLOCK_TYPES (17 blocks); required blocks have bandMinutes{} / subBandMinutes{}; ELA has sub-blocks that auto-sum to the total
+- `masterSchedule[day][grade][slot]` = blockTypeId — 5-minute slots Mon–Fri
+
+**Key JS files:**
+- `js/schedule-state.js` — SchedState, DEFAULT_BLOCK_TYPES, saveToLocal, loadFromLocal, downloadScheduleFile, loadScheduleFromFile, uid()
+- `js/schedule-setup.js` — School Info, Block Types, Staff Roster views + save flows
+- `js/schedule-grid.js` — Master Schedule grid, drag-to-move, auto-populate, XLSX export, copy-day
+- `js/schedule-init.js` — boot (auth + product gate), landing screen, download/load button wiring
+
+**Key behaviors:**
+- `preFillFixedBlocks()` — auto-places lunch/recess/morning meetings from School Info settings into masterSchedule
+- `autoPopulateGrade(grade)` — fills required instructional blocks into open time slots per grade band requirements
+- `autoPopulateIfEmpty()` — called on master schedule entry; auto-fills all grades if no instructional blocks exist yet
+- Drag-to-move: pointerdown on a filled cell with no paint tool → picks up the block; drag to new position; click without drag leaves it in place
+- Grade band columns: click column header to auto-fill that grade
+- Download button in sidebar footer turns amber (⚠) when there are unsaved changes
+
+**CSP constraint:** `script-src 'self' cdn.jsdelivr.net cdn.sheetjs.com` — no `unsafe-inline`. All event handlers via `addEventListener`.
+
+**Phase 2 not yet built:** Specials, IA Schedule, Export views are placeholder cards.
+
+---
+
+### 4. Referral Tracking (`referral-app.html`)
 Tier 1 behavior / office-discipline referral tracker, modeled on PBISApps/SWIS. Supabase-backed, multi-school. Product key `referrals` (gated via `enabled_products` + `can_access_product('referrals')`, same as CICO).
 - Views: New Referral, Referrals (list), Review (reviewers only), Students, Settings, Reports
 - **Shared roster**: uses the `students` table (renamed from `cico_students`), shared with CICO; added demographic cols `race_ethnicity, gender, iep`
@@ -190,6 +229,7 @@ index.html              — Marketing/landing page
 dashboard.html          — Product dashboard (links to both products + role-aware admin link)
 app.html                — Class Builder app
 checkin-app.html        — Check-in / Check-out app
+schedule-app.html       — Building Schedule Builder app
 login.html              — Shared login for CICO
 signup.html             — CICO signup (email verification + pending approval flow)
 privacy.html            — Privacy policy (FERPA)
@@ -228,6 +268,12 @@ js/
   checkin-students.js   — Students view: list, add/edit, Excel import
   checkin-config.js     — Settings: period count, categories, incident types
   checkin-reports.js    — Reports: 4 tabs, Chart.js charts, stat cards
+  schedule-state.js     — SchedState, DEFAULT_BLOCK_TYPES, file save/load, uid()
+  schedule-setup.js     — School Info, Block Types, Staff Roster views
+  schedule-grid.js      — Master Schedule grid, drag-to-move, auto-populate, XLSX export
+  schedule-init.js      — Boot, landing screen, download/load wiring
+css/
+  schedule.css          — Schedule Builder styles (extends styles.css)
 images/
   logo.png              — Transparent PNG logo
 supabase/migrations/
@@ -325,3 +371,6 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 - **Data retention policy** — process decision, not yet defined
 - Class Builder: print view, lock student to class
 - CICO: mobile polish, print-friendly check-in sheets
+- **Schedule Builder Phase 2:** Specials breakdown, IA Schedule assignment, Export view (currently placeholder cards)
+- Schedule Builder: conflict detection (double-booked grades/staff)
+- Schedule Builder: per-staff schedule views for export
