@@ -158,6 +158,40 @@ function ensureFixedBlockTypes() {
   });
 }
 
+// If grade bands were deleted and re-created, their IDs change. Old bandMinutes
+// keys (old IDs) no longer match current gradeBands, so blocks appear to have
+// 0 minutes and are excluded from auto-populate. When there is exactly one
+// orphaned value for a band slot that has no current data, remap it safely.
+function migrateBandIds() {
+  const bands = SchedState.school.gradeBands || [];
+  if (!bands.length) return;
+  const currentIds = new Set(bands.map(b => b.id));
+
+  SchedState.blockTypes.forEach(bt => {
+    if (!bt.bandMinutes) return;
+
+    bands.forEach(band => {
+      if ((bt.bandMinutes[band.id] || 0) > 0) return; // already has current data
+      const orphans = Object.entries(bt.bandMinutes)
+        .filter(([id, v]) => !currentIds.has(id) && v > 0);
+      if (orphans.length === 1) bt.bandMinutes[band.id] = orphans[0][1];
+
+      // Migrate sub-block minutes with the same pattern
+      (bt.subBlocks || []).forEach(sub => {
+        const subMin = (bt.subBandMinutes || {})[sub.id] || {};
+        if ((subMin[band.id] || 0) > 0) return;
+        const subOrphans = Object.entries(subMin)
+          .filter(([id, v]) => !currentIds.has(id) && v > 0);
+        if (subOrphans.length === 1) {
+          bt.subBandMinutes = bt.subBandMinutes || {};
+          bt.subBandMinutes[sub.id] = bt.subBandMinutes[sub.id] || {};
+          bt.subBandMinutes[sub.id][band.id] = subOrphans[0][1];
+        }
+      });
+    });
+  });
+}
+
 // For blocks with sub-blocks (e.g. ELA), migrate legacy bandMinutes into
 // subBandMinutes when subBandMinutes is empty. Files saved before sub-block
 // minutes were configured will have bandMinutes (the old single total) but
@@ -241,6 +275,7 @@ function loadFromLocal() {
           { subBlocks: (bt.subBlocks || []).map(s => Object.assign({}, s)), bandMinutes: {}, subBandMinutes: {} }));
       }
       ensureFixedBlockTypes();
+      migrateBandIds();
       migrateSubBlockMinutes();
     }
     if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
@@ -294,6 +329,7 @@ function loadScheduleFromFile(file) {
             : DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
                 { subBlocks: (bt.subBlocks||[]).map(s=>Object.assign({},s)), bandMinutes:{}, subBandMinutes:{} }));
           ensureFixedBlockTypes();
+          migrateBandIds();
           migrateSubBlockMinutes();
         }
         // Ensure required arrays exist

@@ -627,6 +627,9 @@ function autoPopulateGrade(grade, silent = false) {
 
     requirements.forEach(req => {
       const slotsNeeded = Math.ceil(req.bandMinutes[band.id] / 5);
+      // Skip if this block type already has enough slots placed for this day
+      const alreadyPlaced = allSlots.filter(s => sched[s] === req.id).length;
+      if (alreadyPlaced >= slotsNeeded) return;
       for (let i = 0; i <= allSlots.length - slotsNeeded; i++) {
         let canPlace = true;
         for (let j = 0; j < slotsNeeded; j++) {
