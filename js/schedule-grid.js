@@ -84,6 +84,10 @@ function blockDuration(day, grade, slot) {
 function renderMasterSchedule() {
   currentGrades = gradesSorted();
 
+  // Always sync lunch/recess/morning-meeting blocks from School Info settings
+  // before rendering, so loading saved data doesn't lose these fixed blocks.
+  if (currentGrades.length) preFillFixedBlocks();
+
   if (!currentGrades.length) {
     document.getElementById('view-master').innerHTML = `
       <div class="view-header"><h1>Master Schedule</h1></div>
