@@ -908,12 +908,17 @@ function collectReqFromDOM() {
         });
       });
     }
-    // For blocks with sub-blocks, derive bandMinutes from sub sums
+    // For blocks with sub-blocks, derive bandMinutes from sub sums.
+    // Only update bandMinutes when the user has actually entered sub-block values
+    // (subSum > 0). Leaving bandMinutes unchanged when all subs are 0 preserves
+    // any legacy total already stored, so ELA isn't silently zeroed out just
+    // because the sub-block rows haven't been filled in yet.
     if ((bt.subBlocks || []).length > 0) {
-      bt.bandMinutes = {};
+      bt.bandMinutes = bt.bandMinutes || {};
       (SchedState.school.gradeBands || []).forEach(band => {
-        bt.bandMinutes[band.id] = (bt.subBlocks || []).reduce((sum, sub) =>
+        const subSum = (bt.subBlocks || []).reduce((sum, sub) =>
           sum + ((bt.subBandMinutes[sub.id] || {})[band.id] || 0), 0);
+        if (subSum > 0) bt.bandMinutes[band.id] = subSum;
       });
     }
   });
