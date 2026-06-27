@@ -1295,6 +1295,9 @@ function saveBlocksAndContinue() {
   updateSidebarStatus();
   navigateTo('master');
   renderMasterSchedule();
+  // Fill any required blocks not yet placed (e.g. ELA configured after Math
+  // was already auto-filled). Won't touch blocks that already exist.
+  fillMissingRequirements();
 }
 
 // ── Step 4: Review & Save ────────────────────────────────────────────────────

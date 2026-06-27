@@ -458,7 +458,8 @@ function commitClick() {
   const { startGrade, startSlot, paintValue } = drag;
 
   if (paintValue !== null) {
-    const bt = SchedState.blockTypes.find(b => b.id === paintValue);
+    const parentId = paintValue.includes('|') ? paintValue.split('|')[0] : paintValue;
+    const bt = SchedState.blockTypes.find(b => b.id === parentId);
     const dur = bt?.defaultDuration;
     if (dur && dur >= 5) {
       const startIdx = currentSlots.indexOf(startSlot);
@@ -551,7 +552,8 @@ function findBlockLength(day, grade, startSlot) {
 
 function showMovePreview() {
   clearMovePreview();
-  const bt = SchedState.blockTypes.find(b => b.id === drag.moveValue);
+  const parentId = drag.moveValue?.includes('|') ? drag.moveValue.split('|')[0] : drag.moveValue;
+  const bt = SchedState.blockTypes.find(b => b.id === parentId);
   const color = bt ? bt.color : '#94a3b8';
   // Highlight where block will land
   const targetStartIdx = currentSlots.indexOf(drag.endSlot);
@@ -615,12 +617,24 @@ function refreshColumnAround(grade, slot) {
     if (!cell) return;
     const prevSlot = i > 0 ? currentSlots[i - 1] : null;
 
-    const day    = gridUI.activeDay;
-    const btId   = getBlock(day, grade, s);
-    const bt     = btId ? SchedState.blockTypes.find(b => b.id === btId) : null;
+    const day   = gridUI.activeDay;
+    const btId  = getBlock(day, grade, s);
     const prevId = prevSlot ? getBlock(day, grade, prevSlot) : null;
     const isCont  = !!(btId && btId === prevId);
     const isStart = !!(btId && !isCont);
+
+    let bt = null, displayName = '';
+    if (btId) {
+      if (btId.includes('|')) {
+        const [pid, sid] = btId.split('|');
+        bt = SchedState.blockTypes.find(b => b.id === pid) || null;
+        const sub = bt ? (bt.subBlocks || []).find(s => s.id === sid) : null;
+        displayName = sub ? sub.name : (bt ? bt.name : '');
+      } else {
+        bt = SchedState.blockTypes.find(b => b.id === btId) || null;
+        displayName = bt ? bt.name : '';
+      }
+    }
 
     cell.className = `grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}`;
     if (bt) {
@@ -629,7 +643,7 @@ function refreshColumnAround(grade, slot) {
       if (isStart) {
         const mins = blockDuration(day, grade, s);
         const durLabel = mins >= 10 ? ` · ${mins} min` : '';
-        cell.innerHTML = `<span class="cell-label" style="color:${bt.color}">${bt.name}${durLabel}</span>`;
+        cell.innerHTML = `<span class="cell-label" style="color:${bt.color}">${displayName}${durLabel}</span>`;
       } else {
         cell.innerHTML = '';
       }
@@ -661,80 +675,77 @@ const AUTO_FILL_PRIORITY = {
   bt_cm: 1, bt_ela: 2, bt_math: 3, bt_win: 4, bt_eld: 5, bt_ssh: 6, bt_spec: 7,
 };
 
-// clearFirst=true: wipe existing requirement slots before re-placing (used by
-// the grade-header click so a manual auto-fill always produces a clean result).
-// clearFirst=false (default): only fill gaps, never overwrite existing blocks.
-function autoPopulateGrade(grade, silent = false, clearFirst = false) {
-  const s     = SchedState.school;
-  const bands = s.gradeBands || [];
-  const band  = bands.find(b => b.grades.includes(grade));
-  if (!band) {
-    if (!silent) alert(`${GRADE_LABELS[grade] || grade} is not assigned to a grade band.\nSet up grade bands in Block Types first.`);
-    return;
-  }
+// Returns the slot range that matches renderMasterSchedule exactly.
+function _autoFillSlots() {
+  const sc = SchedState.school;
+  const candidates = [sc.firstBell, sc.studentCampusStart, sc.dayStart]
+    .filter(t => t && /^\d\d:\d\d/.test(t));
+  const fb  = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
+  const dis = sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30';
+  return generateTimeSlots(fb, dis);
+}
+
+// Core placement logic — pure data mutation, no DOM or storage side effects.
+// clearFirst=true  → wipe existing requirement slots before placing (grade-header click).
+// clearFirst=false → only place blocks that have ZERO slots placed; skip any
+//                    block that exists even partially to prevent double-placement.
+function _populateGradeData(grade, clearFirst) {
+  const s    = SchedState.school;
+  const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
+  if (!band) return;
 
   const requirements = SchedState.blockTypes
     .filter(bt => bt.required && bt.bandMinutes && bt.bandMinutes[band.id] > 0)
     .sort((a, b) => (AUTO_FILL_PRIORITY[a.id] || 99) - (AUTO_FILL_PRIORITY[b.id] || 99));
+  if (!requirements.length) return;
 
-  if (!requirements.length) {
-    if (!silent) alert(`No time requirements are set for the "${band.name}" band.\nConfigure minutes in Block Types first.`);
-    return;
-  }
-
-  const reqIds   = new Set();
+  const reqIds = new Set();
   requirements.forEach(r => {
     reqIds.add(r.id);
     (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
   });
-  const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
-  const fb  = s.firstBell  || s.dayStart  || '08:00';
-  const dis = s.dismissal  || s.dayEnd    || '14:30';
-  const allSlots = generateTimeSlots(fb, dis);
+
+  const allSlots = _autoFillSlots();
 
   DAYS.forEach(day => {
     if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
     if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
     const sched = SchedState.masterSchedule[day][grade];
 
-    // When called explicitly (grade-header click), clear existing requirement
-    // slots so we always get one clean contiguous block per requirement.
     if (clearFirst) {
       allSlots.forEach(slot => {
         const sv = sched[slot];
         if (!sv) return;
-        const parentId = sv.includes('|') ? sv.split('|')[0] : sv;
-        if (reqIds.has(sv) || requirements.some(r => r.id === parentId)) delete sched[slot];
+        const pid = sv.includes('|') ? sv.split('|')[0] : sv;
+        if (reqIds.has(sv) || requirements.some(r => r.id === pid)) delete sched[slot];
       });
     }
 
     const occupied = new Set(allSlots.filter(slot => sched[slot]));
 
     requirements.forEach(req => {
-      // For blocks with sub-blocks, place each sub-block as its own labeled segment.
-      // Fall back to a single block only when no sub-block minutes are configured.
       const configuredSubs = (req.subBlocks || []).filter(sub =>
         ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
       );
-
-      const placementUnits = configuredSubs.length
+      const units = configuredSubs.length
         ? configuredSubs.map(sub => ({
             id:    `${req.id}|${sub.id}`,
             slots: Math.ceil(req.subBandMinutes[sub.id][band.id] / 5),
           }))
         : [{ id: req.id, slots: Math.ceil(req.bandMinutes[band.id] / 5) }];
 
-      placementUnits.forEach(unit => {
+      units.forEach(unit => {
         if (!clearFirst) {
-          const alreadyPlaced = allSlots.filter(s => sched[s] === unit.id).length;
-          if (alreadyPlaced >= unit.slots) return;
+          // ANY existing slots for this unit → skip. Prevents double-placement
+          // when the user changes required minutes after an initial auto-fill.
+          if (allSlots.some(sl => sched[sl] === unit.id)) return;
         }
         for (let i = 0; i <= allSlots.length - unit.slots; i++) {
-          let canPlace = true;
+          let ok = true;
           for (let j = 0; j < unit.slots; j++) {
-            if (occupied.has(allSlots[i + j])) { canPlace = false; break; }
+            if (occupied.has(allSlots[i + j])) { ok = false; break; }
           }
-          if (canPlace) {
+          if (ok) {
             for (let j = 0; j < unit.slots; j++) {
               sched[allSlots[i + j]] = unit.id;
               occupied.add(allSlots[i + j]);
@@ -745,22 +756,48 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
       });
     });
   });
+}
 
+// Grade-header click: clear and re-place all requirements cleanly for one grade.
+function autoPopulateGrade(grade, silent = false, clearFirst = false) {
+  const s    = SchedState.school;
+  const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
+  if (!band) {
+    if (!silent) alert(`${GRADE_LABELS[grade] || grade} is not assigned to a grade band.\nSet up grade bands in Block Types first.`);
+    return;
+  }
+  const hasReqs = SchedState.blockTypes.some(bt => bt.required && bt.bandMinutes && bt.bandMinutes[band.id] > 0);
+  if (!hasReqs) {
+    if (!silent) alert(`No time requirements are set for the "${band.name}" band.\nConfigure minutes in Block Types first.`);
+    return;
+  }
+  _populateGradeData(grade, clearFirst);
   saveToLocal();
   rebuildTbody();
 }
 
+// Called from renderMasterSchedule: only runs when the schedule is completely
+// empty so we never overwrite manually-placed blocks on re-entry.
 function autoPopulateIfEmpty() {
   const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
-  // Check if any instructional block exists across all days/grades
   const hasInstructional = Object.values(SchedState.masterSchedule).some(dayData =>
     Object.values(dayData).some(gradeData =>
       Object.values(gradeData).some(btId => btId && !fixedIds.has(btId))
     )
   );
   if (hasInstructional) return;
-  // No instructional blocks yet — auto-fill all grades silently (no alerts)
-  gradesSorted().forEach(grade => autoPopulateGrade(grade, true));
+  gradesSorted().forEach(grade => _populateGradeData(grade, false));
+  saveToLocal();
+  rebuildTbody();
+}
+
+// Called after Block Types is saved: fills any required blocks that aren't
+// placed yet without touching blocks that already exist.
+function fillMissingRequirements() {
+  gradesSorted().forEach(grade => _populateGradeData(grade, false));
+  saveToLocal();
+  rebuildTbody();
+  showMissingRequirementsWarning();
 }
 
 function switchDay(day) {
