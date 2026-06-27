@@ -784,9 +784,17 @@ function _populateGradeData(grade, clearFirst) {
 
       units.forEach(unit => {
         if (!clearFirst) {
-          // ANY existing slots for this unit → skip. Prevents double-placement
-          // when the user changes required minutes after an initial auto-fill.
-          if (allSlots.some(sl => sched[sl] === unit.id)) return;
+          const existingCount = allSlots.filter(sl => sched[sl] === unit.id).length;
+          if (existingCount >= unit.slots) return;  // fully placed within this day's range — skip
+          // Under-represented: either lunch/recess displaced part of the block, requirements
+          // changed, or existing blocks are outside this day's slot range (e.g. an early-release
+          // day whose old blocks were placed at full-day range). Clear the partial remnant and
+          // re-place the whole block in the first available contiguous run.
+          if (existingCount > 0) {
+            allSlots.forEach(sl => {
+              if (sched[sl] === unit.id) { delete sched[sl]; occupied.delete(sl); }
+            });
+          }
         }
         for (let i = 0; i <= allSlots.length - unit.slots; i++) {
           let ok = true;
@@ -824,25 +832,18 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
   rebuildTbody();
 }
 
-// Called from renderMasterSchedule. Fills each grade independently:
-// if a grade has no instructional blocks on any day, auto-fill it.
-// This handles mixed states (some grades filled, some empty) correctly.
+// Called from renderMasterSchedule. Runs _populateGradeData for every grade so that:
+// • Empty grades get filled on first entry.
+// • Grades whose early-release-day blocks were placed at full-day range (old files)
+//   get re-placed in the visible morning window (the new skip condition detects that
+//   existingCount within the short allSlots is 0 and re-places the block).
+// • Blocks displaced by lunch/recess overwriting get re-placed in free space.
+// _populateGradeData with clearFirst=false is a no-op for blocks already fully placed
+// within the day's slot range, so this is safe to run on every render.
 function autoPopulateIfEmpty() {
-  const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
-  let anyFilled = false;
-  gradesSorted().forEach(grade => {
-    const gradeIsEmpty = !Object.values(SchedState.masterSchedule).some(dayData =>
-      Object.values(dayData[grade] || {}).some(btId => btId && !fixedIds.has(btId))
-    );
-    if (gradeIsEmpty) {
-      _populateGradeData(grade, false);
-      anyFilled = true;
-    }
-  });
-  if (anyFilled) {
-    saveToLocal();
-    rebuildTbody();
-  }
+  gradesSorted().forEach(grade => _populateGradeData(grade, false));
+  saveToLocal();
+  rebuildTbody();
 }
 
 // Called after Block Types is saved: fills any required blocks that aren't
