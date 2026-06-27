@@ -1544,6 +1544,15 @@
   color: #92400e;
   margin: 0 0 8px;
 }
+.setup-banner-error {
+  background: #fff1f0;
+  border-color: #ffa39e;
+  color: #820014;
+}
+.setup-banner-error ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
 .btn-link {
   background: none;
   border: none;

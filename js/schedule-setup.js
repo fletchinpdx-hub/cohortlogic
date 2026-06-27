@@ -624,21 +624,21 @@ function preFillFixedBlocks() {
         });
       });
 
-      // Lunch — try: grade explicitly listed → universal period (no grades) → any period
+      // Lunch — try: grade explicitly listed → universal period (no grades) → any period.
+      // Always overwrite: if the user fixes a bad lunch time the corrected slot
+      // must reclaim any instructional block that landed there previously.
       const lp = (s.lunchPeriods || []).find(p => (p.grades || []).includes(g))
               || (s.lunchPeriods || []).find(p => !(p.grades || []).length)
               || (s.lunchPeriods || [])[0];
       if (lp) {
-        generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration)).forEach(slot => {
-          if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = lunchBT;
-        });
+        generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration))
+          .forEach(slot => { sched[slot] = lunchBT; });
       }
 
-      // Recess
+      // Recess — always overwrite for the same reason.
       (recessMap[g] || []).forEach(rs => {
-        generateTimeSlots(rs.start, minsToTime(timeToMins(rs.start) + rs.duration)).forEach(slot => {
-          if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = recessBT;
-        });
+        generateTimeSlots(rs.start, minsToTime(timeToMins(rs.start) + rs.duration))
+          .forEach(slot => { sched[slot] = recessBT; });
       });
     });
   });

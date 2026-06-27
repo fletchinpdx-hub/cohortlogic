@@ -79,6 +79,41 @@ function blockDuration(day, grade, slot) {
   return count * 5;
 }
 
+// Shows a red banner if any lunch period falls outside the school day,
+// since that causes lunch to be silently skipped in the grid.
+function showLunchOutOfHoursWarning() {
+  const existing = document.getElementById('lunch-ooh-banner');
+  if (existing) existing.remove();
+
+  const sc = SchedState.school;
+  const fbMins  = timeToMins(sc.firstBell || sc.dayStart || '08:00');
+  const disMins = timeToMins(sc.dismissal || sc.dayEnd || '14:30');
+  const bad = (sc.lunchPeriods || []).filter(lp => {
+    if (!lp.start) return false;
+    const s = timeToMins(lp.start);
+    return s < fbMins || s >= disMins;
+  });
+  if (!bad.length) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'lunch-ooh-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  banner.innerHTML = `
+    <div>
+      <strong>Lunch time error:</strong>
+      <ul>${bad.map(lp =>
+        `<li>Lunch at <strong>${fmtTime12(lp.start)}</strong> is outside the school day
+         (${fmtTime12(sc.firstBell || '08:00')}–${fmtTime12(sc.dismissal || '14:30')}).
+         Check for AM/PM mistakes.</li>`
+      ).join('')}</ul>
+    </div>
+    <button class="btn-link setup-banner-link">Fix in School Info →</button>
+  `;
+  const scrollWrap = document.getElementById('grid-scroll-wrap');
+  if (scrollWrap) scrollWrap.before(banner);
+  banner.querySelector('.setup-banner-link').addEventListener('click', () => navigateTo('school'));
+}
+
 function showMissingRequirementsWarning() {
   const bands = SchedState.school.gradeBands || [];
   const missing = SchedState.blockTypes.filter(bt => {
@@ -231,6 +266,7 @@ function renderMasterSchedule() {
 
   // Auto-populate all grades on first entry if no instructional blocks are placed yet
   autoPopulateIfEmpty();
+  showLunchOutOfHoursWarning();
   showMissingRequirementsWarning();
   document.getElementById('copy-day-btn').addEventListener('click', showCopyDayMenu);
 }
@@ -675,12 +711,14 @@ const AUTO_FILL_PRIORITY = {
 };
 
 // Returns the slot range that matches renderMasterSchedule exactly.
-function _autoFillSlots() {
+// Returns the slot array for a given day, respecting early-release dismissal.
+// Pass a day string to get day-specific slots; omit for the regular school day.
+function _autoFillSlots(day) {
   const sc = SchedState.school;
   const candidates = [sc.firstBell, sc.studentCampusStart, sc.dayStart]
     .filter(t => t && /^\d\d:\d\d/.test(t));
   const fb  = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
-  const dis = sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30';
+  const dis = day ? getDismissalForDay(day) : (sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30');
   return generateTimeSlots(fb, dis);
 }
 
@@ -704,9 +742,8 @@ function _populateGradeData(grade, clearFirst) {
     (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
   });
 
-  const allSlots = _autoFillSlots();
-
   DAYS.forEach(day => {
+    const allSlots = _autoFillSlots(day);
     if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
     if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
     const sched = SchedState.masterSchedule[day][grade];
@@ -814,6 +851,7 @@ function fillMissingRequirements() {
   gradesSorted().forEach(grade => _populateGradeData(grade, false));
   saveToLocal();
   rebuildTbody();
+  showLunchOutOfHoursWarning();
   showMissingRequirementsWarning();
 }
 
