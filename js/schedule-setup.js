@@ -617,18 +617,25 @@ function preFillFixedBlocks() {
         : (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd
           ? [{ start: s.morningMeetingStart, end: s.morningMeetingEnd }] : []);
       meetings.forEach(m => {
-        if (m.start && m.end) generateTimeSlots(m.start, m.end).forEach(slot => { sched[slot] = mmBT; });
+        if (m.start && m.end) generateTimeSlots(m.start, m.end).forEach(slot => {
+          if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = mmBT;
+        });
       });
 
       // Lunch
-      const lp = (s.lunchPeriods || []).find(p => p.grades.includes(g));
+      const lp = (s.lunchPeriods || []).find(p => p.grades.includes(g))
+              || (s.lunchPeriods || []).find(p => !p.grades.length);
       if (lp) {
-        generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration)).forEach(slot => { sched[slot] = lunchBT; });
+        generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration)).forEach(slot => {
+          if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = lunchBT;
+        });
       }
 
       // Recess
       (recessMap[g] || []).forEach(rs => {
-        generateTimeSlots(rs.start, minsToTime(timeToMins(rs.start) + rs.duration)).forEach(slot => { sched[slot] = recessBT; });
+        generateTimeSlots(rs.start, minsToTime(timeToMins(rs.start) + rs.duration)).forEach(slot => {
+          if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = recessBT;
+        });
       });
     });
   });
