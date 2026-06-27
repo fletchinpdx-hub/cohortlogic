@@ -79,6 +79,31 @@ function blockDuration(day, grade, slot) {
   return count * 5;
 }
 
+function showMissingRequirementsWarning() {
+  const bands = SchedState.school.gradeBands || [];
+  const missing = SchedState.blockTypes.filter(bt => {
+    if (!bt.required) return false;
+    if (!bands.length) return false;
+    return bands.every(band => !bt.bandMinutes || !(bt.bandMinutes[band.id] > 0));
+  });
+  const existing = document.getElementById('req-missing-banner');
+  if (existing) existing.remove();
+  if (!missing.length) return;
+  const banner = document.createElement('div');
+  banner.id = 'req-missing-banner';
+  banner.className = 'setup-banner';
+  banner.innerHTML = `
+    ⚠ These required blocks have <strong>0 minutes</strong> configured and won't be auto-filled:
+    <strong>${missing.map(bt => bt.name).join(', ')}</strong>.
+    <button class="btn-link setup-banner-link" data-nav="blocks">Go to Block Types to set minutes →</button>
+  `;
+  const scrollWrap = document.getElementById('grid-scroll-wrap');
+  if (scrollWrap) scrollWrap.before(banner);
+  banner.querySelector('.setup-banner-link').addEventListener('click', () => {
+    navigateTo('blocks'); renderBlocks();
+  });
+}
+
 // ── Main render ───────────────────────────────────────────────────────────────
 
 function renderMasterSchedule() {
@@ -200,6 +225,7 @@ function renderMasterSchedule() {
 
   // Auto-populate all grades on first entry if no instructional blocks are placed yet
   autoPopulateIfEmpty();
+  showMissingRequirementsWarning();
   document.getElementById('copy-day-btn').addEventListener('click', showCopyDayMenu);
 }
 
@@ -588,7 +614,7 @@ function wireDayTabs() {
 
 function wireGradeHeaders() {
   document.querySelectorAll('.th-grade-fill').forEach(th => {
-    th.addEventListener('click', () => autoPopulateGrade(th.dataset.grade));
+    th.addEventListener('click', () => autoPopulateGrade(th.dataset.grade, false, true));
   });
 }
 
@@ -597,7 +623,10 @@ const AUTO_FILL_PRIORITY = {
   bt_cm: 1, bt_ela: 2, bt_math: 3, bt_win: 4, bt_eld: 5, bt_ssh: 6, bt_spec: 7,
 };
 
-function autoPopulateGrade(grade, silent = false) {
+// clearFirst=true: wipe existing requirement slots before re-placing (used by
+// the grade-header click so a manual auto-fill always produces a clean result).
+// clearFirst=false (default): only fill gaps, never overwrite existing blocks.
+function autoPopulateGrade(grade, silent = false, clearFirst = false) {
   const s     = SchedState.school;
   const bands = s.gradeBands || [];
   const band  = bands.find(b => b.grades.includes(grade));
@@ -615,6 +644,8 @@ function autoPopulateGrade(grade, silent = false) {
     return;
   }
 
+  const reqIds   = new Set(requirements.map(r => r.id));
+  const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
   const fb  = s.firstBell  || s.dayStart  || '08:00';
   const dis = s.dismissal  || s.dayEnd    || '14:30';
   const allSlots = generateTimeSlots(fb, dis);
@@ -622,14 +653,22 @@ function autoPopulateGrade(grade, silent = false) {
   DAYS.forEach(day => {
     if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
     if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
-    const sched    = SchedState.masterSchedule[day][grade];
+    const sched = SchedState.masterSchedule[day][grade];
+
+    // When called explicitly (grade-header click), clear existing requirement
+    // slots so we always get one clean contiguous block per requirement.
+    if (clearFirst) {
+      allSlots.forEach(slot => { if (reqIds.has(sched[slot])) delete sched[slot]; });
+    }
+
     const occupied = new Set(allSlots.filter(slot => sched[slot]));
 
     requirements.forEach(req => {
       const slotsNeeded = Math.ceil(req.bandMinutes[band.id] / 5);
-      // Skip if this block type already has enough slots placed for this day
-      const alreadyPlaced = allSlots.filter(s => sched[s] === req.id).length;
-      if (alreadyPlaced >= slotsNeeded) return;
+      if (!clearFirst) {
+        const alreadyPlaced = allSlots.filter(s => sched[s] === req.id).length;
+        if (alreadyPlaced >= slotsNeeded) return;
+      }
       for (let i = 0; i <= allSlots.length - slotsNeeded; i++) {
         let canPlace = true;
         for (let j = 0; j < slotsNeeded; j++) {
