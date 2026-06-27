@@ -84,6 +84,13 @@ function showMissingRequirementsWarning() {
   const missing = SchedState.blockTypes.filter(bt => {
     if (!bt.required) return false;
     if (!bands.length) return false;
+    if ((bt.subBlocks || []).length) {
+      return bands.every(band =>
+        (bt.subBlocks || []).every(sub =>
+          !((bt.subBandMinutes || {})[sub.id] || {})[band.id]
+        )
+      );
+    }
     return bands.every(band => !bt.bandMinutes || !(bt.bandMinutes[band.id] > 0));
   });
   const existing = document.getElementById('req-missing-banner');
@@ -242,15 +249,34 @@ function buildPaletteGroups() {
     if (!blocks.length) return '';
     return `
       <div class="palette-cat-label">${BLOCK_CATEGORIES[cat] || cat}</div>
-      ${blocks.map(bt => `
-        <div class="palette-item ${gridUI.activeBtId === bt.id ? 'active' : ''}"
-             data-bt-id="${bt.id}"
-             style="${gridUI.activeBtId === bt.id ? `background:${bt.color}22` : ''}">
-          <span class="palette-dot" style="background:${bt.color}"></span>
-          <span class="palette-name">${bt.name}</span>
-          ${bt.defaultDuration ? `<span class="palette-dur">${bt.defaultDuration}m</span>` : ''}
-        </div>
-      `).join('')}
+      ${blocks.map(bt => {
+        const subs = bt.subBlocks || [];
+        if (subs.length) {
+          return `
+            <div class="palette-parent-label" style="color:${bt.color}">
+              <span class="palette-dot" style="background:${bt.color}"></span>
+              ${bt.name}
+            </div>
+            ${subs.map(sub => {
+              const cid = `${bt.id}|${sub.id}`;
+              return `
+                <div class="palette-item palette-sub-item ${gridUI.activeBtId === cid ? 'active' : ''}"
+                     data-bt-id="${cid}"
+                     style="${gridUI.activeBtId === cid ? `background:${bt.color}22` : ''}">
+                  <span class="palette-dot" style="background:${bt.color};opacity:0.75"></span>
+                  <span class="palette-name">${sub.name}</span>
+                </div>`;
+            }).join('')}`;
+        }
+        return `
+          <div class="palette-item ${gridUI.activeBtId === bt.id ? 'active' : ''}"
+               data-bt-id="${bt.id}"
+               style="${gridUI.activeBtId === bt.id ? `background:${bt.color}22` : ''}">
+            <span class="palette-dot" style="background:${bt.color}"></span>
+            <span class="palette-name">${bt.name}</span>
+            ${bt.defaultDuration ? `<span class="palette-dur">${bt.defaultDuration}m</span>` : ''}
+          </div>`;
+      }).join('')}
     `;
   }).join('');
 }
@@ -271,8 +297,10 @@ function wirePalette() {
 function syncPaletteHighlight() {
   document.getElementById('palette-eraser').classList.toggle('active', gridUI.activeBtId === null);
   document.querySelectorAll('.palette-item[data-bt-id]').forEach(item => {
-    const bt  = SchedState.blockTypes.find(b => b.id === item.dataset.btId);
-    const on  = item.dataset.btId === gridUI.activeBtId;
+    const id = item.dataset.btId;
+    const parentId = id.includes('|') ? id.split('|')[0] : id;
+    const bt  = SchedState.blockTypes.find(b => b.id === parentId);
+    const on  = id === gridUI.activeBtId;
     item.classList.toggle('active', on);
     item.style.background = on && bt ? `${bt.color}22` : '';
   });
@@ -298,13 +326,23 @@ function buildRow(slot, prevSlot) {
 function buildCell(slot, grade, prevSlot) {
   const day    = gridUI.activeDay;
   const btId   = getBlock(day, grade, slot);
-  const bt     = btId ? SchedState.blockTypes.find(b => b.id === btId) : null;
   const prevId = prevSlot ? getBlock(day, grade, prevSlot) : null;
   const isCont  = !!(btId && btId === prevId);
   const isStart = !!(btId && !isCont);
 
-  let style = '';
-  let inner = '';
+  let bt = null, displayName = '', style = '', inner = '';
+
+  if (btId) {
+    if (btId.includes('|')) {
+      const [parentId, subId] = btId.split('|');
+      bt = SchedState.blockTypes.find(b => b.id === parentId) || null;
+      const sub = bt ? (bt.subBlocks || []).find(s => s.id === subId) : null;
+      displayName = sub ? sub.name : (bt ? bt.name : '');
+    } else {
+      bt = SchedState.blockTypes.find(b => b.id === btId) || null;
+      displayName = bt ? bt.name : '';
+    }
+  }
 
   if (bt) {
     style = `background:${bt.color}18;border-left:3px solid ${bt.color};`
@@ -312,7 +350,7 @@ function buildCell(slot, grade, prevSlot) {
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
       const durLabel = mins >= 10 ? ` · ${mins} min` : '';
-      inner = `<span class="cell-label" style="color:${bt.color}">${bt.name}${durLabel}</span>`;
+      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${durLabel}</span>`;
     }
   }
 
@@ -644,7 +682,11 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
     return;
   }
 
-  const reqIds   = new Set(requirements.map(r => r.id));
+  const reqIds   = new Set();
+  requirements.forEach(r => {
+    reqIds.add(r.id);
+    (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
+  });
   const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
   const fb  = s.firstBell  || s.dayStart  || '08:00';
   const dis = s.dismissal  || s.dayEnd    || '14:30';
@@ -658,30 +700,49 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
     // When called explicitly (grade-header click), clear existing requirement
     // slots so we always get one clean contiguous block per requirement.
     if (clearFirst) {
-      allSlots.forEach(slot => { if (reqIds.has(sched[slot])) delete sched[slot]; });
+      allSlots.forEach(slot => {
+        const sv = sched[slot];
+        if (!sv) return;
+        const parentId = sv.includes('|') ? sv.split('|')[0] : sv;
+        if (reqIds.has(sv) || requirements.some(r => r.id === parentId)) delete sched[slot];
+      });
     }
 
     const occupied = new Set(allSlots.filter(slot => sched[slot]));
 
     requirements.forEach(req => {
-      const slotsNeeded = Math.ceil(req.bandMinutes[band.id] / 5);
-      if (!clearFirst) {
-        const alreadyPlaced = allSlots.filter(s => sched[s] === req.id).length;
-        if (alreadyPlaced >= slotsNeeded) return;
-      }
-      for (let i = 0; i <= allSlots.length - slotsNeeded; i++) {
-        let canPlace = true;
-        for (let j = 0; j < slotsNeeded; j++) {
-          if (occupied.has(allSlots[i + j])) { canPlace = false; break; }
+      // For blocks with sub-blocks, place each sub-block as its own labeled segment.
+      // Fall back to a single block only when no sub-block minutes are configured.
+      const configuredSubs = (req.subBlocks || []).filter(sub =>
+        ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
+      );
+
+      const placementUnits = configuredSubs.length
+        ? configuredSubs.map(sub => ({
+            id:    `${req.id}|${sub.id}`,
+            slots: Math.ceil(req.subBandMinutes[sub.id][band.id] / 5),
+          }))
+        : [{ id: req.id, slots: Math.ceil(req.bandMinutes[band.id] / 5) }];
+
+      placementUnits.forEach(unit => {
+        if (!clearFirst) {
+          const alreadyPlaced = allSlots.filter(s => sched[s] === unit.id).length;
+          if (alreadyPlaced >= unit.slots) return;
         }
-        if (canPlace) {
-          for (let j = 0; j < slotsNeeded; j++) {
-            sched[allSlots[i + j]] = req.id;
-            occupied.add(allSlots[i + j]);
+        for (let i = 0; i <= allSlots.length - unit.slots; i++) {
+          let canPlace = true;
+          for (let j = 0; j < unit.slots; j++) {
+            if (occupied.has(allSlots[i + j])) { canPlace = false; break; }
           }
-          break;
+          if (canPlace) {
+            for (let j = 0; j < unit.slots; j++) {
+              sched[allSlots[i + j]] = unit.id;
+              occupied.add(allSlots[i + j]);
+            }
+            break;
+          }
         }
-      }
+      });
     });
   });
 

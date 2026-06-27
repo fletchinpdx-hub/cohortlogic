@@ -95,6 +95,13 @@
 .palette-item:hover { background: var(--gray-100); }
 .palette-item.active { font-weight: 600; }
 
+.palette-parent-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600;
+  padding: 6px 12px 2px; opacity: 0.85;
+}
+.palette-sub-item { padding-left: 22px; }
+
 .palette-eraser {
   margin-bottom: 4px;
   border-bottom: 1px solid var(--gray-200);
