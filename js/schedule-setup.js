@@ -528,8 +528,9 @@ function computeRecessTimes(s) {
   let nextMorning = fbMins + 60;
   const morningTimes = new Map(); // key = `${g}-${extraIdx}` → start mins
   morningQueue.forEach(({ g, sl, extraIdx }) => {
-    const lp = (s.lunchPeriods || []).find(x => x.grades.includes(g))
-            || (s.lunchPeriods || []).find(x => !x.grades.length);
+    const lp = (s.lunchPeriods || []).find(x => (x.grades || []).includes(g))
+            || (s.lunchPeriods || []).find(x => !(x.grades || []).length)
+            || (s.lunchPeriods || [])[0];
     const lunchStart = lp ? timeToMins(lp.start) : fbMins + 4 * 60;
     // Clamp: must end at least 30 min before lunch
     const maxStart = lunchStart - sl.duration - 30;
@@ -543,8 +544,9 @@ function computeRecessTimes(s) {
     const slots = gr[g] || [];
     if (!slots.length) return;
 
-    const lp        = (s.lunchPeriods || []).find(x => x.grades.includes(g))
-                   || (s.lunchPeriods || []).find(x => !x.grades.length);
+    const lp        = (s.lunchPeriods || []).find(x => (x.grades || []).includes(g))
+                   || (s.lunchPeriods || []).find(x => !(x.grades || []).length)
+                   || (s.lunchPeriods || [])[0];
     const lunchS    = lp ? timeToMins(lp.start) : null;
     const lunchE    = lp ? lunchS + lp.duration  : null;
     let extraCount  = 0;
@@ -622,9 +624,10 @@ function preFillFixedBlocks() {
         });
       });
 
-      // Lunch
-      const lp = (s.lunchPeriods || []).find(p => p.grades.includes(g))
-              || (s.lunchPeriods || []).find(p => !p.grades.length);
+      // Lunch — try: grade explicitly listed → universal period (no grades) → any period
+      const lp = (s.lunchPeriods || []).find(p => (p.grades || []).includes(g))
+              || (s.lunchPeriods || []).find(p => !(p.grades || []).length)
+              || (s.lunchPeriods || [])[0];
       if (lp) {
         generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration)).forEach(slot => {
           if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = lunchBT;

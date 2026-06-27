@@ -137,8 +137,7 @@ function renderMasterSchedule() {
   const sc = SchedState.school;
   const candidates = [sc.firstBell, sc.studentCampusStart, sc.dayStart].filter(t => t && /^\d\d:\d\d/.test(t));
   const fb  = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
-  const dis = sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30';
-  currentSlots = generateTimeSlots(fb, dis);
+  currentSlots = generateTimeSlots(fb, getDismissalForDay(gridUI.activeDay));
 
   const lunchPeriods  = sc.lunchPeriods || [];
   const hasLunch   = currentGrades.some(g =>
@@ -818,8 +817,21 @@ function fillMissingRequirements() {
   showMissingRequirementsWarning();
 }
 
+// Returns the dismissal time for a specific day, respecting early-release settings.
+function getDismissalForDay(day) {
+  const sc = SchedState.school;
+  const altDay = (sc.altDays || []).find(ad => ad.day === day && ad.earlyRelease);
+  return (altDay && altDay.earlyRelease) || sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30';
+}
+
+// Recompute currentSlots for the given day and update the grid.
 function switchDay(day) {
   gridUI.activeDay = day;
+  const sc = SchedState.school;
+  const candidates = [sc.firstBell, sc.studentCampusStart, sc.dayStart]
+    .filter(t => t && /^\d\d:\d\d/.test(t));
+  const fb = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
+  currentSlots = generateTimeSlots(fb, getDismissalForDay(day));
   document.querySelectorAll('.day-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.day === day));
   rebuildTbody();
