@@ -337,7 +337,7 @@ function buildCell(slot, grade, prevSlot) {
       const [parentId, subId] = btId.split('|');
       bt = SchedState.blockTypes.find(b => b.id === parentId) || null;
       const sub = bt ? (bt.subBlocks || []).find(s => s.id === subId) : null;
-      displayName = sub ? sub.name : (bt ? bt.name : '');
+      displayName = sub ? `${bt.name} - ${sub.name}` : (bt ? bt.name : '');
     } else {
       bt = SchedState.blockTypes.find(b => b.id === btId) || null;
       displayName = bt ? bt.name : '';
@@ -629,7 +629,7 @@ function refreshColumnAround(grade, slot) {
         const [pid, sid] = btId.split('|');
         bt = SchedState.blockTypes.find(b => b.id === pid) || null;
         const sub = bt ? (bt.subBlocks || []).find(s => s.id === sid) : null;
-        displayName = sub ? sub.name : (bt ? bt.name : '');
+        displayName = sub ? `${bt.name} - ${sub.name}` : (bt ? bt.name : '');
       } else {
         bt = SchedState.blockTypes.find(b => b.id === btId) || null;
         displayName = bt ? bt.name : '';
