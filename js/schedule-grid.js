@@ -734,6 +734,18 @@ function _populateGradeData(grade, clearFirst) {
           }))
         : [{ id: req.id, slots: Math.ceil(req.bandMinutes[band.id] / 5) }];
 
+      if (!clearFirst && configuredSubs.length > 0) {
+        // Upgrade: if the old single-block style (bt_ela) occupies slots but no
+        // sub-blocks have been placed yet, clear the single block to make room.
+        const hasOldParent = allSlots.some(sl => sched[sl] === req.id);
+        const hasAnySub    = units.some(u => allSlots.some(sl => sched[sl] === u.id));
+        if (hasOldParent && !hasAnySub) {
+          allSlots.forEach(sl => {
+            if (sched[sl] === req.id) { delete sched[sl]; occupied.delete(sl); }
+          });
+        }
+      }
+
       units.forEach(unit => {
         if (!clearFirst) {
           // ANY existing slots for this unit → skip. Prevents double-placement
@@ -776,19 +788,25 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
   rebuildTbody();
 }
 
-// Called from renderMasterSchedule: only runs when the schedule is completely
-// empty so we never overwrite manually-placed blocks on re-entry.
+// Called from renderMasterSchedule. Fills each grade independently:
+// if a grade has no instructional blocks on any day, auto-fill it.
+// This handles mixed states (some grades filled, some empty) correctly.
 function autoPopulateIfEmpty() {
   const fixedIds = new Set(['bt_mm', 'bt_lunch', 'bt_recess']);
-  const hasInstructional = Object.values(SchedState.masterSchedule).some(dayData =>
-    Object.values(dayData).some(gradeData =>
-      Object.values(gradeData).some(btId => btId && !fixedIds.has(btId))
-    )
-  );
-  if (hasInstructional) return;
-  gradesSorted().forEach(grade => _populateGradeData(grade, false));
-  saveToLocal();
-  rebuildTbody();
+  let anyFilled = false;
+  gradesSorted().forEach(grade => {
+    const gradeIsEmpty = !Object.values(SchedState.masterSchedule).some(dayData =>
+      Object.values(dayData[grade] || {}).some(btId => btId && !fixedIds.has(btId))
+    );
+    if (gradeIsEmpty) {
+      _populateGradeData(grade, false);
+      anyFilled = true;
+    }
+  });
+  if (anyFilled) {
+    saveToLocal();
+    rebuildTbody();
+  }
 }
 
 // Called after Block Types is saved: fills any required blocks that aren't
