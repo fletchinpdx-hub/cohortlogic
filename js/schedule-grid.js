@@ -726,7 +726,8 @@ function _autoFillSlots(day) {
 // clearFirst=true  → wipe existing requirement slots before placing (grade-header click).
 // clearFirst=false → only place blocks that have ZERO slots placed; skip any
 //                    block that exists even partially to prevent double-placement.
-function _populateGradeData(grade, clearFirst) {
+// onlyDay — if provided, only process that specific day (used by switchDay for efficiency).
+function _populateGradeData(grade, clearFirst, onlyDay) {
   const s    = SchedState.school;
   const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
   if (!band) return;
@@ -742,7 +743,8 @@ function _populateGradeData(grade, clearFirst) {
     (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
   });
 
-  DAYS.forEach(day => {
+  const daysToProcess = onlyDay ? [onlyDay] : DAYS;
+  daysToProcess.forEach(day => {
     const allSlots = _autoFillSlots(day);
     if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
     if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
@@ -871,6 +873,10 @@ function switchDay(day) {
     .filter(t => t && /^\d\d:\d\d/.test(t));
   const fb = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
   currentSlots = generateTimeSlots(fb, getDismissalForDay(day));
+  // Re-populate grades for this specific day using the updated currentSlots dismissal.
+  // This handles alt days where saved blocks may fall outside the shortened slot range.
+  gradesSorted().forEach(grade => _populateGradeData(grade, false, day));
+  saveToLocal();
   document.querySelectorAll('.day-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.day === day));
   rebuildTbody();
