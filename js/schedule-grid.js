@@ -371,8 +371,14 @@ function buildCell(slot, grade, prevSlot) {
     if (btId.includes('|')) {
       const [parentId, subId] = btId.split('|');
       bt = SchedState.blockTypes.find(b => b.id === parentId) || null;
-      const sub = bt ? (bt.subBlocks || []).find(s => s.id === subId) : null;
-      displayName = sub ? `${bt.name} - ${sub.name}` : (bt ? bt.name : '');
+      if (parentId === 'bt_mm') {
+        // Named morning meeting — look up the name from School Info.
+        const meeting = (SchedState.school.morningMeetings || []).find(m => m.id === subId);
+        displayName = meeting?.name || (bt ? bt.name : 'Morning Meeting');
+      } else {
+        const sub = bt ? (bt.subBlocks || []).find(s => s.id === subId) : null;
+        displayName = sub ? `${bt.name} - ${sub.name}` : (bt ? bt.name : '');
+      }
     } else {
       bt = SchedState.blockTypes.find(b => b.id === btId) || null;
       displayName = bt ? bt.name : '';
@@ -663,8 +669,13 @@ function refreshColumnAround(grade, slot) {
       if (btId.includes('|')) {
         const [pid, sid] = btId.split('|');
         bt = SchedState.blockTypes.find(b => b.id === pid) || null;
-        const sub = bt ? (bt.subBlocks || []).find(s => s.id === sid) : null;
-        displayName = sub ? `${bt.name} - ${sub.name}` : (bt ? bt.name : '');
+        if (pid === 'bt_mm') {
+          const meeting = (SchedState.school.morningMeetings || []).find(m => m.id === sid);
+          displayName = meeting?.name || (bt ? bt.name : 'Morning Meeting');
+        } else {
+          const sub = bt ? (bt.subBlocks || []).find(s => s.id === sid) : null;
+          displayName = sub ? `${bt.name} - ${sub.name}` : (bt ? bt.name : '');
+        }
       } else {
         bt = SchedState.blockTypes.find(b => b.id === btId) || null;
         displayName = bt ? bt.name : '';

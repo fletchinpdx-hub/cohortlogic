@@ -590,6 +590,13 @@ function computeRecessTimes(s) {
   return result;
 }
 
+// Returns true for any fixed-block slot value, including compound bt_mm|id variants.
+function isFixedBlock(id) {
+  if (!id) return false;
+  const base = id.includes('|') ? id.split('|')[0] : id;
+  return base === 'bt_mm' || base === 'bt_lunch' || base === 'bt_recess';
+}
+
 // Pre-fills the master schedule with fixed blocks from School Info settings.
 // Called on save. Clears and replaces any previously auto-placed lunch/recess/MM blocks.
 function preFillFixedBlocks() {
@@ -597,10 +604,8 @@ function preFillFixedBlocks() {
   const grades = gradesSorted();
   if (!grades.length) return;
 
-  const mmBT     = SchedState.blockTypes.find(bt => bt.id === 'bt_mm')?.id     || 'bt_mm';
-  const lunchBT  = SchedState.blockTypes.find(bt => bt.id === 'bt_lunch')?.id  || 'bt_lunch';
-  const recessBT = SchedState.blockTypes.find(bt => bt.id === 'bt_recess')?.id || 'bt_recess';
-  const fixedIds = new Set([mmBT, lunchBT, recessBT]);
+  const lunchBT  = 'bt_lunch';
+  const recessBT = 'bt_recess';
   const recessMap = computeRecessTimes(s);
 
   const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
@@ -610,17 +615,20 @@ function preFillFixedBlocks() {
       if (!SchedState.masterSchedule[day][g]) SchedState.masterSchedule[day][g] = {};
       const sched = SchedState.masterSchedule[day][g];
 
-      // Clear old auto-placed fixed blocks
-      Object.keys(sched).forEach(slot => { if (fixedIds.has(sched[slot])) delete sched[slot]; });
+      // Clear old auto-placed fixed blocks (bt_mm, bt_mm|id, bt_lunch, bt_recess)
+      Object.keys(sched).forEach(slot => { if (isFixedBlock(sched[slot])) delete sched[slot]; });
 
-      // Morning / community meetings (all grades)
+      // Morning / community meetings — each gets its own compound ID (bt_mm|meetingId)
+      // so named meetings render with their individual label in the grid.
       const meetings = s.morningMeetings?.length
         ? s.morningMeetings
         : (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd
           ? [{ start: s.morningMeetingStart, end: s.morningMeetingEnd }] : []);
       meetings.forEach(m => {
-        if (m.start && m.end) generateTimeSlots(m.start, m.end).forEach(slot => {
-          if (!sched[slot] || fixedIds.has(sched[slot])) sched[slot] = mmBT;
+        if (!m.start || !m.end) return;
+        const slotId = m.id ? `bt_mm|${m.id}` : 'bt_mm';
+        generateTimeSlots(m.start, m.end).forEach(slot => {
+          if (!sched[slot] || isFixedBlock(sched[slot])) sched[slot] = slotId;
         });
       });
 
