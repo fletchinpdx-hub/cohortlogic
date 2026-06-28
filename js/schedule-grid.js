@@ -391,7 +391,7 @@ function buildCell(slot, grade, prevSlot) {
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
       const timeRange = mins >= 10
-        ? `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(minsToTime(timeToMins(slot) + mins))}</span>`
+        ? `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(minsToTime(timeToMins(slot) + mins))} · ${mins} min</span>`
         : '';
       inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}</span>`;
     }
