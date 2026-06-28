@@ -36,6 +36,33 @@ function renderMMRow(m) {
   `;
 }
 
+const DEFAULT_SPECIALS = [
+  { id: 'sp_pe',  name: 'PE',      duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5 },
+  { id: 'sp_mu',  name: 'Music',   duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5 },
+  { id: 'sp_lib', name: 'Library', duration: 45, teacherCount: 0.5, teacherHoursPerDay: 4   },
+];
+
+function renderSpecialRow(sp) {
+  return `
+    <div class="special-row" data-sp-id="${sp.id}">
+      <input type="text" class="input sp-name" placeholder="e.g. PE" value="${escHtml(sp.name || '')}">
+      <div class="sp-field">
+        <label class="form-label">Duration (min)</label>
+        <input type="number" class="input input-sm sp-duration" placeholder="45" min="5" step="5" value="${sp.duration || 45}">
+      </div>
+      <div class="sp-field">
+        <label class="form-label">Teachers (FTE)</label>
+        <input type="number" class="input input-sm sp-teachers" placeholder="1" min="0.5" step="0.5" value="${sp.teacherCount || 1}">
+      </div>
+      <div class="sp-field">
+        <label class="form-label">Hrs/day each</label>
+        <input type="number" class="input input-sm sp-hours" placeholder="6.5" min="0.5" step="0.5" value="${sp.teacherHoursPerDay || 6.5}">
+      </div>
+      <button class="btn-icon remove-sp-btn" data-sp-id="${sp.id}" title="Remove">×</button>
+    </div>
+  `;
+}
+
 function timeSlots15(start, end) {
   const slots = [];
   let cur = timeToMins(start);
@@ -172,6 +199,23 @@ function renderSchoolInfo() {
         </div>
       </div>
 
+      <!-- Specials -->
+      <div class="form-section">
+        <h2 class="form-section-title">Specials</h2>
+        <p class="form-hint">Subjects taught by specialist teachers that rotate across grade levels.</p>
+        <div class="specials-header-row">
+          <span>Subject</span>
+          <span>Duration</span>
+          <span>Teachers (FTE)</span>
+          <span>Hrs/day each</span>
+          <span></span>
+        </div>
+        <div id="specials-list">
+          ${(s.specials || DEFAULT_SPECIALS).map(sp => renderSpecialRow(sp)).join('')}
+        </div>
+        <button class="btn btn-outline btn-sm" id="add-special-btn" style="margin-top:8px">+ Add Special</button>
+      </div>
+
     </div>
 
     <div class="view-actions">
@@ -231,6 +275,23 @@ function renderSchoolInfo() {
 
   wireAltDayRemove();
   wireLunchEvents();
+
+  // Specials add/remove
+  document.getElementById('add-special-btn').addEventListener('click', () => {
+    const newSp = { id: uid(), name: '', duration: 45, teacherCount: 1, teacherHoursPerDay: 6.5 };
+    document.getElementById('specials-list').insertAdjacentHTML('beforeend', renderSpecialRow(newSp));
+    wireSpRemove();
+  });
+  wireSpRemove();
+
+  function wireSpRemove() {
+    document.querySelectorAll('.remove-sp-btn').forEach(btn => {
+      btn.replaceWith(btn.cloneNode(true));
+    });
+    document.querySelectorAll('.remove-sp-btn').forEach(btn => {
+      btn.addEventListener('click', () => btn.closest('.special-row').remove());
+    });
+  }
 
   document.getElementById('school-next-btn').addEventListener('click', saveSchoolAndContinue);
 }
@@ -695,6 +756,14 @@ function saveSchoolAndContinue() {
   });
   s.earlyReleaseDays = s.altDays.filter(a => a.earlyRelease).map(a => a.day);
   s.earlyReleaseEnd  = s.altDays.find(a => a.earlyRelease)?.earlyRelease || '';
+
+  s.specials = [...document.querySelectorAll('.special-row')].map(row => ({
+    id:                 row.dataset.spId,
+    name:               row.querySelector('.sp-name').value.trim(),
+    duration:           parseInt(row.querySelector('.sp-duration').value) || 45,
+    teacherCount:       parseFloat(row.querySelector('.sp-teachers').value) || 1,
+    teacherHoursPerDay: parseFloat(row.querySelector('.sp-hours').value) || 6.5,
+  })).filter(sp => sp.name);
 
   saveToLocal();
   preFillFixedBlocks();

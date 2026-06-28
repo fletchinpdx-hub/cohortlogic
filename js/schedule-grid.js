@@ -390,8 +390,10 @@ function buildCell(slot, grade, prevSlot) {
           + (isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`);
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
-      const durLabel = mins >= 10 ? ` · ${mins} min` : '';
-      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${durLabel}</span>`;
+      const timeRange = mins >= 10
+        ? `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(minsToTime(timeToMins(slot) + mins))}</span>`
+        : '';
+      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}</span>`;
     }
   }
 
@@ -772,6 +774,10 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
 
     const occupied = new Set(allSlots.filter(slot => sched[slot]));
 
+    // Collect all units across every requirement, running upgrade checks first.
+    // Then sort largest-first (first-fit-decreasing heuristic) so big blocks
+    // claim contiguous space before small blocks, minimising fragmentation.
+    const allUnits = [];
     requirements.forEach(req => {
       const configuredSubs = (req.subBlocks || []).filter(sub =>
         ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
@@ -783,9 +789,8 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
           }))
         : [{ id: req.id, slots: Math.ceil(req.bandMinutes[band.id] / 5) }];
 
+      // Upgrade check: clear old single-block (bt_ela) when sub-blocks are now configured.
       if (!clearFirst && configuredSubs.length > 0) {
-        // Upgrade: if the old single-block style (bt_ela) occupies slots but no
-        // sub-blocks have been placed yet, clear the single block to make room.
         const hasOldParent = allSlots.some(sl => sched[sl] === req.id);
         const hasAnySub    = units.some(u => allSlots.some(sl => sched[sl] === u.id));
         if (hasOldParent && !hasAnySub) {
@@ -795,34 +800,36 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
         }
       }
 
-      units.forEach(unit => {
-        if (!clearFirst) {
-          const existingCount = allSlots.filter(sl => sched[sl] === unit.id).length;
-          if (existingCount >= unit.slots) return;  // fully placed within this day's range — skip
-          // Under-represented: either lunch/recess displaced part of the block, requirements
-          // changed, or existing blocks are outside this day's slot range (e.g. an early-release
-          // day whose old blocks were placed at full-day range). Clear the partial remnant and
-          // re-place the whole block in the first available contiguous run.
-          if (existingCount > 0) {
-            allSlots.forEach(sl => {
-              if (sched[sl] === unit.id) { delete sched[sl]; occupied.delete(sl); }
-            });
-          }
+      units.forEach(u => allUnits.push(u));
+    });
+
+    // Largest blocks first → fewest unplaced blocks when space is tight.
+    allUnits.sort((a, b) => b.slots - a.slots);
+
+    allUnits.forEach(unit => {
+      if (!clearFirst) {
+        const existingCount = allSlots.filter(sl => sched[sl] === unit.id).length;
+        if (existingCount >= unit.slots) return;  // fully placed — skip
+        if (existingCount > 0) {
+          // Displaced or under-represented — clear remnant and re-place whole block.
+          allSlots.forEach(sl => {
+            if (sched[sl] === unit.id) { delete sched[sl]; occupied.delete(sl); }
+          });
         }
-        for (let i = 0; i <= allSlots.length - unit.slots; i++) {
-          let ok = true;
+      }
+      for (let i = 0; i <= allSlots.length - unit.slots; i++) {
+        let ok = true;
+        for (let j = 0; j < unit.slots; j++) {
+          if (occupied.has(allSlots[i + j])) { ok = false; break; }
+        }
+        if (ok) {
           for (let j = 0; j < unit.slots; j++) {
-            if (occupied.has(allSlots[i + j])) { ok = false; break; }
+            sched[allSlots[i + j]] = unit.id;
+            occupied.add(allSlots[i + j]);
           }
-          if (ok) {
-            for (let j = 0; j < unit.slots; j++) {
-              sched[allSlots[i + j]] = unit.id;
-              occupied.add(allSlots[i + j]);
-            }
-            break;
-          }
+          break;
         }
-      });
+      }
     });
   });
 }

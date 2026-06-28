@@ -293,6 +293,14 @@
   line-height: 16px;
   pointer-events: none;
 }
+.cell-time {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 400;
+  opacity: 0.75;
+  margin-top: 1px;
+  pointer-events: none;
+}
 
 /* ── Grid footer ───────────────────────────────────────────────── */
 .grid-footer {
@@ -1408,6 +1416,37 @@
 .mm-row .mm-name { width: 180px; }
 .mm-row .mm-start,
 .mm-row .mm-end   { width: 110px; }
+
+/* ── Specials list ───────────────────────────────────────────── */
+.specials-header-row,
+.special-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 120px 120px 32px;
+  gap: 8px;
+  align-items: end;
+}
+.specials-header-row {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  align-items: center;
+}
+.special-row {
+  margin-bottom: 8px;
+}
+.sp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sp-field .form-label {
+  font-size: 11px;
+  margin-bottom: 0;
+}
+
 .btn-icon {
   background: none;
   border: 1px solid var(--gray-300);
