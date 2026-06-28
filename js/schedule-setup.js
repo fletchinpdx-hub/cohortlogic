@@ -37,9 +37,9 @@ function renderMMRow(m) {
 }
 
 const DEFAULT_SPECIALS = [
-  { id: 'sp_pe',  name: 'PE',      duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5 },
-  { id: 'sp_mu',  name: 'Music',   duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5 },
-  { id: 'sp_lib', name: 'Library', duration: 45, teacherCount: 0.5, teacherHoursPerDay: 4   },
+  { id: 'sp_pe',  name: 'PE',      duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5, classesPerWeek: 1 },
+  { id: 'sp_mu',  name: 'Music',   duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5, classesPerWeek: 1 },
+  { id: 'sp_lib', name: 'Library', duration: 45, teacherCount: 0.5, teacherHoursPerDay: 4,   classesPerWeek: 1 },
 ];
 
 function renderSpecialRow(sp) {
@@ -49,6 +49,10 @@ function renderSpecialRow(sp) {
       <div class="sp-field">
         <label class="form-label">Duration (min)</label>
         <input type="number" class="input input-sm sp-duration" placeholder="45" min="5" step="5" value="${sp.duration || 45}">
+      </div>
+      <div class="sp-field">
+        <label class="form-label">Classes/week</label>
+        <input type="number" class="input input-sm sp-cpw" placeholder="1" min="1" max="5" step="1" value="${sp.classesPerWeek || 1}">
       </div>
       <div class="sp-field">
         <label class="form-label">Teachers (FTE)</label>
@@ -206,6 +210,7 @@ function renderSchoolInfo() {
         <div class="specials-header-row">
           <span>Subject</span>
           <span>Duration</span>
+          <span>Classes/wk</span>
           <span>Teachers (FTE)</span>
           <span>Hrs/day each</span>
           <span></span>
@@ -761,6 +766,7 @@ function saveSchoolAndContinue() {
     id:                 row.dataset.spId,
     name:               row.querySelector('.sp-name').value.trim(),
     duration:           parseInt(row.querySelector('.sp-duration').value) || 45,
+    classesPerWeek:     parseInt(row.querySelector('.sp-cpw').value) || 1,
     teacherCount:       parseFloat(row.querySelector('.sp-teachers').value) || 1,
     teacherHoursPerDay: parseFloat(row.querySelector('.sp-hours').value) || 6.5,
   })).filter(sp => sp.name);

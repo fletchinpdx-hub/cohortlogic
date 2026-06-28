@@ -1421,7 +1421,7 @@
 .specials-header-row,
 .special-row {
   display: grid;
-  grid-template-columns: 1fr 110px 120px 120px 32px;
+  grid-template-columns: 1fr 110px 90px 120px 120px 32px;
   gap: 8px;
   align-items: end;
 }
