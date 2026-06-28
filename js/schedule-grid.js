@@ -49,6 +49,13 @@ function fmtTime(slot) {
   return `${h12}:${String(m).padStart(2,'0')}`;
 }
 
+function fmtTime12(slot) {
+  const [h, m] = slot.split(':').map(Number);
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const ampm = h < 12 ? 'AM' : 'PM';
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
 // ── Block state ───────────────────────────────────────────────────────────────
 
 function getBlock(day, grade, slot) {
