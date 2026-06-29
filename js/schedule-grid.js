@@ -1027,7 +1027,14 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation) {
     // claim contiguous space before small blocks, minimising fragmentation.
     const allUnits = [];
     requirements.forEach(req => {
-      if (req.id === 'bt_spec') return; // Placed by _placeSpecialsForGrade; skip in day loop.
+      if (req.id === 'bt_spec') {
+        // If specials are configured, _placeSpecialsForGrade handled placement already.
+        // Fall back to generic bt_spec only when school.specials isn't set up yet.
+        if (!(s.specials || []).length) {
+          allUnits.push({ id: 'bt_spec', slots: Math.ceil(req.bandMinutes[band.id] / 5) });
+        }
+        return;
+      }
 
       const configuredSubs = (req.subBlocks || []).filter(sub =>
         ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
