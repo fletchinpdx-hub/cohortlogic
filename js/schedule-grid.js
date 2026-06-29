@@ -748,6 +748,55 @@ function wireDayTabs() {
   });
 }
 
+// ── Specials FTE conflict warning ────────────────────────────────────────────────
+
+function showSpecialsConflictWarning() {
+  const existingBanner = document.getElementById('specials-conflict-banner');
+  if (existingBanner) existingBanner.remove();
+
+  const specials = SchedState.school.specials || [];
+  if (!specials.length) return;
+
+  const seen = new Set();
+  const conflicts = [];
+
+  DAYS.forEach(day => {
+    _autoFillSlots(day).forEach(slot => {
+      const bySpec = {};
+      gradesSorted().forEach(grade => {
+        const btId = SchedState.masterSchedule[day]?.[grade]?.[slot];
+        if (!btId?.startsWith('bt_spec|')) return;
+        const spId = btId.split('|')[1];
+        bySpec[spId] = (bySpec[spId] || 0) + 1;
+      });
+      Object.entries(bySpec).forEach(([spId, count]) => {
+        const sp  = specials.find(s => s.id === spId);
+        const max = Math.max(1, Math.floor(sp?.teacherCount || 1));
+        if (count > max) {
+          const key = `${spId}:${day}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            conflicts.push({ name: sp?.name || spId, day, slot, count, max });
+          }
+        }
+      });
+    });
+  });
+
+  if (!conflicts.length) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'specials-conflict-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  const list = conflicts.map(c =>
+    `<li><strong>${c.name}</strong> on ${c.day} at ${fmtTime12(c.slot)} — ${c.count} classes, only ${c.max} teacher${c.max !== 1 ? 's' : ''}</li>`
+  ).join('');
+  banner.innerHTML = `⚠ Specials teacher conflict — same teacher scheduled for multiple classes at the same time:<ul style="margin:6px 0 0 16px;padding:0">${list}</ul>`;
+
+  const topBar = document.querySelector('.grid-top-bar');
+  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+}
+
 // ── Grade header auto-fill ────────────────────────────────────────────────────
 
 function wireGradeHeaders() {
@@ -814,6 +863,119 @@ function computeSpecialsRotation(grades, specials) {
   return rotation;
 }
 
+// Places specials for a grade such that every specials day uses the SAME start time.
+// Finds the earliest start slot where: (a) all specials days have the required consecutive
+// free slots, and (b) no FTE constraint is violated. Falls back to first free slot if
+// FTE-clean slot not found (conflict warning handles it separately).
+function _placeSpecialsForGrade(grade, specialsRotation, clearFirst) {
+  const s = SchedState.school;
+  const specials = s.specials || [];
+  if (!specials.length || !specialsRotation?.[grade]) return;
+
+  const specialsDays = DAYS.filter(d => specialsRotation[grade][d]);
+  if (!specialsDays.length) return;
+
+  if (!clearFirst) {
+    // Check if already consistently placed: every specials day has a bt_spec|spId block
+    // starting at the same slot. If so, nothing to do.
+    const startSlots = specialsDays.map(day => {
+      const sched = SchedState.masterSchedule[day]?.[grade] || {};
+      const spId  = specialsRotation[grade][day];
+      const btId  = `bt_spec|${spId}`;
+      return _autoFillSlots(day).find(sl => sched[sl] === btId) ?? null;
+    });
+    if (startSlots.every(Boolean) && new Set(startSlots).size === 1) return;
+  }
+
+  // Clear all specials for this grade on every day (both plain and compound).
+  DAYS.forEach(day => {
+    const sched = SchedState.masterSchedule[day]?.[grade];
+    if (!sched) return;
+    Object.keys(sched).forEach(slot => {
+      const sv = sched[slot];
+      if (sv === 'bt_spec' || sv?.startsWith('bt_spec|')) delete sched[slot];
+    });
+  });
+
+  // Candidate slots = intersection of all specials days' valid ranges.
+  const daySlotArrays = specialsDays.map(d => _autoFillSlots(d));
+  const commonSlots = daySlotArrays[0].filter(slot =>
+    daySlotArrays.every(arr => arr.includes(slot))
+  );
+
+  // Per-day occupied sets (fixed blocks; specials were just cleared).
+  const occupiedPerDay = {};
+  specialsDays.forEach(day => {
+    const sched = SchedState.masterSchedule[day]?.[grade] || {};
+    occupiedPerDay[day] = new Set(Object.keys(sched).filter(sl => sched[sl]));
+  });
+
+  // Helper: does placing spId at candidateStart on day violate FTE?
+  function fteFails(day, candidateStart, spId, numSlots) {
+    const sp = specials.find(sp => sp.id === spId);
+    const maxConcurrent = Math.max(1, Math.floor(sp?.teacherCount || 1));
+    const btId = `bt_spec|${spId}`;
+    const dayArr = _autoFillSlots(day);
+    const startIdx = dayArr.indexOf(candidateStart);
+    if (startIdx < 0) return true;
+    const windowSlots = new Set(dayArr.slice(startIdx, startIdx + numSlots));
+    let concurrent = 0;
+    gradesSorted().forEach(g => {
+      if (g === grade) return;
+      const otherSched = SchedState.masterSchedule[day]?.[g] || {};
+      const overlaps = Object.keys(otherSched).some(sl => otherSched[sl] === btId && windowSlots.has(sl));
+      if (overlaps) concurrent++;
+    });
+    return concurrent >= maxConcurrent;
+  }
+
+  // Find best (FTE-clean) start slot, fall back to first free slot.
+  let chosenStart = null;
+  let fallbackStart = null;
+
+  for (let i = 0; i < commonSlots.length; i++) {
+    const candidateStart = commonSlots[i];
+    let free = true;
+    let fteClear = true;
+
+    for (const day of specialsDays) {
+      const spId = specialsRotation[grade][day];
+      const sp   = specials.find(sp => sp.id === spId);
+      const numSlots = Math.ceil((sp?.duration || 45) / 5);
+      const dayArr   = _autoFillSlots(day);
+      const startIdx = dayArr.indexOf(candidateStart);
+      if (startIdx < 0 || startIdx + numSlots > dayArr.length) { free = false; break; }
+      for (let j = 0; j < numSlots; j++) {
+        if (occupiedPerDay[day].has(dayArr[startIdx + j])) { free = false; break; }
+      }
+      if (!free) break;
+      if (fteClear && fteFails(day, candidateStart, spId, numSlots)) fteClear = false;
+    }
+
+    if (free && fteClear) { chosenStart = candidateStart; break; }
+    if (free && !fallbackStart) fallbackStart = candidateStart;
+  }
+
+  const startSlot = chosenStart || fallbackStart;
+  if (!startSlot) return; // No room at all
+
+  // Place bt_spec|spId on each specials day at the chosen start time.
+  specialsDays.forEach(day => {
+    if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
+    if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+    const sched = SchedState.masterSchedule[day][grade];
+    const spId  = specialsRotation[grade][day];
+    const sp    = specials.find(sp => sp.id === spId);
+    const numSlots = Math.ceil((sp?.duration || 45) / 5);
+    const dayArr   = _autoFillSlots(day);
+    const startIdx = dayArr.indexOf(startSlot);
+    const btId  = `bt_spec|${spId}`;
+    for (let j = 0; j < numSlots && startIdx + j < dayArr.length; j++) {
+      sched[dayArr[startIdx + j]] = btId;
+    }
+  });
+}
+
 // Core placement logic — pure data mutation, no DOM or storage side effects.
 // clearFirst=true  → wipe existing requirement slots before placing (grade-header click).
 // clearFirst=false → only place blocks that have ZERO slots placed; skip any
@@ -835,6 +997,12 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation) {
     (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
   });
 
+  // Specials require a common start time across all specials days for this grade.
+  // Run holistically before the per-day loop; skip on single-day refreshes.
+  if (!onlyDay) {
+    _placeSpecialsForGrade(grade, specialsRotation, clearFirst);
+  }
+
   const daysToProcess = onlyDay ? [onlyDay] : DAYS;
   daysToProcess.forEach(day => {
     const allSlots = _autoFillSlots(day);
@@ -847,6 +1015,7 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation) {
         const sv = sched[slot];
         if (!sv) return;
         const pid = sv.includes('|') ? sv.split('|')[0] : sv;
+        if (pid === 'bt_spec') return; // handled by _placeSpecialsForGrade
         if (reqIds.has(sv) || requirements.some(r => r.id === pid)) delete sched[slot];
       });
     }
@@ -858,31 +1027,7 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation) {
     // claim contiguous space before small blocks, minimising fragmentation.
     const allUnits = [];
     requirements.forEach(req => {
-      if (req.id === 'bt_spec') {
-        // Specials are rotation-driven: each day this grade may have a different specific special.
-        // Fall back to generic bt_spec placement if no specials are configured in School Info.
-        const schoolSpecials = s.specials || [];
-        if (!schoolSpecials.length || !specialsRotation?.[grade]) {
-          allUnits.push({ id: 'bt_spec', slots: Math.ceil(req.bandMinutes[band.id] / 5) });
-          return;
-        }
-        const spId = specialsRotation[grade][day];
-        if (spId) {
-          const sp = schoolSpecials.find(sp => sp.id === spId);
-          const unitId = `bt_spec|${spId}`;
-          // Upgrade: clear old plain bt_spec if rotation-based specials are now configured.
-          if (!clearFirst) {
-            const hasOldSpec = allSlots.some(sl => sched[sl] === 'bt_spec');
-            if (hasOldSpec) {
-              allSlots.forEach(sl => {
-                if (sched[sl] === 'bt_spec') { delete sched[sl]; occupied.delete(sl); }
-              });
-            }
-          }
-          allUnits.push({ id: unitId, slots: Math.ceil((sp?.duration || 45) / 5) });
-        }
-        return;
-      }
+      if (req.id === 'bt_spec') return; // Placed by _placeSpecialsForGrade; skip in day loop.
 
       const configuredSubs = (req.subBlocks || []).filter(sub =>
         ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
@@ -972,6 +1117,7 @@ function autoPopulateIfEmpty() {
   grades.forEach(grade => _populateGradeData(grade, false, null, rotation));
   saveToLocal();
   rebuildTbody();
+  showSpecialsConflictWarning();
 }
 
 // Called after Block Types is saved: fills any required blocks that aren't
@@ -984,6 +1130,7 @@ function fillMissingRequirements() {
   rebuildTbody();
   showLunchOutOfHoursWarning();
   showMissingRequirementsWarning();
+  showSpecialsConflictWarning();
 }
 
 // Returns the dismissal time for a specific day, respecting early-release settings.
