@@ -89,6 +89,10 @@ const SchedState = {
   // masterSchedule[day][grade][timeSlot] = blockTypeId | null
   // e.g. masterSchedule['Monday']['K']['07:30'] = 'bt_1'
   masterSchedule: {},
+
+  // conflicts[day][grade][timeSlot] = [btId, ...] — blocks displaced by a manual placement
+  // Auto-fill never creates conflicts; only drag/click from palette does.
+  conflicts: {},
 };
 
 // ── Palette for auto-assigning staff colors ──────────────────────────────────

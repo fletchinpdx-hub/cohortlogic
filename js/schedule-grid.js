@@ -103,15 +103,54 @@ function setBlock(day, grade, slot, btId) {
   if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
   if (btId === null) {
     delete SchedState.masterSchedule[day][grade][slot];
+    clearConflict(day, grade, slot);
   } else {
     SchedState.masterSchedule[day][grade][slot] = btId;
   }
 }
 
+// ── Conflict helpers ──────────────────────────────────────────────────────────
+
+function getConflicts(day, grade, slot) {
+  return SchedState.conflicts?.[day]?.[grade]?.[slot] || [];
+}
+
+function addConflict(day, grade, slot, btId) {
+  if (!SchedState.conflicts[day])        SchedState.conflicts[day] = {};
+  if (!SchedState.conflicts[day][grade]) SchedState.conflicts[day][grade] = {};
+  if (!SchedState.conflicts[day][grade][slot]) SchedState.conflicts[day][grade][slot] = [];
+  if (!SchedState.conflicts[day][grade][slot].includes(btId)) {
+    SchedState.conflicts[day][grade][slot].push(btId);
+  }
+}
+
+function clearConflict(day, grade, slot) {
+  if (SchedState.conflicts?.[day]?.[grade]) delete SchedState.conflicts[day][grade][slot];
+}
+
+function clearGradeConflicts(grade) {
+  DAYS.forEach(day => {
+    if (SchedState.conflicts?.[day]) delete SchedState.conflicts[day][grade];
+  });
+}
+
+// Manual placement: preserve displaced block as a conflict instead of silently deleting it.
+// Auto-fill uses setBlock() directly (no conflicts created).
+function placeBlock(day, grade, slot, btId) {
+  if (gridUI.lockedGrades.has(grade)) return;
+  if (btId === null) { setBlock(day, grade, slot, null); return; }
+  const existing = getBlock(day, grade, slot);
+  if (existing && existing !== btId) addConflict(day, grade, slot, existing);
+  setBlock(day, grade, slot, btId);
+}
+
 // ── Undo ─────────────────────────────────────────────────────────────────────
 
 function pushUndoSnapshot() {
-  gridUI.undoStack.push(JSON.parse(JSON.stringify(SchedState.masterSchedule)));
+  gridUI.undoStack.push({
+    schedule:  JSON.parse(JSON.stringify(SchedState.masterSchedule)),
+    conflicts: JSON.parse(JSON.stringify(SchedState.conflicts)),
+  });
   if (gridUI.undoStack.length > 50) gridUI.undoStack.shift();
   const btn = document.getElementById('undo-btn');
   if (btn) btn.disabled = false;
@@ -120,10 +159,12 @@ function pushUndoSnapshot() {
 function undoLastMove() {
   const prev = gridUI.undoStack.pop();
   if (!prev) return;
-  SchedState.masterSchedule = prev;
+  SchedState.masterSchedule = prev.schedule;
+  SchedState.conflicts       = prev.conflicts;
   saveToLocal();
   rebuildTbody();
   showSpecialsConflictWarning();
+  showConflictBanner();
   const btn = document.getElementById('undo-btn');
   if (btn) btn.disabled = gridUI.undoStack.length === 0;
 }
@@ -385,6 +426,7 @@ function renderMasterSchedule() {
   autoPopulateIfEmpty();
   showLunchOutOfHoursWarning();
   showMissingRequirementsWarning();
+  showConflictBanner();
   document.getElementById('copy-day-btn').addEventListener('click', showCopyDayMenu);
 }
 
@@ -497,6 +539,25 @@ function buildRow(slot, prevSlot) {
   `;
 }
 
+function getBtName(btId) {
+  const pid = btId.includes('|') ? btId.split('|')[0] : btId;
+  const sub = btId.includes('|') ? btId.split('|')[1] : null;
+  if (pid === 'bt_mm') {
+    const m = (SchedState.school.morningMeetings || []).find(m => m.id === sub);
+    return m?.name || 'Morning Meeting';
+  }
+  if (pid === 'bt_spec') {
+    const sp = (SchedState.school.specials || []).find(s => s.id === sub);
+    return sp?.name || 'Specials';
+  }
+  const bt = SchedState.blockTypes.find(b => b.id === pid);
+  if (bt && sub) {
+    const s = (bt.subBlocks || []).find(s => s.id === sub);
+    return s ? `${bt.name} – ${s.name}` : bt.name;
+  }
+  return bt?.name || btId;
+}
+
 function buildCell(slot, grade, prevSlot) {
   const day    = gridUI.activeDay;
   const btId   = getBlock(day, grade, slot);
@@ -528,20 +589,33 @@ function buildCell(slot, grade, prevSlot) {
     }
   }
 
+  const conflicts = getConflicts(day, grade, slot);
+  const hasConflict = conflicts.length > 0;
+
   if (bt) {
-    style = `background:${bt.color}18;border-left:3px solid ${bt.color};`
-          + (isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`);
+    const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`;
+    const conflictBorder = hasConflict ? 'outline:2px solid #ef4444;outline-offset:-2px;' : '';
+    style = `background:${bt.color}18;border-left:3px solid ${bt.color};${borderTop}${conflictBorder}`;
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
       const timeRange = mins >= 10
         ? `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(minsToTime(timeToMins(slot) + mins))} · ${mins} min</span>`
         : '';
-      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}</span>`;
+      const conflictTag = hasConflict
+        ? `<span class="cell-conflict-badge">⚠ also: ${conflicts.map(getBtName).join(', ')}</span>`
+        : '';
+      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}${conflictTag}</span>`;
     }
+  } else if (hasConflict && !isCont) {
+    // Slot has conflict(s) but no primary block — show the conflicts directly
+    const names = conflicts.map(getBtName).join(' + ');
+    style = 'outline:2px solid #ef4444;outline-offset:-2px;background:#fef2f2;';
+    inner = `<span class="cell-conflict-badge">⚠ ${names}</span>`;
   }
 
   const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
-  return `<td class="grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}${lockedCls}"
+  const conflictCls = hasConflict ? ' cell-has-conflict' : '';
+  return `<td class="grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}${lockedCls}${conflictCls}"
               data-time="${slot}" data-grade="${grade}"
               style="${style}">${inner}</td>`;
 }
@@ -652,7 +726,7 @@ function onPointerUp(e) {
   saveToLocal();
 }
 
-// Single click: auto-fill configured duration, detect double-booking
+// Single click: auto-fill configured duration, preserve displaced blocks as conflicts
 function commitClick() {
   pushUndoSnapshot();
   const { activeDay } = gridUI;
@@ -663,24 +737,16 @@ function commitClick() {
     if (dur && dur >= 5) {
       const startIdx = currentSlots.indexOf(startSlot);
       const numSlots = Math.round(dur / 5);
-      const overwritten = [];
       for (let i = 0; i < numSlots && startIdx + i < currentSlots.length; i++) {
-        const s  = currentSlots[startIdx + i];
-        const ex = getBlock(activeDay, startGrade, s);
-        if (ex && ex !== paintValue) overwritten.push(ex);
-        setBlock(activeDay, startGrade, s, paintValue);
+        placeBlock(activeDay, startGrade, currentSlots[startIdx + i], paintValue);
       }
-      if (overwritten.length) showDoubleBookingWarning(startGrade, startSlot, paintValue, overwritten);
+      showConflictBanner();
       rebuildTbody();
       return;
     }
   }
-  // No configured duration or eraser: single-cell toggle, still check conflict
-  if (paintValue !== null) {
-    const ex = getBlock(activeDay, startGrade, startSlot);
-    if (ex && ex !== paintValue) showDoubleBookingWarning(startGrade, startSlot, paintValue, [ex]);
-  }
-  setBlock(activeDay, startGrade, startSlot, paintValue);
+  placeBlock(activeDay, startGrade, startSlot, paintValue);
+  showConflictBanner();
   refreshColumnAround(startGrade, startSlot);
 }
 
@@ -700,9 +766,10 @@ function commitRect() {
 
   for (let g = minG; g <= maxG; g++) {
     for (let s = minS; s <= maxS; s++) {
-      setBlock(activeDay, currentGrades[g], currentSlots[s], paintValue);
+      placeBlock(activeDay, currentGrades[g], currentSlots[s], paintValue);
     }
   }
+  showConflictBanner();
   rebuildTbody();
 }
 
@@ -794,16 +861,17 @@ function commitMove() {
   const destStartIdx = currentSlots.indexOf(drag.endSlot);
   const len          = drag.moveSlots.length;
 
-  // Erase source
+  // Erase source (also clears conflicts at those slots)
   drag.moveSlots.forEach(s => setBlock(day, srcGrade, s, null));
 
-  // Write destination
+  // Write destination — use placeBlock so anything already there becomes a conflict
   for (let i = 0; i < len; i++) {
     const destIdx = destStartIdx + i;
     if (destIdx >= currentSlots.length) break;
-    setBlock(day, destGrade, currentSlots[destIdx], drag.moveValue);
+    placeBlock(day, destGrade, currentSlots[destIdx], drag.moveValue);
   }
 
+  showConflictBanner();
   rebuildTbody();
 }
 
@@ -931,36 +999,51 @@ function showSpecialsConflictWarning() {
   if (topBar) topBar.insertAdjacentElement('afterend', banner);
 }
 
-// ── Double-booking warning ────────────────────────────────────────────────────
+// ── Conflict banner (persistent, driven by SchedState.conflicts) ──────────────
 
-function showDoubleBookingWarning(grade, slot, newBtId, overwrittenIds) {
-  const gradeLabel = GRADE_LABELS[grade] || grade;
-  const timeStr    = fmtTime12(slot);
+function showConflictBanner() {
+  const existing = document.getElementById('conflict-banner');
+  if (existing) existing.remove();
 
-  const getName = id => {
-    const pid = id.includes('|') ? id.split('|')[0] : id;
-    if (pid === 'bt_spec') {
-      const spId = id.includes('|') ? id.split('|')[1] : null;
-      const sp   = spId ? (SchedState.school.specials || []).find(s => s.id === spId) : null;
-      return sp ? sp.name : 'Specials';
-    }
-    return SchedState.blockTypes.find(b => b.id === pid)?.name || id;
-  };
+  // Collect all conflicts across all days
+  const items = [];
+  DAYS.forEach(day => {
+    const dayConflicts = SchedState.conflicts[day];
+    if (!dayConflicts) return;
+    Object.entries(dayConflicts).forEach(([grade, slots]) => {
+      Object.entries(slots).forEach(([slot, displaced]) => {
+        if (!displaced.length) return;
+        const primary = getBlock(day, grade, slot);
+        items.push({
+          day, grade, slot,
+          primary: primary ? getBtName(primary) : '(empty)',
+          displaced: displaced.map(getBtName),
+        });
+      });
+    });
+  });
 
-  const newName  = getName(newBtId);
-  const oldNames = [...new Set(overwrittenIds)].map(getName).join(', ');
+  if (!items.length) return;
 
-  let banner = document.getElementById('double-book-banner');
-  if (!banner) {
-    banner = document.createElement('div');
-    banner.id        = 'double-book-banner';
-    banner.className = 'setup-banner setup-banner-error';
-    const topBar = document.querySelector('.grid-top-bar');
-    if (topBar) topBar.insertAdjacentElement('afterend', banner);
-  }
+  const banner = document.createElement('div');
+  banner.id        = 'conflict-banner';
+  banner.className = 'setup-banner setup-banner-error';
 
-  banner.innerHTML = `<strong>Double-booked:</strong> ${gradeLabel} at ${timeStr} — <em>${newName}</em> placed over <em>${oldNames}</em>. <button id="double-book-dismiss" style="margin-left:8px;background:none;border:none;cursor:pointer;font-size:14px;color:inherit">×</button>`;
-  document.getElementById('double-book-dismiss').addEventListener('click', () => banner.remove());
+  const list = items.map(it =>
+    `<li><strong>${GRADE_LABELS[it.grade] || it.grade}</strong> ${it.day} at ${fmtTime12(it.slot)}: ` +
+    `<em>${it.primary}</em> over <em>${it.displaced.join(', ')}</em></li>`
+  ).join('');
+
+  banner.innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">` +
+    `<div><strong>⚠ Double-booked time slots (${items.length}):</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>` +
+    `<button id="conflict-banner-dismiss" style="background:none;border:none;cursor:pointer;font-size:16px;flex-shrink:0">×</button>` +
+    `</div>`;
+
+  const topBar = document.querySelector('.grid-top-bar');
+  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+
+  document.getElementById('conflict-banner-dismiss').addEventListener('click', () => banner.remove());
 }
 
 // ── Grade header auto-fill ────────────────────────────────────────────────────
@@ -1269,7 +1352,10 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation, specia
         if (!sv) return;
         const pid = sv.includes('|') ? sv.split('|')[0] : sv;
         if (pid === 'bt_spec') return; // handled by _placeSpecialsForGrade
-        if (reqIds.has(sv) || requirements.some(r => r.id === pid)) delete sched[slot];
+        if (reqIds.has(sv) || requirements.some(r => r.id === pid)) {
+          delete sched[slot];
+          clearConflict(day, grade, slot);
+        }
       });
     }
 
@@ -1403,6 +1489,7 @@ function fillMissingRequirements() {
   showLunchOutOfHoursWarning();
   showMissingRequirementsWarning();
   showSpecialsConflictWarning();
+  showConflictBanner();
 }
 
 // Returns the dismissal time for a specific day, respecting early-release settings.
