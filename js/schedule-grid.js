@@ -7,9 +7,14 @@ let currentSlots  = [];
 let currentGrades = [];
 
 const gridUI = {
-  activeDay:  'Monday',
-  activeBtId: null,
+  activeDay:     'Monday',
+  activeBtId:    null,
+  visibleGrades: null,      // null = all; Set<grade> when filtered
+  lockedGrades:  new Set(), // grades protected from any change
+  undoStack:     [],        // array of masterSchedule snapshots
 };
+
+let _gridKeydownWired = false;
 
 // Drag / paint state
 const drag = {
@@ -93,6 +98,7 @@ function getBlock(day, grade, slot) {
 }
 
 function setBlock(day, grade, slot, btId) {
+  if (gridUI.lockedGrades.has(grade)) return;
   if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
   if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
   if (btId === null) {
@@ -100,6 +106,65 @@ function setBlock(day, grade, slot, btId) {
   } else {
     SchedState.masterSchedule[day][grade][slot] = btId;
   }
+}
+
+// ── Undo ─────────────────────────────────────────────────────────────────────
+
+function pushUndoSnapshot() {
+  gridUI.undoStack.push(JSON.parse(JSON.stringify(SchedState.masterSchedule)));
+  if (gridUI.undoStack.length > 50) gridUI.undoStack.shift();
+  const btn = document.getElementById('undo-btn');
+  if (btn) btn.disabled = false;
+}
+
+function undoLastMove() {
+  const prev = gridUI.undoStack.pop();
+  if (!prev) return;
+  SchedState.masterSchedule = prev;
+  saveToLocal();
+  rebuildTbody();
+  showSpecialsConflictWarning();
+  const btn = document.getElementById('undo-btn');
+  if (btn) btn.disabled = gridUI.undoStack.length === 0;
+}
+
+// ── Grade header cell builder (used by both initial render and rebuildTable) ──
+
+function buildGradeHeaderCell(g) {
+  const locked = gridUI.lockedGrades.has(g);
+  return `<th class="th-grade${locked ? ' grade-locked' : ''}" data-grade="${g}">
+    <span class="th-grade-fill" data-grade="${g}" title="Click to auto-fill required blocks for this grade">
+      ${GRADE_LABELS[g] || g}
+      <span class="th-fill-hint">${locked ? 'locked' : 'auto-fill'}</span>
+    </span>
+    <button class="grade-lock-btn${locked ? ' locked' : ''}" data-grade="${g}" title="${locked ? 'Unlock grade' : 'Lock grade'}">
+      ${locked ? '🔒' : '🔓'}
+    </button>
+  </th>`;
+}
+
+// Rebuild thead + tbody when grade filter or lock state changes.
+function rebuildTable() {
+  const allGrades = gradesSorted();
+  currentGrades = gridUI.visibleGrades
+    ? allGrades.filter(g => gridUI.visibleGrades.has(g))
+    : allGrades;
+  if (!currentGrades.length) currentGrades = allGrades;
+
+  // Update grade filter chip active states
+  const filterAll = document.getElementById('gf-all');
+  if (filterAll) filterAll.classList.toggle('active', !gridUI.visibleGrades);
+  document.querySelectorAll('.gf-chip[data-gf-grade]').forEach(chip => {
+    chip.classList.toggle('active', !gridUI.visibleGrades || gridUI.visibleGrades.has(chip.dataset.gfGrade));
+  });
+
+  const headRow = document.querySelector('#sched-table thead tr');
+  if (headRow) {
+    headRow.innerHTML = '<th class="th-time"></th>' + currentGrades.map(buildGradeHeaderCell).join('');
+  }
+  document.getElementById('sched-tbody').innerHTML = buildTbodyHtml();
+  wireGradeHeaders();
+  wireGridPointer();
 }
 
 // How many consecutive same-type slots starting at this one (in same grade/day)?
@@ -186,13 +251,17 @@ function showMissingRequirementsWarning() {
 // ── Main render ───────────────────────────────────────────────────────────────
 
 function renderMasterSchedule() {
-  currentGrades = gradesSorted();
+  const allGrades = gradesSorted();
+  currentGrades = gridUI.visibleGrades
+    ? allGrades.filter(g => gridUI.visibleGrades.has(g))
+    : allGrades;
+  if (!currentGrades.length) currentGrades = allGrades;
 
   // Always sync lunch/recess/morning-meeting blocks from School Info settings
   // before rendering, so loading saved data doesn't lose these fixed blocks.
-  if (currentGrades.length) preFillFixedBlocks();
+  if (allGrades.length) preFillFixedBlocks();
 
-  if (!currentGrades.length) {
+  if (!allGrades.length) {
     document.getElementById('view-master').innerHTML = `
       <div class="view-header"><h1>Master Schedule</h1></div>
       <div class="empty-state">
@@ -248,6 +317,7 @@ function renderMasterSchedule() {
             <p class="grid-subtitle">Broad blocks by grade — detail Specials and IA in the next steps.</p>
           </div>
           <div class="grid-top-actions">
+            <button class="btn btn-outline btn-sm" id="undo-btn" title="Undo last change (⌘Z)" disabled>↩ Undo</button>
             <button class="btn btn-outline btn-sm" id="copy-day-btn">Copy day to…</button>
             <button class="btn btn-primary btn-sm" id="master-save-btn">Save</button>
           </div>
@@ -267,6 +337,16 @@ function renderMasterSchedule() {
           </div>
         </div>
 
+        <div class="grade-filter-bar" id="grade-filter-bar">
+          <span class="gf-label">Grades:</span>
+          <button id="gf-all" class="gf-chip${!gridUI.visibleGrades ? ' active' : ''}">All</button>
+          ${allGrades.map(g => `
+            <button class="gf-chip${(!gridUI.visibleGrades || gridUI.visibleGrades.has(g)) ? ' active' : ''}" data-gf-grade="${g}">
+              ${GRADE_LABELS[g] || g}
+            </button>
+          `).join('')}
+        </div>
+
         ${setupWarning}
 
         <div class="grid-scroll-wrap" id="grid-scroll-wrap">
@@ -274,7 +354,7 @@ function renderMasterSchedule() {
             <thead>
               <tr class="sched-head-row">
                 <th class="th-time"></th>
-                ${currentGrades.map(g => `<th class="th-grade th-grade-fill" data-grade="${g}" title="Click to auto-fill required blocks for this grade">${GRADE_LABELS[g] || g}<span class="th-fill-hint">auto-fill</span></th>`).join('')}
+                ${currentGrades.map(buildGradeHeaderCell).join('')}
               </tr>
             </thead>
             <tbody id="sched-tbody">
@@ -460,7 +540,8 @@ function buildCell(slot, grade, prevSlot) {
     }
   }
 
-  return `<td class="grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}"
+  const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
+  return `<td class="grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}${lockedCls}"
               data-time="${slot}" data-grade="${grade}"
               style="${style}">${inner}</td>`;
 }
@@ -476,6 +557,19 @@ function wireGridPointer() {
   wrap.addEventListener('pointermove', onPointerMove);
   wrap.addEventListener('pointerup',   onPointerUp);
   wrap.addEventListener('pointercancel', onPointerUp);
+
+  // Cmd/Ctrl+Z — undo (registered once for the lifetime of the page)
+  if (!_gridKeydownWired) {
+    _gridKeydownWired = true;
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'z') {
+        if (document.getElementById('view-master')?.classList.contains('active')) {
+          e.preventDefault();
+          undoLastMove();
+        }
+      }
+    });
+  }
 }
 
 function onPointerDown(e) {
@@ -560,6 +654,7 @@ function onPointerUp(e) {
 
 // Single click: auto-fill configured duration, detect double-booking
 function commitClick() {
+  pushUndoSnapshot();
   const { activeDay } = gridUI;
   const { startGrade, startSlot, paintValue } = drag;
 
@@ -591,6 +686,7 @@ function commitClick() {
 
 // Drag: fill the entire grade × time rectangle
 function commitRect() {
+  pushUndoSnapshot();
   const { activeDay } = gridUI;
   const { startGrade, startSlot, endGrade, endSlot, paintValue } = drag;
 
@@ -691,6 +787,7 @@ function clearMovePreview() {
 }
 
 function commitMove() {
+  pushUndoSnapshot();
   const day          = gridUI.activeDay;
   const srcGrade     = drag.moveGrade;
   const destGrade    = drag.endGrade;
@@ -757,7 +854,7 @@ function refreshColumnAround(grade, slot) {
       }
     }
 
-    cell.className = `grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}`;
+    cell.className = `grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}${gridUI.lockedGrades.has(grade) ? ' grade-locked' : ''}`;
     if (bt) {
       cell.style.cssText = `background:${bt.color}18;border-left:3px solid ${bt.color};`
         + (isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`);
@@ -869,9 +966,50 @@ function showDoubleBookingWarning(grade, slot, newBtId, overwrittenIds) {
 // ── Grade header auto-fill ────────────────────────────────────────────────────
 
 function wireGradeHeaders() {
-  document.querySelectorAll('.th-grade-fill').forEach(th => {
-    th.addEventListener('click', () => autoPopulateGrade(th.dataset.grade, false, true));
+  // Auto-fill on grade label click
+  document.querySelectorAll('.th-grade-fill').forEach(span => {
+    span.addEventListener('click', () => autoPopulateGrade(span.dataset.grade, false, true));
   });
+
+  // Lock / unlock grade
+  document.querySelectorAll('.grade-lock-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const g = btn.dataset.grade;
+      if (gridUI.lockedGrades.has(g)) gridUI.lockedGrades.delete(g);
+      else gridUI.lockedGrades.add(g);
+      rebuildTable();
+    });
+  });
+
+  // Grade filter — "All" chip
+  document.getElementById('gf-all')?.addEventListener('click', () => {
+    gridUI.visibleGrades = null;
+    rebuildTable();
+  });
+
+  // Grade filter — individual chips
+  document.querySelectorAll('.gf-chip[data-gf-grade]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const g = chip.dataset.gfGrade;
+      const all = gradesSorted();
+      if (!gridUI.visibleGrades) {
+        // Start a filtered view with just this grade
+        gridUI.visibleGrades = new Set([g]);
+      } else {
+        if (gridUI.visibleGrades.has(g)) gridUI.visibleGrades.delete(g);
+        else gridUI.visibleGrades.add(g);
+        // Reset to "all" if nothing or everything is selected
+        if (gridUI.visibleGrades.size === 0 || gridUI.visibleGrades.size === all.length) {
+          gridUI.visibleGrades = null;
+        }
+      }
+      rebuildTable();
+    });
+  });
+
+  // Undo button
+  document.getElementById('undo-btn')?.addEventListener('click', undoLastMove);
 }
 
 // Priority order for auto-placing blocks (lower = placed first)
@@ -1208,6 +1346,10 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation, specia
 
 // Grade-header click: clear and re-place all requirements cleanly for one grade.
 function autoPopulateGrade(grade, silent = false, clearFirst = false) {
+  if (gridUI.lockedGrades.has(grade)) {
+    if (!silent) alert(`${GRADE_LABELS[grade] || grade} is locked. Click the 🔒 in the column header to unlock it first.`);
+    return;
+  }
   const s    = SchedState.school;
   const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
   if (!band) {
@@ -1219,6 +1361,7 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
     if (!silent) alert(`No time requirements are set for the "${band.name}" band.\nConfigure minutes in Block Types first.`);
     return;
   }
+  pushUndoSnapshot();
   const grades = gradesSorted();
   const specials = s.specials || [];
   const rotation  = computeSpecialsRotation(grades, specials);

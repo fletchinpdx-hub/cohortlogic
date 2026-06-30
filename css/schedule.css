@@ -1390,6 +1390,78 @@
 }
 .th-grade-fill:hover .th-fill-hint { opacity: 1; }
 
+/* Grade header: flex layout so lock icon sits beside the label */
+.th-grade {
+  position: relative;
+}
+.th-grade-fill {
+  display: block;
+  flex: 1;
+}
+.grade-lock-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 0 3px;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity .15s;
+}
+.grade-lock-btn:hover,
+.grade-lock-btn.locked { opacity: 1; }
+
+/* Locked column: subtle wash over cells */
+.th-grade.grade-locked { background: #fef9c3 !important; }
+.grid-cell.grade-locked {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 6px,
+    rgba(250,204,21,.12) 6px,
+    rgba(250,204,21,.12) 12px
+  ) !important;
+  cursor: not-allowed;
+}
+
+/* ── Grade filter bar ──────────────────────────────────────────────── */
+.grade-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 24px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.gf-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.gf-chip {
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.gf-chip:hover { border-color: var(--gray-400); background: var(--gray-100); }
+.gf-chip.active {
+  background: #1e40af;
+  color: #fff;
+  border-color: #1e40af;
+}
+
 /* ── Utility ──────────────────────────────────────────────────────── */
 .mt-8  { margin-top: 8px; }
 .btn-sm {
