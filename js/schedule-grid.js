@@ -56,6 +56,36 @@ function fmtTime12(slot) {
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
 }
 
+// ── Duration lookup (for click-to-place default size) ─────────────────────────
+
+function getConfiguredDuration(btId, grade) {
+  const parentId = btId.includes('|') ? btId.split('|')[0] : btId;
+  const subId    = btId.includes('|') ? btId.split('|')[1] : null;
+
+  // Named special: look up from school.specials
+  if (parentId === 'bt_spec' && subId) {
+    const sp = (SchedState.school.specials || []).find(s => s.id === subId);
+    return sp?.duration || null;
+  }
+
+  const bt = SchedState.blockTypes.find(b => b.id === parentId);
+  if (!bt) return null;
+
+  // Non-required (uniform) blocks: use defaultDuration
+  if (!bt.required) return bt.defaultDuration || null;
+
+  // Required blocks: resolve grade's band
+  const bands = SchedState.school.gradeBands || [];
+  const band  = bands.find(b => (b.grades || []).includes(grade));
+  if (!band) return null;
+
+  // Sub-block of a required block
+  if (subId) return bt.subBandMinutes?.[subId]?.[band.id] || null;
+
+  // Full required block
+  return bt.bandMinutes?.[band.id] || null;
+}
+
 // ── Block state ───────────────────────────────────────────────────────────────
 
 function getBlock(day, grade, slot) {
@@ -528,26 +558,33 @@ function onPointerUp(e) {
   saveToLocal();
 }
 
-// Single click: auto-fill duration or toggle single cell
+// Single click: auto-fill configured duration, detect double-booking
 function commitClick() {
   const { activeDay } = gridUI;
   const { startGrade, startSlot, paintValue } = drag;
 
   if (paintValue !== null) {
-    const parentId = paintValue.includes('|') ? paintValue.split('|')[0] : paintValue;
-    const bt = SchedState.blockTypes.find(b => b.id === parentId);
-    const dur = bt?.defaultDuration;
+    const dur = getConfiguredDuration(paintValue, startGrade);
     if (dur && dur >= 5) {
       const startIdx = currentSlots.indexOf(startSlot);
       const numSlots = Math.round(dur / 5);
+      const overwritten = [];
       for (let i = 0; i < numSlots && startIdx + i < currentSlots.length; i++) {
-        setBlock(activeDay, startGrade, currentSlots[startIdx + i], paintValue);
+        const s  = currentSlots[startIdx + i];
+        const ex = getBlock(activeDay, startGrade, s);
+        if (ex && ex !== paintValue) overwritten.push(ex);
+        setBlock(activeDay, startGrade, s, paintValue);
       }
+      if (overwritten.length) showDoubleBookingWarning(startGrade, startSlot, paintValue, overwritten);
       rebuildTbody();
       return;
     }
   }
-  // No duration or eraser: toggle the single cell
+  // No configured duration or eraser: single-cell toggle, still check conflict
+  if (paintValue !== null) {
+    const ex = getBlock(activeDay, startGrade, startSlot);
+    if (ex && ex !== paintValue) showDoubleBookingWarning(startGrade, startSlot, paintValue, [ex]);
+  }
   setBlock(activeDay, startGrade, startSlot, paintValue);
   refreshColumnAround(startGrade, startSlot);
 }
@@ -795,6 +832,38 @@ function showSpecialsConflictWarning() {
 
   const topBar = document.querySelector('.grid-top-bar');
   if (topBar) topBar.insertAdjacentElement('afterend', banner);
+}
+
+// ── Double-booking warning ────────────────────────────────────────────────────
+
+function showDoubleBookingWarning(grade, slot, newBtId, overwrittenIds) {
+  const gradeLabel = GRADE_LABELS[grade] || grade;
+  const timeStr    = fmtTime12(slot);
+
+  const getName = id => {
+    const pid = id.includes('|') ? id.split('|')[0] : id;
+    if (pid === 'bt_spec') {
+      const spId = id.includes('|') ? id.split('|')[1] : null;
+      const sp   = spId ? (SchedState.school.specials || []).find(s => s.id === spId) : null;
+      return sp ? sp.name : 'Specials';
+    }
+    return SchedState.blockTypes.find(b => b.id === pid)?.name || id;
+  };
+
+  const newName  = getName(newBtId);
+  const oldNames = [...new Set(overwrittenIds)].map(getName).join(', ');
+
+  let banner = document.getElementById('double-book-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id        = 'double-book-banner';
+    banner.className = 'setup-banner setup-banner-error';
+    const topBar = document.querySelector('.grid-top-bar');
+    if (topBar) topBar.insertAdjacentElement('afterend', banner);
+  }
+
+  banner.innerHTML = `<strong>Double-booked:</strong> ${gradeLabel} at ${timeStr} — <em>${newName}</em> placed over <em>${oldNames}</em>. <button id="double-book-dismiss" style="margin-left:8px;background:none;border:none;cursor:pointer;font-size:14px;color:inherit">×</button>`;
+  document.getElementById('double-book-dismiss').addEventListener('click', () => banner.remove());
 }
 
 // ── Grade header auto-fill ────────────────────────────────────────────────────

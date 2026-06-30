@@ -1104,6 +1104,45 @@ function renderBlocks() {
     </div>
 
     <div class="form-section">
+      <h2 class="form-section-title">Uniform Block Types</h2>
+      <p class="form-hint">Blocks with one fixed duration for all grade levels — palette items for manual placement and auto-fill. Set the duration to enable click-to-place in the schedule grid.</p>
+      <div id="add-block-form" class="inline-form hidden"></div>
+      <div class="req-table-wrap">
+        <table class="req-table">
+          <thead><tr>
+            <th class="req-th-block">Block</th>
+            <th class="req-th-color">Color</th>
+            <th class="req-th-band" style="width:110px">Min/Day<span class="req-th-hint">optional</span></th>
+            <th class="req-th-actions" style="width:80px"></th>
+          </tr></thead>
+          <tbody>
+            ${otherBTs.map(bt => `
+              <tr>
+                <td class="req-td-block" style="display:table-cell;align-items:unset">
+                  <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${bt.color};margin-right:6px;vertical-align:middle"></span>
+                  ${escHtml(bt.name)}
+                </td>
+                <td class="req-td-color">
+                  <div class="req-color-swatch" style="background:${bt.color}"></div>
+                  <input type="color" class="req-color-input uniform-color-input" value="${bt.color}" data-bt-id="${bt.id}" />
+                </td>
+                <td class="req-td-min">
+                  <input type="number" class="uniform-dur-input" value="${bt.defaultDuration || ''}"
+                         placeholder="—" min="5" step="5" data-bt-id="${bt.id}" />
+                </td>
+                <td class="req-td-actions" style="display:table-cell;white-space:nowrap">
+                  <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
+                  <button class="icon-btn remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-outline btn-sm mt-8" id="add-block-btn">+ Add Block Type</button>
+    </div>
+
+    <div class="form-section">
       <h2 class="form-section-title">Instructional Time Requirements</h2>
       <p class="form-hint">Required daily minutes per block, per grade band. Click "Sub-blocks" to define timed components within a block.</p>
       ${bands.length === 0 ? '<p class="text-muted">Add grade bands above first.</p>' : `
@@ -1122,36 +1161,6 @@ function renderBlocks() {
       </div>
       <button class="btn btn-outline btn-sm mt-8" id="add-req-btn">+ Add Required Block</button>
       `}
-    </div>
-
-    <div class="form-section">
-      <h2 class="form-section-title">Other Block Types</h2>
-      <p class="form-hint">Additional palette blocks — auto-placed items (Morning Meeting, Lunch, Recess) and support types. No time requirement.</p>
-      <div id="add-block-form" class="inline-form hidden"></div>
-      <div id="other-blocks-area">
-        ${catOrder.map(cat => {
-          const bks = otherBTs.filter(bt => bt.category === cat);
-          if (!bks.length) return '';
-          return `
-            <div class="block-category-section">
-              <h3 class="block-category-label">${BLOCK_CATEGORIES[cat] || cat}</h3>
-              <div class="block-chips-grid">
-                ${bks.map(bt => `
-                  <div class="block-chip-card" data-id="${bt.id}">
-                    <span class="block-chip-dot" style="background:${bt.color}"></span>
-                    <span class="block-chip-name">${escHtml(bt.name)}</span>
-                    <div class="block-chip-actions">
-                      <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
-                      <button class="icon-btn remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-      <button class="btn btn-outline btn-sm mt-8" id="add-block-btn">+ Add Block Type</button>
     </div>
 
     <div class="view-actions">
@@ -1296,7 +1305,7 @@ function wireReqTable() {
   });
 }
 
-// ── Other blocks wiring ───────────────────────────────────────────────────────
+// ── Uniform blocks wiring ─────────────────────────────────────────────────────
 function wireOtherBlocks() {
   document.querySelectorAll('.remove-block-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1310,6 +1319,35 @@ function wireOtherBlocks() {
   });
   const addBtn = document.getElementById('add-block-btn');
   if (addBtn) addBtn.addEventListener('click', () => showOtherBlockForm());
+
+  // Inline duration editing
+  document.querySelectorAll('.uniform-dur-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
+      if (!bt) return;
+      const val = parseInt(inp.value, 10);
+      if (isNaN(val) || val < 5) { delete bt.defaultDuration; } else { bt.defaultDuration = val; }
+      saveToLocal();
+    });
+  });
+
+  // Inline color editing
+  document.querySelectorAll('.uniform-color-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
+      if (!bt) return;
+      const swatch = inp.closest('tr')?.querySelector('.req-color-swatch');
+      if (swatch) swatch.style.background = inp.value;
+      const dot = inp.closest('tr')?.querySelector('td:first-child span');
+      if (dot) dot.style.background = inp.value;
+    });
+    inp.addEventListener('change', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
+      if (!bt) return;
+      bt.color = inp.value;
+      saveToLocal();
+    });
+  });
 }
 
 function showOtherBlockForm(existingId) {
@@ -1329,6 +1367,10 @@ function showOtherBlockForm(existingId) {
             `<option value="${val}" ${(existing?.category || 'admin') === val ? 'selected' : ''}>${label}</option>`
           ).join('')}
         </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Duration (min)</label>
+        <input type="number" class="input" id="bf-duration" placeholder="e.g. 30" min="5" step="5" value="${existing?.defaultDuration || ''}" />
       </div>
       <div class="form-group form-group-color">
         <label class="form-label">Color</label>
@@ -1354,12 +1396,14 @@ function showOtherBlockForm(existingId) {
   document.getElementById('bf-save-btn').addEventListener('click', () => {
     const name = document.getElementById('bf-name').value.trim();
     if (!name) { document.getElementById('bf-name').focus(); return; }
+    const durVal = parseInt(document.getElementById('bf-duration').value, 10);
     const block = {
       id:       existing?.id || uid(),
       name,
       category: document.getElementById('bf-category').value,
       color:    document.querySelector('#bf-color-palette .color-dot.selected')?.dataset.color || '#a855f7',
       required: false,
+      ...(durVal >= 5 ? { defaultDuration: durVal } : {}),
     };
     if (existing) {
       const idx = SchedState.blockTypes.findIndex(b => b.id === existingId);
