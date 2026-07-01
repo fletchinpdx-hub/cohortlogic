@@ -1178,24 +1178,27 @@ function computeSpecialsPlacement(grades, specials, rotation) {
       }
     });
 
-    // For each subject on this day, assign grades sequentially (one class at a time for
-    // the teacher). Different subjects use independent cursors (different teachers).
+    // For each subject on this day, assign grades to non-overlapping windows.
+    // claimedSlots tracks which time slots this teacher already has a class scheduled,
+    // preventing double-booking. Each grade searches from the start of the day.
+    // Different subjects have independent claimedSlots (different teachers).
     Object.entries(bySubject).forEach(([spId, gradeList]) => {
       const sp = specials.find(s => s.id === spId);
       const numSlots = Math.ceil((sp?.duration || 45) / 5);
+      const claimedSlots = new Set();
 
-      let cursor = 0;
       gradeList.forEach(grade => {
-        for (let i = cursor; i <= daySlotArr.length - numSlots; i++) {
+        for (let i = 0; i <= daySlotArr.length - numSlots; i++) {
           const sched = SchedState.masterSchedule[day]?.[grade] || {};
           let valid = true;
           for (let j = 0; j < numSlots; j++) {
             const sl = daySlotArr[i + j];
+            if (claimedSlots.has(sl)) { valid = false; break; }
             if (sched[sl] && !sched[sl].startsWith('bt_spec')) { valid = false; break; }
           }
           if (valid) {
             result[grade][day] = daySlotArr[i];
-            cursor = i + numSlots;
+            for (let j = 0; j < numSlots; j++) claimedSlots.add(daySlotArr[i + j]);
             break;
           }
         }
