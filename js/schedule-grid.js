@@ -1196,21 +1196,28 @@ function computeSpecialsPlacement(grades, specials, rotation) {
   const groups = Array.from({ length: numColors }, () => []);
   grades.forEach(g => { if (color[g] >= 0) groups[color[g]].push(g); });
 
-  // Slots common to every day that has any specials.
+  // Pre-compute slot arrays for every day that has any specials.
   const allSpecialsDays = DAYS.filter(day => grades.some(g => rotation[g]?.[day]));
   const daySlots = {};
   allSpecialsDays.forEach(d => { daySlots[d] = _autoFillSlots(d); });
-  const commonSlots = allSpecialsDays.length
-    ? daySlots[allSpecialsDays[0]].filter(sl => allSpecialsDays.every(d => daySlots[d].includes(sl)))
-    : [];
 
-  // Step 3 — Find a valid, non-overlapping start time for each slot-index.
-  const claimedSlots = new Set(); // blocks windows used by earlier colors
+  // Step 3 — Find a valid, non-overlapping start time for each color group.
+  // claimedSlots is shared across groups so no two groups overlap each other.
+  const claimedSlots = new Set();
   const result = {};
 
   for (let c = 0; c < numColors; c++) {
     const group = groups[c];
     if (!group.length) continue;
+
+    // KEY: use only the days that grades in THIS group actually have specials on.
+    // This prevents an alt-day (shortened schedule) from constraining grades
+    // that have no specials on that day.
+    const groupDays = [...new Set(group.flatMap(g => Object.keys(rotation[g] || {})))];
+    if (!groupDays.length) continue;
+    const groupDayArrays = groupDays.map(d => daySlots[d] || _autoFillSlots(d));
+    const groupCommonSlots = groupDayArrays[0].filter(sl =>
+      groupDayArrays.every(ds => ds.includes(sl)));
 
     // Longest special duration in this group (determines claimed window width).
     const windowSize = group.reduce((mx, g) =>
@@ -1220,11 +1227,11 @@ function computeSpecialsPlacement(grades, specials, rotation) {
       })), 0);
     if (!windowSize) continue;
 
-    for (let i = 0; i <= commonSlots.length - windowSize; i++) {
-      // Skip if this window overlaps any slot claimed by a prior color.
+    for (let i = 0; i <= groupCommonSlots.length - windowSize; i++) {
+      // Skip if this window overlaps any slot claimed by a prior color group.
       let clashClaimed = false;
       for (let j = 0; j < windowSize; j++) {
-        if (claimedSlots.has(commonSlots[i + j])) { clashClaimed = true; break; }
+        if (claimedSlots.has(groupCommonSlots[i + j])) { clashClaimed = true; break; }
       }
       if (clashClaimed) continue;
 
@@ -1235,7 +1242,7 @@ function computeSpecialsPlacement(grades, specials, rotation) {
           const sp  = specials.find(s => s.id === spId);
           const ns  = Math.ceil((sp?.duration || 45) / 5);
           const da  = daySlots[day] || _autoFillSlots(day);
-          const si  = da.indexOf(commonSlots[i]);
+          const si  = da.indexOf(groupCommonSlots[i]);
           if (si < 0 || si + ns > da.length) { valid = false; break outer; }
           const sched = SchedState.masterSchedule[day]?.[grade] || {};
           for (let j = 0; j < ns; j++) {
@@ -1247,10 +1254,10 @@ function computeSpecialsPlacement(grades, specials, rotation) {
       }
 
       if (valid) {
-        const startTime = commonSlots[i];
+        const startTime = groupCommonSlots[i];
         group.forEach(g => { result[g] = startTime; });
-        for (let j = 0; j < windowSize && i + j < commonSlots.length; j++) {
-          claimedSlots.add(commonSlots[i + j]);
+        for (let j = 0; j < windowSize && i + j < groupCommonSlots.length; j++) {
+          claimedSlots.add(groupCommonSlots[i + j]);
         }
         break;
       }
