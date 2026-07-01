@@ -816,18 +816,27 @@ function renderStaffTable() {
     return `<div class="empty-state"><div class="empty-icon">👤</div><p>No staff added yet. Click "+ Add Staff Member" to get started.</p></div>`;
   }
 
-  const rows = SchedState.staff.map(s => `
-    <tr data-id="${s.id}">
-      <td><span class="color-swatch" style="background:${s.color}"></span></td>
-      <td class="staff-name">${s.name}</td>
-      <td>${ROLE_LABELS[s.role] || s.role}</td>
-      <td>${s.gradeAssignment ? (GRADE_LABELS[s.gradeAssignment] || s.gradeAssignment) : '—'}</td>
-      <td class="staff-actions">
-        <button class="btn btn-sm btn-outline edit-staff-btn" data-id="${s.id}">Edit</button>
-        <button class="btn btn-sm btn-danger remove-staff-btn" data-id="${s.id}">Remove</button>
-      </td>
-    </tr>
-  `).join('');
+  const rows = SchedState.staff.map(s => {
+    const primaryLabel = s.gradeAssignment ? (GRADE_LABELS[s.gradeAssignment] || s.gradeAssignment) : '—';
+    const splitLabel   = s.splitGrade      ? (GRADE_LABELS[s.splitGrade]      || s.splitGrade)      : null;
+    const gradeDisplay = splitLabel ? `${primaryLabel} / ${splitLabel}` : primaryLabel;
+    const hoursDisplay = (s.startTime && s.endTime)
+      ? `${fmtTime12(s.startTime)} – ${fmtTime12(s.endTime)}`
+      : '—';
+    return `
+      <tr data-id="${s.id}">
+        <td><span class="color-swatch" style="background:${s.color}"></span></td>
+        <td class="staff-name">${s.name}</td>
+        <td>${ROLE_LABELS[s.role] || s.role}</td>
+        <td>${gradeDisplay}${splitLabel ? ' <span class="split-badge">split</span>' : ''}</td>
+        <td class="staff-hours">${hoursDisplay}</td>
+        <td class="staff-actions">
+          <button class="btn btn-sm btn-outline edit-staff-btn" data-id="${s.id}">Edit</button>
+          <button class="btn btn-sm btn-danger remove-staff-btn" data-id="${s.id}">Remove</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
 
   return `
     <table class="data-table">
@@ -836,7 +845,8 @@ function renderStaffTable() {
           <th style="width:32px"></th>
           <th>Name</th>
           <th>Role</th>
-          <th>Grade Assignment</th>
+          <th>Grade</th>
+          <th>Hours</th>
           <th style="width:160px"></th>
         </tr>
       </thead>
@@ -847,9 +857,13 @@ function renderStaffTable() {
 
 function showAddStaffForm(existingId) {
   const existing = existingId ? SchedState.staff.find(s => s.id === existingId) : null;
-  const gradeOptions = SchedState.school.grades.length
-    ? `<option value="">Building-wide</option>` + gradesSorted().map(g => `<option value="${g}" ${existing?.gradeAssignment === g ? 'selected' : ''}>${GRADE_LABELS[g] || g}</option>`).join('')
-    : `<option value="">Building-wide</option>`;
+  const defaultStart = SchedState.school.firstBell    || '08:00';
+  const defaultEnd   = SchedState.school.dismissal    || '14:30';
+  const grades       = gradesSorted();
+
+  const gradeOpts = (selected, includeBlank, blankLabel) =>
+    (includeBlank ? `<option value="">${blankLabel}</option>` : '') +
+    grades.map(g => `<option value="${g}" ${selected === g ? 'selected' : ''}>${GRADE_LABELS[g] || g}</option>`).join('');
 
   const form = document.getElementById('add-staff-form');
   form.classList.remove('hidden');
@@ -868,10 +882,26 @@ function showAddStaffForm(existingId) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Grade Assignment</label>
-        <select class="input" id="sf-grade">${gradeOptions}</select>
+        <label class="form-label">Primary Grade</label>
+        <select class="input" id="sf-grade">
+          ${gradeOpts(existing?.gradeAssignment || '', true, 'Building-wide')}
+        </select>
       </div>
-      <div class="form-group form-group-color">
+      <div class="form-group">
+        <label class="form-label">Splits with Grade <span class="form-hint-sm">(optional)</span></label>
+        <select class="input" id="sf-split-grade">
+          ${gradeOpts(existing?.splitGrade || '', true, '— No split —')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time</label>
+        <input type="time" class="input" id="sf-start" value="${existing?.startTime || defaultStart}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">End Time</label>
+        <input type="time" class="input" id="sf-end" value="${existing?.endTime || defaultEnd}" />
+      </div>
+      <div class="form-group form-group-color" style="flex: 0 0 100%">
         <label class="form-label">Color</label>
         <div class="color-palette" id="sf-color-palette">
           ${STAFF_COLOR_PALETTE.map(c => `
@@ -902,11 +932,15 @@ function showAddStaffForm(existingId) {
     const name = document.getElementById('sf-name').value.trim();
     if (!name) { document.getElementById('sf-name').focus(); return; }
 
+    const splitGrade = document.getElementById('sf-split-grade').value;
     const member = {
       id:              existing?.id || uid(),
       name,
       role:            document.getElementById('sf-role').value,
       gradeAssignment: document.getElementById('sf-grade').value,
+      splitGrade:      splitGrade || null,
+      startTime:       document.getElementById('sf-start').value || defaultStart,
+      endTime:         document.getElementById('sf-end').value   || defaultEnd,
       color:           document.querySelector('.color-dot.selected')?.dataset.color || nextStaffColor(),
     };
 

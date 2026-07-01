@@ -1426,6 +1426,20 @@
   cursor: not-allowed;
 }
 
+/* ── Split class badge ─────────────────────────────────────────────── */
+.split-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--navy);
+  background: #e0f2fe;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
 /* ── Conflict cells ────────────────────────────────────────────────── */
 .cell-conflict-badge {
   display: block;
