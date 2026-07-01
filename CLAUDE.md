@@ -127,6 +127,7 @@ Tier 1 behavior / office-discipline referral tracker, modeled on PBISApps/SWIS. 
 | `cico_incident_types` | Incident type definitions per school |
 | `sessions` | Class Builder demo sessions (anon + authenticated INSERT, authenticated SELECT) |
 | `events` | Class Builder demo events (anon + authenticated INSERT, authenticated SELECT) |
+| `features` | Feature flags: `key, enabled, updated_at` — read-only via RLS (SELECT only, no writes from client) |
 
 ### Roles & tool access
 - `profiles.role` enum: `'user' | 'school_admin' | 'super_admin'` — **source of truth** for access level. The legacy `profiles.is_admin` boolean is vestigial (kept so the signup trigger doesn't break); `is_admin()` now reads `role`.
