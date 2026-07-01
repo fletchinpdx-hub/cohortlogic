@@ -43,15 +43,42 @@ fileInput.addEventListener('change', async () => {
   const file = fileInput.files[0];
   if (!file) return;
   try {
-    await loadScheduleFromFile(file);
+    const result = await loadScheduleFromFile(file);
     updateSidebarStatus();
     updateDownloadBadge();
     navigateTo('school');
     renderSchoolInfo();
+    if (result.crossProduct) {
+      alert(`School profile imported from Class Builder file.\nSchool: ${result.schoolName || '(unnamed)'}\n\nFill in the rest of School Info to continue.`);
+    }
   } catch (err) {
     alert(err.message);
   }
   fileInput.value = '';
+});
+
+// ── Import from Class Builder (.cohort) ───────────────────────────────────────
+const cohortInput = document.getElementById('load-cohort-input');
+document.getElementById('load-cohort-link').addEventListener('click', e => {
+  e.preventDefault();
+  cohortInput.click();
+});
+cohortInput.addEventListener('change', async () => {
+  const file = cohortInput.files[0];
+  if (!file) return;
+  try {
+    const result = await loadScheduleFromFile(file);
+    updateSidebarStatus();
+    updateDownloadBadge();
+    navigateTo('school');
+    renderSchoolInfo();
+    if (result.crossProduct) {
+      alert(`School profile imported!\nSchool: ${result.schoolName || '(unnamed)'}\n\nFill in School Info to set your schedule times, then continue to Staff Roster.`);
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+  cohortInput.value = '';
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

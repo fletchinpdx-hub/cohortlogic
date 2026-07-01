@@ -11,6 +11,8 @@ window.addEventListener('unhandledrejection', e => {
 
 // Central app state
 const AppState = {
+  schoolName: '',
+  district:   '',
   rawRows: [],         // raw rows from spreadsheet
   rawHeaders: [],      // column headers from spreadsheet
   students: [],        // mapped + parsed students
@@ -164,4 +166,95 @@ function studentLabel(s) {
   if (AppState.displayMode === 'id' && s.studentId) return s.studentId;
   const name = `${s.firstName} ${s.lastName}`.trim();
   return name || s.studentId || `Student ${s.id}`;
+}
+
+// ── School Profile view ───────────────────────────────────────────────────────
+function syncSchoolProfileInputs() {
+  const nameEl = document.getElementById('cb-school-name');
+  const distEl = document.getElementById('cb-district');
+  if (nameEl) nameEl.value = AppState.schoolName || '';
+  if (distEl) distEl.value = AppState.district   || '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  syncSchoolProfileInputs();
+
+  document.getElementById('cb-school-next-btn').addEventListener('click', () => {
+    AppState.schoolName = (document.getElementById('cb-school-name').value || '').trim();
+    AppState.district   = (document.getElementById('cb-district').value   || '').trim();
+    navigateTo('import');
+  });
+
+  // Persist school name/district on input change so navigating away doesn't lose it
+  document.getElementById('cb-school-name').addEventListener('input', e => { AppState.schoolName = e.target.value.trim(); });
+  document.getElementById('cb-district').addEventListener('input',   e => { AppState.district   = e.target.value.trim(); });
+
+  // Import school profile from a Schedule Builder .clsched file
+  const schedInput = document.getElementById('cb-import-sched-input');
+  document.getElementById('cb-import-sched-link').addEventListener('click', e => {
+    e.preventDefault();
+    schedInput.click();
+  });
+  schedInput.addEventListener('change', () => {
+    const file = schedInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data._product !== 'schedule_builder' || !data.schoolProfile) {
+          alert('This doesn\'t look like a Schedule Builder file (.clsched).');
+          return;
+        }
+        applySchoolProfileToCB(data.schoolProfile);
+        syncSchoolProfileInputs();
+        alert(`School profile imported!\nSchool: ${data.schoolProfile.schoolName || '(unnamed)'}\n\nTeachers and grades from the Schedule Builder file have been applied to Class Setup.`);
+      } catch (e) {
+        alert('Could not read the file. Make sure it\'s a valid .clsched file.');
+      }
+    };
+    reader.readAsText(file);
+    schedInput.value = '';
+  });
+});
+
+function applySchoolProfileToCB(sp) {
+  if (!sp) return;
+  if (sp.schoolName) AppState.schoolName = sp.schoolName;
+  if (sp.district)   AppState.district   = sp.district;
+
+  // Apply grades to gradeConfig
+  if (sp.grades && sp.grades.length) {
+    sp.grades.forEach(g => {
+      if (!AppState.gradeConfig[g]) AppState.gradeConfig[g] = { classCount: 1, teachers: [] };
+    });
+  }
+
+  // Convert classroom teachers into gradeConfig entries
+  (sp.staff || [])
+    .filter(s => s.role === 'classroom_teacher' && s.gradeAssignment && !s.splitGrade)
+    .forEach(s => {
+      const g = s.gradeAssignment;
+      if (!AppState.gradeConfig[g]) AppState.gradeConfig[g] = { classCount: 0, teachers: [] };
+      if (s.name && !AppState.gradeConfig[g].teachers.includes(s.name)) {
+        AppState.gradeConfig[g].teachers.push(s.name);
+        AppState.gradeConfig[g].classCount = AppState.gradeConfig[g].teachers.length;
+      }
+    });
+
+  // Convert split class staff into AppState.splitClasses
+  (sp.staff || [])
+    .filter(s => s.role === 'classroom_teacher' && s.gradeAssignment && s.splitGrade)
+    .forEach(s => {
+      const exists = AppState.splitClasses.some(sc => sc.teacher === s.name);
+      if (!exists) {
+        AppState.splitClasses.push({
+          id:      s.id || ('split_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
+          grades:  [s.gradeAssignment, s.splitGrade],
+          teacher: s.name || '',
+        });
+      }
+    });
+
+  updateSidebarStatus();
 }

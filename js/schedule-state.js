@@ -39,6 +39,7 @@ const DEFAULT_BLOCK_TYPES = [
 const SchedState = {
   school: {
     name: '',
+    district: '',
     year: '2026-2027',
     grades: [],
 
@@ -293,14 +294,49 @@ function loadFromLocal() {
 // Schedule data never leaves the user's device unless they explicitly download it.
 // Supabase is used only for authentication and product gating, not data storage.
 
+function buildSchoolProfile() {
+  return {
+    schoolName: SchedState.school.name     || '',
+    district:   SchedState.school.district || '',
+    grades:     SchedState.school.grades   || [],
+    staff: SchedState.staff.map(s => ({
+      id:              s.id,
+      name:            s.name,
+      role:            s.role             || 'classroom_teacher',
+      gradeAssignment: s.gradeAssignment  || '',
+      splitGrade:      s.splitGrade       || null,
+      startTime:       s.startTime        || '',
+      endTime:         s.endTime          || '',
+    })),
+  };
+}
+
+function applySchoolProfile(sp) {
+  if (!sp) return;
+  if (sp.schoolName) SchedState.school.name     = sp.schoolName;
+  if (sp.district)   SchedState.school.district = sp.district;
+  if (sp.grades && sp.grades.length) SchedState.school.grades = sp.grades;
+  if (sp.staff && sp.staff.length) {
+    const fallbackColors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#8b5cf6',
+                            '#ec4899','#14b8a6','#f97316','#06b6d4','#a855f7'];
+    SchedState.staff = sp.staff.map((s, i) => Object.assign({
+      color:     fallbackColors[i % fallbackColors.length],
+      startTime: SchedState.school.firstBell || '08:00',
+      endTime:   SchedState.school.dismissal || '14:30',
+    }, s));
+  }
+}
+
 function downloadScheduleFile() {
   const payload = {
-    _version: 1,
-    _app: 'cohortlogic-schedule-builder',
+    _version: 2,
+    _product: 'schedule_builder',
+    schoolProfile:  buildSchoolProfile(),
     school:         SchedState.school,
     staff:          SchedState.staff,
     blockTypes:     SchedState.blockTypes,
     masterSchedule: SchedState.masterSchedule,
+    conflicts:      SchedState.conflicts,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -323,8 +359,21 @@ function loadScheduleFromFile(file) {
     reader.onload = e => {
       try {
         const data = JSON.parse(e.target.result);
+
+        // Cross-product import: Class Builder .cohort file
+        if (data._product === 'class_builder') {
+          if (!data.schoolProfile) throw new Error('No school profile found in this Class Builder file.');
+          applySchoolProfile(data.schoolProfile);
+          saveToLocal();
+          resolve({ crossProduct: true, schoolName: data.schoolProfile.schoolName || '' });
+          return;
+        }
+
+        // Native .clsched file (v1 or v2)
+        if (data.schoolProfile) applySchoolProfile(data.schoolProfile);
         if (data.school)         Object.assign(SchedState.school, data.school);
         if (data.staff)          SchedState.staff = data.staff;
+        if (data.conflicts)      SchedState.conflicts = data.conflicts;
         if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
         if (data.blockTypes) {
           const hasNewSchema = data.blockTypes.some(bt => 'required' in bt);
@@ -336,17 +385,18 @@ function loadScheduleFromFile(file) {
           migrateBandIds();
           migrateSubBlockMinutes();
         }
-        // Ensure required arrays exist
+        // Ensure required arrays/fields exist
         if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
         if (!SchedState.school.gradeRecesses)   SchedState.school.gradeRecesses   = {};
         if (!SchedState.school.gradeBands)      SchedState.school.gradeBands      = [];
         if (!SchedState.school.morningMeetings) SchedState.school.morningMeetings = [];
         if (!SchedState.school.altDays)         SchedState.school.altDays         = [];
+        if (!SchedState.school.district)        SchedState.school.district        = '';
         saveToLocal();
         localStorage.setItem('cl_schedule_downloaded', '1');
-        resolve();
+        resolve({ crossProduct: false });
       } catch (err) {
-        reject(new Error('Could not read file — make sure it\'s a valid .clsched file.'));
+        reject(new Error(err.message || 'Could not read file.'));
       }
     };
     reader.onerror = () => reject(new Error('Could not read file.'));

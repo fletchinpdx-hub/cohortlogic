@@ -2,9 +2,10 @@
 // Serialises the full AppState to a .cohort JSON file so users can pick up
 // where they left off without losing any students, settings, or results.
 
-const SESSION_VERSION = 1;
+const SESSION_VERSION = 2;
 
 const SESSION_FIELDS = [
+  'schoolName', 'district',
   'rawHeaders', 'rawRows', 'columnMap', 'competencies',
   'students', 'gradeConfig', 'splitClasses',
   'separations', 'togethers', 'keepWithTeacher',
@@ -14,9 +15,40 @@ const SESSION_FIELDS = [
 // ── Save ──
 document.getElementById('save-session-btn').addEventListener('click', saveSession);
 
+function buildCBSchoolProfile() {
+  const staff = [];
+  Object.entries(AppState.gradeConfig || {}).forEach(([grade, cfg]) => {
+    (cfg.teachers || []).forEach(name => {
+      if (name) staff.push({
+        id:              'teacher_' + name.toLowerCase().replace(/\s+/g, '_'),
+        name,
+        role:            'classroom_teacher',
+        gradeAssignment: grade,
+        splitGrade:      null,
+      });
+    });
+  });
+  (AppState.splitClasses || []).forEach(sc => {
+    if (sc.teacher) staff.push({
+      id:              sc.id,
+      name:            sc.teacher,
+      role:            'classroom_teacher',
+      gradeAssignment: sc.grades[0] || '',
+      splitGrade:      sc.grades[1] || null,
+    });
+  });
+  return {
+    schoolName: AppState.schoolName || '',
+    district:   AppState.district   || '',
+    grades:     Object.keys(AppState.gradeConfig || {}),
+    staff,
+  };
+}
+
 function saveSession() {
-  const payload = { _version: SESSION_VERSION };
+  const payload = { _version: SESSION_VERSION, _product: 'class_builder' };
   SESSION_FIELDS.forEach(k => { payload[k] = AppState[k]; });
+  payload.schoolProfile = buildCBSchoolProfile();
 
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -24,7 +56,8 @@ function saveSession() {
   const a    = document.createElement('a');
   a.href     = url;
   const ts = new Date().toISOString().replace('T','-').slice(0,16).replace(':','-');
-  a.download = `cohort-session-${ts}.cohort`;
+  const name = (AppState.schoolName || 'cohort').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  a.download = `${name}-${ts}.cohort`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -61,7 +94,11 @@ function loadCohortFile(file) {
     try {
       const data = JSON.parse(ev.target.result);
       if (!data._version) throw new Error('Not a valid .cohort file.');
-      if (data._version > SESSION_VERSION) throw new Error(`This file was saved with a newer version of Cohort Logic. Please refresh the page and try again.`);
+      // Version 1 files don't have _product — treat as class_builder
+      if (data._product && data._product !== 'class_builder') {
+        throw new Error('This file was saved by a different Cohort Logic product. Use the "Import from Schedule Builder" link on the School Profile page.');
+      }
+      if (data._version > SESSION_VERSION) throw new Error('This file was saved with a newer version of Cohort Logic. Please refresh the page and try again.');
       restoreSession(data);
     } catch (err) {
       alert('Could not restore session: ' + err.message);
@@ -75,6 +112,15 @@ function restoreSession(data) {
   SESSION_FIELDS.forEach(k => {
     if (data[k] !== undefined) AppState[k] = data[k];
   });
+
+  // Restore school profile block (v2+)
+  if (data.schoolProfile) {
+    if (data.schoolProfile.schoolName) AppState.schoolName = data.schoolProfile.schoolName;
+    if (data.schoolProfile.district)   AppState.district   = data.schoolProfile.district;
+  }
+
+  // Sync school profile inputs if the view is visible
+  if (typeof syncSchoolProfileInputs === 'function') syncSchoolProfileInputs();
 
   // Rebuild UI from restored state
   updateSidebarStatus();

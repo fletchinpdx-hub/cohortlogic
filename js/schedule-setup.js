@@ -97,6 +97,10 @@ function renderSchoolInfo() {
             <label class="form-label">School Name</label>
             <input type="text" class="input" id="school-name" placeholder="e.g. Lincoln Elementary" value="${s.name}" />
           </div>
+          <div class="form-group">
+            <label class="form-label">District <span class="form-hint-sm">(optional)</span></label>
+            <input type="text" class="input" id="school-district" placeholder="e.g. Portland Public Schools" value="${s.district || ''}" />
+          </div>
           <div class="form-group form-group-sm">
             <label class="form-label">School Year</label>
             <input type="text" class="input" id="school-year" placeholder="e.g. 2026-2027" value="${s.year}" />
@@ -723,8 +727,9 @@ function saveSchoolAndContinue() {
   if (!name) { showFormError('school-save-status', 'Please enter a school name.'); return; }
 
   const s = SchedState.school;
-  s.name  = name;
-  s.year  = document.getElementById('school-year').value.trim() || '2026-2027';
+  s.name     = name;
+  s.district = document.getElementById('school-district').value.trim();
+  s.year     = document.getElementById('school-year').value.trim() || '2026-2027';
   s.grades = [...document.querySelectorAll('#school-grade-chips .grade-chip.active')].map(c => c.dataset.grade);
 
   s.teacherContractStart = document.getElementById('teacher-contract-start').value;
@@ -774,8 +779,8 @@ function saveSchoolAndContinue() {
   saveToLocal();
   preFillFixedBlocks();
   updateSidebarStatus();
-  navigateTo('master');
-  renderMasterSchedule();
+  navigateTo('staff');
+  renderStaff();
 }
 
 
@@ -799,14 +804,14 @@ function renderStaff() {
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-outline" id="staff-back-btn">← Back to Master Schedule</button>
-      <button class="btn btn-primary" id="staff-next-btn">Save Staff Roster</button>
+      <button class="btn btn-outline" id="staff-back-btn">← Back to School Info</button>
+      <button class="btn btn-primary" id="staff-next-btn">Save &amp; Continue to Block Types →</button>
       <div class="save-status" id="staff-save-status"></div>
     </div>
   `;
 
   document.getElementById('add-staff-btn').addEventListener('click', () => showAddStaffForm());
-  document.getElementById('staff-back-btn').addEventListener('click', () => { navigateTo('master'); renderMasterSchedule(); });
+  document.getElementById('staff-back-btn').addEventListener('click', () => { navigateTo('school'); renderSchoolInfo(); });
   document.getElementById('staff-next-btn').addEventListener('click', saveStaffAndContinue);
   wireStaffTable();
 }
@@ -978,8 +983,8 @@ function wireStaffTable() {
 function saveStaffAndContinue() {
   saveToLocal();
   updateSidebarStatus();
-  navigateTo('master');
-  renderMasterSchedule();
+  navigateTo('blocks');
+  renderBlocks();
 }
 
 // ── Step 3: Block Types ───────────────────────────────────────────────────────
@@ -1207,7 +1212,7 @@ function renderBlocks() {
   wireBandsSection();
   wireReqTable();
   wireOtherBlocks();
-  document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('school'); renderSchoolInfo(); });
+  document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('staff'); renderStaff(); });
   document.getElementById('blocks-next-btn').addEventListener('click', saveBlocksAndContinue);
 }
 
