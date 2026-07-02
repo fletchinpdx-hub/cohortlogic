@@ -1344,6 +1344,7 @@ function buildSpecialsSchedule() {
       _clearRequirementsForGrade(grade);
       gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     }
+    console.log('[v61 specials]', grade, 'gradeTime=', JSON.stringify(gradeTime), 'booked=', JSON.stringify(booked));
     if (!Object.keys(gradeTime).length) { failedGrades.push(grade); return; }
 
     classes.forEach(cls => {
