@@ -1064,16 +1064,20 @@ function wireGradeHeaders() {
     });
   });
 
-  // Grade filter — "All" chip
-  document.getElementById('gf-all')?.addEventListener('click', () => {
-    gridUI.visibleGrades = null;
-    rebuildTable();
-  });
+  // Grade filter — "All" chip (clone-replace to prevent listener accumulation across rebuildTable calls)
+  const allBtn = document.getElementById('gf-all');
+  if (allBtn) {
+    const freshAll = allBtn.cloneNode(true);
+    allBtn.replaceWith(freshAll);
+    freshAll.addEventListener('click', () => { gridUI.visibleGrades = null; rebuildTable(); });
+  }
 
   // Grade filter — individual chips
   document.querySelectorAll('.gf-chip[data-gf-grade]').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const g = chip.dataset.gfGrade;
+    const fresh = chip.cloneNode(true);
+    chip.replaceWith(fresh);
+    fresh.addEventListener('click', () => {
+      const g = fresh.dataset.gfGrade;
       const all = gradesSorted();
       if (!gridUI.visibleGrades) {
         // Start a filtered view with just this grade
@@ -1212,7 +1216,40 @@ function buildSpecialsSchedule() {
 
   gradesSorted().forEach(grade => {
     const classes = getClassesForGrade(grade);
-    if (!classes.length) return;
+
+    if (!classes.length) {
+      // No classroom teachers for this grade — use a simple grade-level placement
+      // (one subject per day, sequentially) so specials still appear on the schedule.
+      const subjectSeq = [];
+      specials.forEach(sp => {
+        const cpw = Math.min(sp.classesPerWeek || 1, 5);
+        for (let i = 0; i < cpw; i++) subjectSeq.push(sp.id);
+      });
+      const synthId = `_grade_${grade}`;
+      const syntheticRotation = { [synthId]: {} };
+      subjectSeq.slice(0, 5).forEach((spId, i) => { syntheticRotation[synthId][DAYS[i]] = spId; });
+      const gradeTime = findGradeSpecialsTime(grade, [{ id: synthId }], syntheticRotation, specials);
+
+      DAYS.forEach(day => {
+        const startTime = gradeTime[day];
+        if (!startTime) return;
+        const spId = syntheticRotation[synthId][day];
+        if (!spId) return;
+        const sp       = specials.find(s => s.id === spId);
+        const numSlots = Math.ceil((sp?.duration || 45) / 5);
+        const daySlots = _autoFillSlots(day);
+        const startIdx = daySlots.indexOf(startTime);
+        if (startIdx < 0) return;
+        if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
+        if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+        const sched = SchedState.masterSchedule[day][grade];
+        const btId  = `bt_spec|${spId}`;
+        for (let j = 0; j < numSlots && startIdx + j < daySlots.length; j++) {
+          sched[daySlots[startIdx + j]] = btId;
+        }
+      });
+      return;
+    }
 
     const rotation  = computeClassSpecialsRotation(classes, specials);
     const gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials);
@@ -1223,7 +1260,7 @@ function buildSpecialsSchedule() {
         const spId      = rotation[cls.id]?.[day];
         const startTime = gradeTime[day];
         if (!spId || !startTime) return;
-        const sp       = specials.find(s => s.id === spId);
+        const sp        = specials.find(s => s.id === spId);
         const teacherId = (sp?.teacherIds || []).find(tid => isFree(tid, day, startTime)) || null;
         if (teacherId) book(teacherId, day, startTime);
         SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, teacherId, startTime };
@@ -1234,14 +1271,13 @@ function buildSpecialsSchedule() {
     DAYS.forEach(day => {
       const startTime = gradeTime[day];
       if (!startTime) return;
-      const classesThisDay = classes.filter(cls => SchedState.specialsSchedule[cls.id]?.[day]);
-      if (!classesThisDay.length) return;
-
-      const repSpId   = SchedState.specialsSchedule[classesThisDay[0].id][day].subjectId;
-      const sp        = specials.find(s => s.id === repSpId);
-      const numSlots  = Math.ceil((sp?.duration || 45) / 5);
-      const daySlots  = _autoFillSlots(day);
-      const startIdx  = daySlots.indexOf(startTime);
+      const firstCls = classes.find(cls => SchedState.specialsSchedule[cls.id]?.[day]);
+      if (!firstCls) return;
+      const repSpId  = SchedState.specialsSchedule[firstCls.id][day].subjectId;
+      const sp       = specials.find(s => s.id === repSpId);
+      const numSlots = Math.ceil((sp?.duration || 45) / 5);
+      const daySlots = _autoFillSlots(day);
+      const startIdx = daySlots.indexOf(startTime);
       if (startIdx < 0) return;
 
       if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
