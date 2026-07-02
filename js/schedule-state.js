@@ -82,8 +82,8 @@ const SchedState = {
   },
 
   staff: [],
-  // Each: { id, name, role, gradeAssignment, color }
-  // role: 'classroom_teacher' | 'ia' | 'specialist' | 'eld' | 'sped' | 'admin' | 'other'
+  // Each: { id, name, role, gradeAssignment, splitGrade, startTime, endTime, color }
+  // role: 'classroom_teacher' | 'specials_teacher' | 'ia' | 'specialist' | 'eld' | 'sped' | 'admin' | 'other'
 
   blockTypes: DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt, { subBlocks: (bt.subBlocks || []).map(s => Object.assign({}, s)), bandMinutes: Object.assign({}, bt.bandMinutes || {}), subBandMinutes: Object.assign({}, bt.subBandMinutes || {}) })),
 
@@ -94,6 +94,10 @@ const SchedState = {
   // conflicts[day][grade][timeSlot] = [btId, ...] — blocks displaced by a manual placement
   // Auto-fill never creates conflicts; only drag/click from palette does.
   conflicts: {},
+
+  // specialsSchedule[classId][day] = { subjectId, teacherId, startTime }
+  // classId = classroom teacher's staff id; source of truth for class-level specials.
+  specialsSchedule: {},
 };
 
 // ── Palette for auto-assigning staff colors ──────────────────────────────────
@@ -329,14 +333,15 @@ function applySchoolProfile(sp) {
 
 function downloadScheduleFile() {
   const payload = {
-    _version: 2,
+    _version: 3,
     _product: 'schedule_builder',
-    schoolProfile:  buildSchoolProfile(),
-    school:         SchedState.school,
-    staff:          SchedState.staff,
-    blockTypes:     SchedState.blockTypes,
-    masterSchedule: SchedState.masterSchedule,
-    conflicts:      SchedState.conflicts,
+    schoolProfile:    buildSchoolProfile(),
+    school:           SchedState.school,
+    staff:            SchedState.staff,
+    blockTypes:       SchedState.blockTypes,
+    masterSchedule:   SchedState.masterSchedule,
+    conflicts:        SchedState.conflicts,
+    specialsSchedule: SchedState.specialsSchedule,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -385,6 +390,7 @@ function loadScheduleFromFile(file) {
           migrateBandIds();
           migrateSubBlockMinutes();
         }
+        if (data.specialsSchedule) SchedState.specialsSchedule = data.specialsSchedule;
         // Ensure required arrays/fields exist
         if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
         if (!SchedState.school.gradeRecesses)   SchedState.school.gradeRecesses   = {};
@@ -392,6 +398,7 @@ function loadScheduleFromFile(file) {
         if (!SchedState.school.morningMeetings) SchedState.school.morningMeetings = [];
         if (!SchedState.school.altDays)         SchedState.school.altDays         = [];
         if (!SchedState.school.district)        SchedState.school.district        = '';
+        if (!SchedState.specialsSchedule)       SchedState.specialsSchedule       = {};
         saveToLocal();
         localStorage.setItem('cl_schedule_downloaded', '1');
         resolve({ crossProduct: false });
@@ -427,6 +434,7 @@ const GRADE_LABELS = { TK: 'TK', K: 'Kindergarten', '1': '1st Grade', '2': '2nd 
 
 const ROLE_LABELS = {
   classroom_teacher: 'Classroom Teacher',
+  specials_teacher:  'Specials Teacher',
   ia:                'Instructional Assistant',
   specialist:        'Specialist',
   eld:               'ELD Teacher',

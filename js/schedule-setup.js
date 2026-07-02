@@ -37,12 +37,22 @@ function renderMMRow(m) {
 }
 
 const DEFAULT_SPECIALS = [
-  { id: 'sp_pe',  name: 'PE',      duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5, classesPerWeek: 1 },
-  { id: 'sp_mu',  name: 'Music',   duration: 45, teacherCount: 1,   teacherHoursPerDay: 6.5, classesPerWeek: 1 },
-  { id: 'sp_lib', name: 'Library', duration: 45, teacherCount: 0.5, teacherHoursPerDay: 4,   classesPerWeek: 1 },
+  { id: 'sp_pe',  name: 'PE',      duration: 45, classesPerWeek: 1, teacherIds: [] },
+  { id: 'sp_mu',  name: 'Music',   duration: 45, classesPerWeek: 1, teacherIds: [] },
+  { id: 'sp_lib', name: 'Library', duration: 45, classesPerWeek: 1, teacherIds: [] },
 ];
 
 function renderSpecialRow(sp) {
+  const specialsTeachers = SchedState.staff.filter(s => s.role === 'specials_teacher');
+  const assignedIds = sp.teacherIds || [];
+  const teacherHtml = specialsTeachers.length
+    ? specialsTeachers.map(t => `
+        <label class="sp-teacher-check">
+          <input type="checkbox" class="sp-teacher-cb" data-teacher-id="${t.id}" ${assignedIds.includes(t.id) ? 'checked' : ''}>
+          <span class="color-swatch-xs" style="background:${t.color}"></span>${escHtml(t.name)}
+        </label>`).join('')
+    : `<span class="text-muted sp-no-teachers">Add specials teachers in Staff Roster first</span>`;
+
   return `
     <div class="special-row" data-sp-id="${sp.id}">
       <input type="text" class="input sp-name" placeholder="e.g. PE" value="${escHtml(sp.name || '')}">
@@ -54,13 +64,9 @@ function renderSpecialRow(sp) {
         <label class="form-label">Classes/week</label>
         <input type="number" class="input input-sm sp-cpw" placeholder="1" min="1" max="5" step="1" value="${sp.classesPerWeek || 1}">
       </div>
-      <div class="sp-field">
-        <label class="form-label">Teachers (FTE)</label>
-        <input type="number" class="input input-sm sp-teachers" placeholder="1" min="0.5" step="0.5" value="${sp.teacherCount || 1}">
-      </div>
-      <div class="sp-field">
-        <label class="form-label">Hrs/day each</label>
-        <input type="number" class="input input-sm sp-hours" placeholder="6.5" min="0.5" step="0.5" value="${sp.teacherHoursPerDay || 6.5}">
+      <div class="sp-field sp-field-teachers">
+        <label class="form-label">Teachers</label>
+        <div class="sp-teacher-list">${teacherHtml}</div>
       </div>
       <button class="btn-icon remove-sp-btn" data-sp-id="${sp.id}" title="Remove">×</button>
     </div>
@@ -210,13 +216,12 @@ function renderSchoolInfo() {
       <!-- Specials -->
       <div class="form-section">
         <h2 class="form-section-title">Specials</h2>
-        <p class="form-hint">Subjects taught by specialist teachers that rotate across grade levels.</p>
+        <p class="form-hint">Subjects taught by specialist teachers that rotate across classes. Add specials teachers in Staff Roster, then assign them to subjects here.</p>
         <div class="specials-header-row">
           <span>Subject</span>
           <span>Duration</span>
           <span>Classes/wk</span>
-          <span>Teachers (FTE)</span>
-          <span>Hrs/day each</span>
+          <span>Teachers</span>
           <span></span>
         </div>
         <div id="specials-list">
@@ -287,7 +292,7 @@ function renderSchoolInfo() {
 
   // Specials add/remove
   document.getElementById('add-special-btn').addEventListener('click', () => {
-    const newSp = { id: uid(), name: '', duration: 45, teacherCount: 1, teacherHoursPerDay: 6.5 };
+    const newSp = { id: uid(), name: '', duration: 45, classesPerWeek: 1, teacherIds: [] };
     document.getElementById('specials-list').insertAdjacentHTML('beforeend', renderSpecialRow(newSp));
     wireSpRemove();
   });
@@ -768,12 +773,11 @@ function saveSchoolAndContinue() {
   s.earlyReleaseEnd  = s.altDays.find(a => a.earlyRelease)?.earlyRelease || '';
 
   s.specials = [...document.querySelectorAll('.special-row')].map(row => ({
-    id:                 row.dataset.spId,
-    name:               row.querySelector('.sp-name').value.trim(),
-    duration:           parseInt(row.querySelector('.sp-duration').value) || 45,
-    classesPerWeek:     parseInt(row.querySelector('.sp-cpw').value) || 1,
-    teacherCount:       parseFloat(row.querySelector('.sp-teachers').value) || 1,
-    teacherHoursPerDay: parseFloat(row.querySelector('.sp-hours').value) || 6.5,
+    id:             row.dataset.spId,
+    name:           row.querySelector('.sp-name').value.trim(),
+    duration:       parseInt(row.querySelector('.sp-duration').value) || 45,
+    classesPerWeek: parseInt(row.querySelector('.sp-cpw').value) || 1,
+    teacherIds:     [...row.querySelectorAll('.sp-teacher-cb:checked')].map(cb => cb.dataset.teacherId),
   })).filter(sp => sp.name);
 
   saveToLocal();
@@ -789,7 +793,7 @@ function renderStaff() {
   document.getElementById('view-staff').innerHTML = `
     <div class="view-header">
       <h1>Staff Roster</h1>
-      <p class="view-subtitle">Add everyone who will appear on the schedule — teachers, IAs, specialists, and support staff.</p>
+      <p class="view-subtitle">Add everyone who will appear on the schedule. Include classroom teachers, specials teachers (PE, Music, Library…), IAs, and support staff.</p>
     </div>
 
     <div class="staff-toolbar">
@@ -816,48 +820,66 @@ function renderStaff() {
   wireStaffTable();
 }
 
+function renderStaffRow(s) {
+  const isSpecials = s.role === 'specials_teacher';
+  const primaryLabel = s.gradeAssignment ? (GRADE_LABELS[s.gradeAssignment] || s.gradeAssignment) : '—';
+  const splitLabel   = s.splitGrade      ? (GRADE_LABELS[s.splitGrade]      || s.splitGrade)      : null;
+  const gradeDisplay = isSpecials
+    ? '—'
+    : splitLabel ? `${primaryLabel} / ${splitLabel}` : primaryLabel;
+  const splitBadge   = !isSpecials && splitLabel ? ' <span class="split-badge">split</span>' : '';
+  const hoursDisplay = (s.startTime && s.endTime)
+    ? `${fmtTime12(s.startTime)} – ${fmtTime12(s.endTime)}`
+    : '—';
+  return `
+    <tr data-id="${s.id}">
+      <td><span class="color-swatch" style="background:${s.color}"></span></td>
+      <td class="staff-name">${escHtml(s.name)}</td>
+      <td>${ROLE_LABELS[s.role] || s.role}</td>
+      <td>${gradeDisplay}${splitBadge}</td>
+      <td class="staff-hours">${isSpecials ? '—' : hoursDisplay}</td>
+      <td class="staff-actions">
+        <button class="btn btn-sm btn-outline edit-staff-btn" data-id="${s.id}">Edit</button>
+        <button class="btn btn-sm btn-danger remove-staff-btn" data-id="${s.id}">Remove</button>
+      </td>
+    </tr>
+  `;
+}
+
 function renderStaffTable() {
   if (SchedState.staff.length === 0) {
     return `<div class="empty-state"><div class="empty-icon">👤</div><p>No staff added yet. Click "+ Add Staff Member" to get started.</p></div>`;
   }
 
-  const rows = SchedState.staff.map(s => {
-    const primaryLabel = s.gradeAssignment ? (GRADE_LABELS[s.gradeAssignment] || s.gradeAssignment) : '—';
-    const splitLabel   = s.splitGrade      ? (GRADE_LABELS[s.splitGrade]      || s.splitGrade)      : null;
-    const gradeDisplay = splitLabel ? `${primaryLabel} / ${splitLabel}` : primaryLabel;
-    const hoursDisplay = (s.startTime && s.endTime)
-      ? `${fmtTime12(s.startTime)} – ${fmtTime12(s.endTime)}`
-      : '—';
+  const roleOrder = ['classroom_teacher','specials_teacher','ia','specialist','eld','sped','admin','other'];
+  const byRole = {};
+  SchedState.staff.forEach(s => {
+    if (!byRole[s.role]) byRole[s.role] = [];
+    byRole[s.role].push(s);
+  });
+
+  const sections = roleOrder.filter(r => byRole[r]?.length).map(role => {
+    const rows = byRole[role].map(s => renderStaffRow(s)).join('');
     return `
-      <tr data-id="${s.id}">
-        <td><span class="color-swatch" style="background:${s.color}"></span></td>
-        <td class="staff-name">${s.name}</td>
-        <td>${ROLE_LABELS[s.role] || s.role}</td>
-        <td>${gradeDisplay}${splitLabel ? ' <span class="split-badge">split</span>' : ''}</td>
-        <td class="staff-hours">${hoursDisplay}</td>
-        <td class="staff-actions">
-          <button class="btn btn-sm btn-outline edit-staff-btn" data-id="${s.id}">Edit</button>
-          <button class="btn btn-sm btn-danger remove-staff-btn" data-id="${s.id}">Remove</button>
-        </td>
-      </tr>
-    `;
+      <div class="staff-role-group">
+        <div class="staff-role-label">${ROLE_LABELS[role] || role}s</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:32px"></th>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Grade</th>
+              <th>Hours</th>
+              <th style="width:160px"></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   }).join('');
 
-  return `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th style="width:32px"></th>
-          <th>Name</th>
-          <th>Role</th>
-          <th>Grade</th>
-          <th>Hours</th>
-          <th style="width:160px"></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  return sections;
 }
 
 function showAddStaffForm(existingId) {
@@ -870,39 +892,41 @@ function showAddStaffForm(existingId) {
     (includeBlank ? `<option value="">${blankLabel}</option>` : '') +
     grades.map(g => `<option value="${g}" ${selected === g ? 'selected' : ''}>${GRADE_LABELS[g] || g}</option>`).join('');
 
+  const currentRole = existing?.role || 'classroom_teacher';
+  const isSpecials  = currentRole === 'specials_teacher';
   const form = document.getElementById('add-staff-form');
   form.classList.remove('hidden');
   form.innerHTML = `
     <div class="inline-form-grid">
       <div class="form-group">
         <label class="form-label">Full Name</label>
-        <input type="text" class="input" id="sf-name" placeholder="e.g. Jordan Rivera" value="${existing?.name || ''}" />
+        <input type="text" class="input" id="sf-name" placeholder="e.g. Jordan Rivera" value="${escHtml(existing?.name || '')}" />
       </div>
       <div class="form-group">
         <label class="form-label">Role</label>
         <select class="input" id="sf-role">
           ${Object.entries(ROLE_LABELS).map(([val, label]) =>
-            `<option value="${val}" ${(existing?.role || 'classroom_teacher') === val ? 'selected' : ''}>${label}</option>`
+            `<option value="${val}" ${currentRole === val ? 'selected' : ''}>${label}</option>`
           ).join('')}
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group sf-grade-field${isSpecials ? ' hidden' : ''}">
         <label class="form-label">Primary Grade</label>
         <select class="input" id="sf-grade">
           ${gradeOpts(existing?.gradeAssignment || '', true, 'Building-wide')}
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group sf-split-field${isSpecials ? ' hidden' : ''}">
         <label class="form-label">Splits with Grade <span class="form-hint-sm">(optional)</span></label>
         <select class="input" id="sf-split-grade">
           ${gradeOpts(existing?.splitGrade || '', true, '— No split —')}
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group sf-hours-field${isSpecials ? ' hidden' : ''}">
         <label class="form-label">Start Time</label>
         <input type="time" class="input" id="sf-start" value="${existing?.startTime || defaultStart}" />
       </div>
-      <div class="form-group">
+      <div class="form-group sf-hours-field${isSpecials ? ' hidden' : ''}">
         <label class="form-label">End Time</label>
         <input type="time" class="input" id="sf-end" value="${existing?.endTime || defaultEnd}" />
       </div>
@@ -925,6 +949,13 @@ function showAddStaffForm(existingId) {
     dot.addEventListener('click', () => {
       document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
       dot.classList.add('selected');
+    });
+  });
+
+  document.getElementById('sf-role').addEventListener('change', function() {
+    const hideForSpecials = this.value === 'specials_teacher';
+    document.querySelectorAll('.sf-grade-field, .sf-split-field, .sf-hours-field').forEach(el => {
+      el.classList.toggle('hidden', hideForSpecials);
     });
   });
 

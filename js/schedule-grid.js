@@ -565,6 +565,12 @@ function buildCell(slot, grade, prevSlot) {
   const isCont  = !!(btId && btId === prevId);
   const isStart = !!(btId && !isCont);
 
+  // For specials slots, delegate to class-level rendering if specialsSchedule has data
+  if (btId && btId.startsWith('bt_spec')) {
+    const specInfo = getSpecialsAtSlot(day, grade, slot);
+    if (specInfo) return buildSpecialsCell(slot, grade, specInfo, isCont);
+  }
+
   let bt = null, displayName = '', style = '', inner = '';
 
   if (btId) {
@@ -576,7 +582,7 @@ function buildCell(slot, grade, prevSlot) {
         const meeting = (SchedState.school.morningMeetings || []).find(m => m.id === subId);
         displayName = meeting?.name || (bt ? bt.name : 'Morning Meeting');
       } else if (parentId === 'bt_spec') {
-        // Named special — look up the name from school.specials.
+        // Named special — fall back to subject name from school.specials.
         const sp = (SchedState.school.specials || []).find(s => s.id === subId);
         displayName = sp?.name || (bt ? bt.name : 'Special');
       } else {
@@ -956,33 +962,26 @@ function showSpecialsConflictWarning() {
   const existingBanner = document.getElementById('specials-conflict-banner');
   if (existingBanner) existingBanner.remove();
 
-  const specials = SchedState.school.specials || [];
-  if (!specials.length) return;
+  const ss = SchedState.specialsSchedule || {};
+  if (!Object.keys(ss).length) return;
 
-  const seen = new Set();
-  const conflicts = [];
-
-  DAYS.forEach(day => {
-    _autoFillSlots(day).forEach(slot => {
-      const bySpec = {};
-      gradesSorted().forEach(grade => {
-        const btId = SchedState.masterSchedule[day]?.[grade]?.[slot];
-        if (!btId?.startsWith('bt_spec|')) return;
-        const spId = btId.split('|')[1];
-        bySpec[spId] = (bySpec[spId] || 0) + 1;
-      });
-      Object.entries(bySpec).forEach(([spId, count]) => {
-        const sp  = specials.find(s => s.id === spId);
-        const max = Math.max(1, Math.floor(sp?.teacherCount || 1));
-        if (count > max) {
-          const key = `${spId}:${day}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            conflicts.push({ name: sp?.name || spId, day, slot, count, max });
-          }
-        }
-      });
+  // Detect teacher double-booking: same teacher, same day, same startTime
+  const teacherSlots = {};
+  Object.entries(ss).forEach(([classId, days]) => {
+    Object.entries(days).forEach(([day, entry]) => {
+      if (!entry.teacherId) return;
+      const key = `${entry.teacherId}:${day}:${entry.startTime}`;
+      if (!teacherSlots[key]) teacherSlots[key] = [];
+      teacherSlots[key].push(classId);
     });
+  });
+
+  const conflicts = [];
+  Object.entries(teacherSlots).forEach(([key, classIds]) => {
+    if (classIds.length <= 1) return;
+    const [tid, day, startTime] = key.split(':');
+    const teacher = SchedState.staff.find(t => t.id === tid);
+    conflicts.push({ teacherName: teacher?.name || 'Unknown teacher', day, startTime, count: classIds.length });
   });
 
   if (!conflicts.length) return;
@@ -991,7 +990,7 @@ function showSpecialsConflictWarning() {
   banner.id = 'specials-conflict-banner';
   banner.className = 'setup-banner setup-banner-error';
   const list = conflicts.map(c =>
-    `<li><strong>${c.name}</strong> on ${c.day} at ${fmtTime12(c.slot)} — ${c.count} classes, only ${c.max} teacher${c.max !== 1 ? 's' : ''}</li>`
+    `<li><strong>${escHtml(c.teacherName)}</strong> on ${c.day} at ${fmtTime12(c.startTime)} — double-booked for ${c.count} classes</li>`
   ).join('');
   banner.innerHTML = `⚠ Specials teacher conflict — same teacher scheduled for multiple classes at the same time:<ul style="margin:6px 0 0 16px;padding:0">${list}</ul>`;
 
@@ -1112,156 +1111,224 @@ function _autoFillSlots(day) {
   return generateTimeSlots(fb, dis);
 }
 
-// Assigns each grade a specific special on specific days, respecting teacher FTE capacity.
-// Returns { [grade]: { [day]: spId } } — only days where a grade has a special are populated.
-function computeSpecialsRotation(grades, specials) {
-  if (!specials || !specials.length || !grades.length) return {};
-  const DAYS_LIST = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-  const rotation = {};
-  grades.forEach(g => { rotation[g] = {}; });
+// ── Class-level specials scheduling (v52+) ────────────────────────────────────
 
-  specials.forEach((sp, si) => {
-    const cpw = Math.max(1, sp.classesPerWeek || 1);
-    const duration = sp.duration || 45;
-    // How many back-to-back classes can this teacher do per day (based on hours)?
-    const classesPerTeacherPerDay = Math.max(1, Math.floor((sp.teacherHoursPerDay || 6.5) * 60 / duration));
-    // FTE < 1 = part-time but still one-at-a-time; use their hours to cap daily capacity.
-    const maxPerDay = Math.max(1, Math.round(classesPerTeacherPerDay * Math.max(sp.teacherCount || 1, 0.5)));
-
-    const dayCount = { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0 };
-    // Stagger starting day by special index so PE, Music, Library don't all pile on Monday.
-    let cursor = si % 5;
-
-    grades.forEach(grade => {
-      let sessionsLeft = cpw;
-      let attempts = 0;
-      while (sessionsLeft > 0 && attempts < 25) {
-        attempts++;
-        const day = DAYS_LIST[cursor % 5];
-        // Grade already has any special this day → skip.
-        if (rotation[grade][day]) { cursor++; continue; }
-        // Teacher at capacity for this day → skip.
-        if (dayCount[day] >= maxPerDay) { cursor++; continue; }
-        rotation[grade][day] = sp.id;
-        dayCount[day]++;
-        sessionsLeft--;
-        cursor++;
-      }
-    });
-  });
-
-  return rotation;
+// Returns classroom teachers assigned to a specific grade (primary grade).
+function getClassesForGrade(grade) {
+  return SchedState.staff.filter(s =>
+    s.role === 'classroom_teacher' && s.gradeAssignment === grade
+  );
 }
 
-// Assigns conflict-free start times per (grade, day) using a per-subject sequential cursor.
-// For each day, grades sharing the same subject (same teacher) are placed sequentially —
-// the cursor advances after each grade so the teacher is never double-booked.
-// Grades on different days or with different subjects are fully independent.
-// Returns { [grade]: { [day]: "HH:MM" } }.
-function computeSpecialsPlacement(grades, specials, rotation) {
-  if (!specials.length) return {};
-
+// Returns { classId: { day: subjectId } }.
+// Round-robin rotation: class c gets subjectSeq[s] on day (s + c) % numDays,
+// guaranteeing no two classes share the same subject on the same day (up to 5 classes).
+function computeClassSpecialsRotation(classes, specials) {
   const result = {};
-  grades.forEach(g => { result[g] = {}; });
+  if (!classes.length || !specials.length) return result;
 
-  DAYS.forEach(day => {
-    const daySlotArr = _autoFillSlots(day);
-    if (!daySlotArr.length) return;
+  const subjectSeq = [];
+  specials.forEach(sp => {
+    const cpw = Math.min(sp.classesPerWeek || 1, 5);
+    for (let i = 0; i < cpw; i++) subjectSeq.push(sp.id);
+  });
 
-    // Group grades by which subject they have on this day.
-    const bySubject = {};
-    grades.forEach(g => {
-      const spId = rotation[g]?.[day];
-      if (spId) {
-        if (!bySubject[spId]) bySubject[spId] = [];
-        bySubject[spId].push(g);
-      }
-    });
+  const S       = subjectSeq.length;
+  const numDays = Math.min(classes.length, 5);
 
-    // For each subject on this day, assign grades to non-overlapping windows.
-    // claimedSlots tracks which time slots this teacher already has a class scheduled,
-    // preventing double-booking. Each grade searches from the start of the day.
-    // Different subjects have independent claimedSlots (different teachers).
-    Object.entries(bySubject).forEach(([spId, gradeList]) => {
-      const sp = specials.find(s => s.id === spId);
-      const numSlots = Math.ceil((sp?.duration || 45) / 5);
-      const claimedSlots = new Set();
-
-      gradeList.forEach(grade => {
-        for (let i = 0; i <= daySlotArr.length - numSlots; i++) {
-          const sched = SchedState.masterSchedule[day]?.[grade] || {};
-          let valid = true;
-          for (let j = 0; j < numSlots; j++) {
-            const sl = daySlotArr[i + j];
-            if (claimedSlots.has(sl)) { valid = false; break; }
-            if (sched[sl] && !sched[sl].startsWith('bt_spec')) { valid = false; break; }
-          }
-          if (valid) {
-            result[grade][day] = daySlotArr[i];
-            for (let j = 0; j < numSlots; j++) claimedSlots.add(daySlotArr[i + j]);
-            break;
-          }
-        }
-      });
-    });
+  classes.forEach((cls, c) => {
+    result[cls.id] = {};
+    for (let s = 0; s < S && s < 5; s++) {
+      const dayIdx = (s + c) % numDays;
+      result[cls.id][DAYS[dayIdx]] = subjectSeq[s];
+    }
   });
 
   return result;
 }
 
-// Places specials for a grade using per-day start times from computeSpecialsPlacement.
-// Each specials day can have a different start time — eliminates cross-day constraints
-// and guarantees conflict-free placement by construction.
-function _placeSpecialsForGrade(grade, specialsRotation, clearFirst, placement) {
-  const s = SchedState.school;
-  const specials = s.specials || [];
-  if (!specials.length || !specialsRotation?.[grade]) return;
+// Find a common start time for all classes in a grade on each specials day.
+// Returns { day: 'HH:MM' }.
+function findGradeSpecialsTime(grade, classes, rotation, specials) {
+  const result = {};
+  if (!classes.length) return result;
 
-  const specialsDays = DAYS.filter(d => specialsRotation[grade][d]);
-  if (!specialsDays.length) return;
-
-  if (!clearFirst) {
-    // Already placed at the correct per-day slot on every specials day → nothing to do.
-    const allPlaced = specialsDays.every(day => {
-      const startSlot = placement?.[grade]?.[day];
-      if (!startSlot) return false;
-      const sched = SchedState.masterSchedule[day]?.[grade] || {};
-      const spId  = specialsRotation[grade][day];
-      const btId  = `bt_spec|${spId}`;
-      return sched[startSlot] === btId;
-    });
-    if (allPlaced) return;
-  }
-
-  // Clear existing specials for this grade on all days.
   DAYS.forEach(day => {
-    const sched = SchedState.masterSchedule[day]?.[grade];
-    if (!sched) return;
-    Object.keys(sched).forEach(slot => {
-      const sv = sched[slot];
-      if (sv === 'bt_spec' || sv?.startsWith('bt_spec|')) delete sched[slot];
-    });
-  });
+    const hasSpecials = classes.some(cls => rotation[cls.id]?.[day]);
+    if (!hasSpecials) return;
 
-  // Place bt_spec|spId on each specials day at its day-specific start slot.
-  specialsDays.forEach(day => {
-    const startSlot = placement?.[grade]?.[day];
-    if (!startSlot) return;
+    const subjectsOnDay = new Set(
+      classes.map(cls => rotation[cls.id]?.[day]).filter(Boolean)
+    );
+    const maxDur = Math.max(...[...subjectsOnDay].map(spId => {
+      const sp = specials.find(s => s.id === spId);
+      return sp?.duration || 45;
+    }));
+    const numSlots = Math.ceil(maxDur / 5);
+    const daySlots = _autoFillSlots(day);
+    const sched    = SchedState.masterSchedule[day]?.[grade] || {};
 
-    if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
-    if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
-    const sched = SchedState.masterSchedule[day][grade];
-    const spId  = specialsRotation[grade][day];
-    const sp    = specials.find(sp => sp.id === spId);
-    const numSlots = Math.ceil((sp?.duration || 45) / 5);
-    const dayArr   = _autoFillSlots(day);
-    const startIdx = dayArr.indexOf(startSlot);
-    if (startIdx < 0) return;
-    const btId = `bt_spec|${spId}`;
-    for (let j = 0; j < numSlots && startIdx + j < dayArr.length; j++) {
-      sched[dayArr[startIdx + j]] = btId;
+    for (let i = 0; i <= daySlots.length - numSlots; i++) {
+      let ok = true;
+      for (let j = 0; j < numSlots; j++) {
+        const sl = daySlots[i + j];
+        if (sched[sl] && !sched[sl].startsWith('bt_spec')) { ok = false; break; }
+      }
+      if (ok) { result[day] = daySlots[i]; break; }
     }
   });
+
+  return result;
+}
+
+// Rebuilds SchedState.specialsSchedule from scratch for all grades, then writes
+// grade-level bt_spec blocks back into masterSchedule for auto-populate awareness.
+function buildSpecialsSchedule() {
+  const specials = SchedState.school.specials || [];
+
+  // Clear all bt_spec from masterSchedule
+  DAYS.forEach(day => {
+    gradesSorted().forEach(grade => {
+      const sched = SchedState.masterSchedule[day]?.[grade];
+      if (!sched) return;
+      Object.keys(sched).forEach(slot => {
+        const v = sched[slot];
+        if (v === 'bt_spec' || (v && v.startsWith('bt_spec|'))) delete sched[slot];
+      });
+    });
+  });
+
+  SchedState.specialsSchedule = {};
+  if (!specials.length) return;
+
+  const booked = {};
+  const book   = (tid, day, t) => {
+    if (!tid) return;
+    if (!booked[tid])       booked[tid]       = {};
+    if (!booked[tid][day])  booked[tid][day]  = new Set();
+    booked[tid][day].add(t);
+  };
+  const isFree = (tid, day, t) => !tid || !booked[tid]?.[day]?.has(t);
+
+  gradesSorted().forEach(grade => {
+    const classes = getClassesForGrade(grade);
+    if (!classes.length) return;
+
+    const rotation  = computeClassSpecialsRotation(classes, specials);
+    const gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials);
+
+    classes.forEach(cls => {
+      SchedState.specialsSchedule[cls.id] = {};
+      DAYS.forEach(day => {
+        const spId      = rotation[cls.id]?.[day];
+        const startTime = gradeTime[day];
+        if (!spId || !startTime) return;
+        const sp       = specials.find(s => s.id === spId);
+        const teacherId = (sp?.teacherIds || []).find(tid => isFree(tid, day, startTime)) || null;
+        if (teacherId) book(teacherId, day, startTime);
+        SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, teacherId, startTime };
+      });
+    });
+
+    // Write grade-level bt_spec to masterSchedule so auto-populate sees those slots as occupied.
+    DAYS.forEach(day => {
+      const startTime = gradeTime[day];
+      if (!startTime) return;
+      const classesThisDay = classes.filter(cls => SchedState.specialsSchedule[cls.id]?.[day]);
+      if (!classesThisDay.length) return;
+
+      const repSpId   = SchedState.specialsSchedule[classesThisDay[0].id][day].subjectId;
+      const sp        = specials.find(s => s.id === repSpId);
+      const numSlots  = Math.ceil((sp?.duration || 45) / 5);
+      const daySlots  = _autoFillSlots(day);
+      const startIdx  = daySlots.indexOf(startTime);
+      if (startIdx < 0) return;
+
+      if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
+      if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+      const sched = SchedState.masterSchedule[day][grade];
+      const btId  = `bt_spec|${repSpId}`;
+      for (let j = 0; j < numSlots && startIdx + j < daySlots.length; j++) {
+        sched[daySlots[startIdx + j]] = btId;
+      }
+    });
+  });
+}
+
+// Returns specials info for a grade at a given slot, or null if no specials.
+// { all: [...entries], isStart, isUnified, totalClasses }
+function getSpecialsAtSlot(day, grade, slot) {
+  const ss = SchedState.specialsSchedule || {};
+  const classes = getClassesForGrade(grade);
+  if (!classes.length) return null;
+
+  const specials  = SchedState.school.specials || [];
+  const daySlots  = _autoFillSlots(day);
+  const slotIdx   = daySlots.indexOf(slot);
+  if (slotIdx < 0) return null;
+
+  const matching = [];
+  classes.forEach(cls => {
+    const entry = ss[cls.id]?.[day];
+    if (!entry?.startTime) return;
+    const sp       = specials.find(s => s.id === entry.subjectId);
+    const numSlots = Math.ceil((sp?.duration || 45) / 5);
+    const startIdx = daySlots.indexOf(entry.startTime);
+    if (startIdx >= 0 && slotIdx >= startIdx && slotIdx < startIdx + numSlots) {
+      matching.push({ ...entry, cls, isStart: slotIdx === startIdx, duration: sp?.duration || 45 });
+    }
+  });
+
+  if (!matching.length) return null;
+  return {
+    all:          matching,
+    isStart:      matching[0].isStart,
+    isUnified:    matching.length === classes.length,
+    totalClasses: classes.length,
+  };
+}
+
+// Renders a grid cell for a specials time slot (unified or split).
+function buildSpecialsCell(slot, grade, specInfo, isCont) {
+  const bt        = SchedState.blockTypes.find(b => b.id === 'bt_spec');
+  const color     = bt?.color || '#f97316';
+  const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
+  const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
+
+  if (specInfo.isUnified) {
+    const entry   = specInfo.all[0];
+    const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
+    const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
+    let inner = '';
+    if (specInfo.isStart) {
+      const mins    = entry.duration;
+      const endSlot = minsToTime(timeToMins(slot) + mins);
+      const subLine = sp
+        ? `<span class="cell-specials-subject">${escHtml(sp.name)}${teacher ? ' · ' + escHtml(teacher.name.split(' ')[0]) : ''}</span>`
+        : '';
+      inner = `<span class="cell-label" style="color:${color}">Specials` +
+        `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${mins} min</span>` +
+        `${subLine}</span>`;
+    }
+    const style = `background:${color}18;border-left:3px solid ${color};${borderTop}`;
+    return `<td class="grid-cell filled${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${style}">${inner}</td>`;
+  }
+
+  // Split: some classes have specials, others do not at this time
+  const entry   = specInfo.all[0];
+  const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
+  const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
+  let leftInner = '', rightInner = '';
+  if (specInfo.isStart) {
+    leftInner  = `<span class="split-label" style="color:${color}">${sp ? escHtml(sp.name) : 'Specials'}` +
+      `${teacher ? `<span class="split-teacher">${escHtml(teacher.name.split(' ')[0])}</span>` : ''}</span>`;
+    rightInner = `<span class="split-label" style="color:#64748b">${specInfo.all.length} / ${specInfo.totalClasses} classes</span>`;
+  }
+  return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}">` +
+    `<div class="split-block-wrap">` +
+    `<div class="split-half split-half-specials" style="background:${color}18;border-left:3px solid ${color};">${leftInner}</div>` +
+    `<div class="split-half split-half-regular" style="background:#f1f5f9;border-left:3px solid #94a3b8;">${rightInner}</div>` +
+    `</div></td>`;
 }
 
 // Core placement logic — pure data mutation, no DOM or storage side effects.
@@ -1269,7 +1336,7 @@ function _placeSpecialsForGrade(grade, specialsRotation, clearFirst, placement) 
 // clearFirst=false → only place blocks that have ZERO slots placed; skip any
 //                    block that exists even partially to prevent double-placement.
 // onlyDay — if provided, only process that specific day (used by switchDay for efficiency).
-function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation, specialsPlacement) {
+function _populateGradeData(grade, clearFirst, onlyDay) {
   const s    = SchedState.school;
   const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
   if (!band) return;
@@ -1285,12 +1352,6 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation, specia
     (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
   });
 
-  // Specials require a common start time across all specials days for this grade.
-  // Run holistically before the per-day loop; skip on single-day refreshes.
-  if (!onlyDay) {
-    _placeSpecialsForGrade(grade, specialsRotation, clearFirst, specialsPlacement);
-  }
-
   const daysToProcess = onlyDay ? [onlyDay] : DAYS;
   daysToProcess.forEach(day => {
     const allSlots = _autoFillSlots(day);
@@ -1303,7 +1364,7 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation, specia
         const sv = sched[slot];
         if (!sv) return;
         const pid = sv.includes('|') ? sv.split('|')[0] : sv;
-        if (pid === 'bt_spec') return; // handled by _placeSpecialsForGrade
+        if (pid === 'bt_spec') return; // specials handled by buildSpecialsSchedule
         if (reqIds.has(sv) || requirements.some(r => r.id === pid)) {
           delete sched[slot];
           clearConflict(day, grade, slot);
@@ -1319,8 +1380,8 @@ function _populateGradeData(grade, clearFirst, onlyDay, specialsRotation, specia
     const allUnits = [];
     requirements.forEach(req => {
       if (req.id === 'bt_spec') {
-        // If specials are configured, _placeSpecialsForGrade handled placement already.
-        // Fall back to generic bt_spec only when school.specials isn't set up yet.
+        // buildSpecialsSchedule already placed bt_spec for configured specials subjects.
+        // Fall back to generic bt_spec block only when no specials subjects are configured.
         if (!(s.specials || []).length) {
           allUnits.push({ id: 'bt_spec', slots: Math.ceil(req.bandMinutes[band.id] / 5) });
         }
@@ -1400,11 +1461,8 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
     return;
   }
   pushUndoSnapshot();
-  const grades = gradesSorted();
-  const specials = s.specials || [];
-  const rotation  = computeSpecialsRotation(grades, specials);
-  const placement = computeSpecialsPlacement(grades, specials, rotation);
-  _populateGradeData(grade, clearFirst, null, rotation, placement);
+  buildSpecialsSchedule();
+  _populateGradeData(grade, clearFirst, null);
   saveToLocal();
   rebuildTbody();
 }
@@ -1418,11 +1476,8 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
 // _populateGradeData with clearFirst=false is a no-op for blocks already fully placed
 // within the day's slot range, so this is safe to run on every render.
 function autoPopulateIfEmpty() {
-  const grades = gradesSorted();
-  const specials = SchedState.school.specials || [];
-  const rotation  = computeSpecialsRotation(grades, specials);
-  const placement = computeSpecialsPlacement(grades, specials, rotation);
-  grades.forEach(grade => _populateGradeData(grade, false, null, rotation, placement));
+  buildSpecialsSchedule();
+  gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
   saveToLocal();
   rebuildTbody();
   showSpecialsConflictWarning();
@@ -1431,11 +1486,8 @@ function autoPopulateIfEmpty() {
 // Called after Block Types is saved: fills any required blocks that aren't
 // placed yet without touching blocks that already exist.
 function fillMissingRequirements() {
-  const grades = gradesSorted();
-  const specials = SchedState.school.specials || [];
-  const rotation  = computeSpecialsRotation(grades, specials);
-  const placement = computeSpecialsPlacement(grades, specials, rotation);
-  grades.forEach(grade => _populateGradeData(grade, false, null, rotation, placement));
+  buildSpecialsSchedule();
+  gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
   saveToLocal();
   rebuildTbody();
   showLunchOutOfHoursWarning();
@@ -1461,11 +1513,8 @@ function switchDay(day) {
   currentSlots = generateTimeSlots(fb, getDismissalForDay(day));
   // Re-populate grades for this specific day using the updated currentSlots dismissal.
   // This handles alt days where saved blocks may fall outside the shortened slot range.
-  const grades = gradesSorted();
-  const specials = SchedState.school.specials || [];
-  const rotation  = computeSpecialsRotation(grades, specials);
-  const placement = computeSpecialsPlacement(grades, specials, rotation);
-  grades.forEach(grade => _populateGradeData(grade, false, day, rotation, placement));
+  buildSpecialsSchedule();
+  gradesSorted().forEach(grade => _populateGradeData(grade, false, day));
   saveToLocal();
   document.querySelectorAll('.day-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.day === day));
