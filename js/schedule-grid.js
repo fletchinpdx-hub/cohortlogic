@@ -998,6 +998,23 @@ function showSpecialsConflictWarning() {
   if (topBar) topBar.insertAdjacentElement('afterend', banner);
 }
 
+// ── Specials missing warning ──────────────────────────────────────────────────
+
+function showSpecialsMissingWarning(failedGrades) {
+  const existing = document.getElementById('specials-missing-banner');
+  if (existing) existing.remove();
+  if (!failedGrades.length) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'specials-missing-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  const gradeList = failedGrades.map(g => `<li><strong>${escHtml(g)}</strong> — no free slot found where all specials teachers are available. Check whether fixed blocks (recess, lunch) are fragmenting the day, or if teachers are fully booked by other grades.</li>`).join('');
+  banner.innerHTML = `⚠ Specials could not be scheduled for ${failedGrades.length === 1 ? 'one grade' : failedGrades.length + ' grades'}:<ul style="margin:6px 0 0 16px;padding:0">${gradeList}</ul>`;
+
+  const topBar = document.querySelector('.grid-top-bar');
+  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+}
+
 // ── Conflict banner (persistent, driven by SchedState.conflicts) ──────────────
 
 function showConflictBanner() {
@@ -1283,6 +1300,7 @@ function buildSpecialsSchedule() {
     return true;
   };
 
+  const failedGrades = [];
   gradesSorted().forEach(grade => {
     const classes = getClassesForGrade(grade);
 
@@ -1304,7 +1322,7 @@ function buildSpecialsSchedule() {
         _clearRequirementsForGrade(grade);
         gradeTime = findGradeSpecialsTime(grade, [{ id: synthId }], syntheticRotation, specials, isFree);
       }
-      if (!Object.keys(gradeTime).length) return; // school day too short to fit specials
+      if (!Object.keys(gradeTime).length) { failedGrades.push(grade); return; }
 
       DAYS.forEach(day => {
         const startTime = gradeTime[day];
@@ -1339,7 +1357,7 @@ function buildSpecialsSchedule() {
       _clearRequirementsForGrade(grade);
       gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     }
-    if (!Object.keys(gradeTime).length) return; // school day too short to fit specials
+    if (!Object.keys(gradeTime).length) { failedGrades.push(grade); return; }
 
     classes.forEach(cls => {
       SchedState.specialsSchedule[cls.id] = {};
@@ -1377,6 +1395,8 @@ function buildSpecialsSchedule() {
       }
     });
   });
+
+  showSpecialsMissingWarning(failedGrades);
 }
 
 // Returns specials info for a grade at a given slot, or null if no specials.
