@@ -1333,13 +1333,11 @@ function buildSpecialsSchedule() {
 
     const rotation = computeClassSpecialsRotation(classes, specials);
     let gradeTime  = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
-    console.log('[v55 debug] grade=', grade, 'gradeTime after first find=', JSON.stringify(gradeTime));
     // If the schedule is full (populated before specials were configured), clear requirement
     // blocks so specials can claim a slot; _populateGradeData will re-fill around them.
     if (!Object.keys(gradeTime).length) {
       _clearRequirementsForGrade(grade);
       gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
-      console.log('[v55 debug] grade=', grade, 'gradeTime after clear+retry=', JSON.stringify(gradeTime));
     }
     if (!Object.keys(gradeTime).length) return; // school day too short to fit specials
 
@@ -1352,7 +1350,6 @@ function buildSpecialsSchedule() {
         const sp        = specials.find(s => s.id === spId);
         const dur       = sp?.duration || 45;
         const teacherId = (sp?.teacherIds || []).find(tid => isFree(tid, day, startTime, dur)) || null;
-        console.log('[v55 debug] cls=', cls.id, 'day=', day, 'subject=', spId, 'time=', startTime, 'teacher=', teacherId, 'teacherIds=', sp?.teacherIds);
         if (teacherId) book(teacherId, day, startTime, dur);
         SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, teacherId, startTime };
       });
