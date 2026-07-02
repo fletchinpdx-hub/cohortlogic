@@ -1138,7 +1138,9 @@ function computeClassSpecialsRotation(classes, specials) {
   });
 
   const S       = subjectSeq.length;
-  const numDays = Math.min(classes.length, 5);
+  // numDays must be at least S so no two subjects collide on the same day for the same class.
+  // Using min(classes.length, 5) causes overwrites when classes < S (the last subject wins).
+  const numDays = Math.min(Math.max(classes.length, S), 5);
 
   classes.forEach((cls, c) => {
     result[cls.id] = {};
@@ -1185,6 +1187,35 @@ function findGradeSpecialsTime(grade, classes, rotation, specials) {
   return result;
 }
 
+// Clears all requirement-driven blocks (ELA, Math, WIN, etc.) for a grade across all days.
+// Called when buildSpecialsSchedule can't find a free slot because the schedule was
+// populated before specials were configured. After clearing, specials can claim a slot,
+// and _populateGradeData will re-fill around them on the next pass.
+function _clearRequirementsForGrade(grade) {
+  const s    = SchedState.school;
+  const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
+  if (!band) return;
+  const requirements = SchedState.blockTypes.filter(bt =>
+    bt.required && bt.bandMinutes && bt.bandMinutes[band.id] > 0
+  );
+  const reqIds = new Set();
+  requirements.forEach(r => {
+    reqIds.add(r.id);
+    (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
+  });
+  DAYS.forEach(day => {
+    const sched = SchedState.masterSchedule[day]?.[grade];
+    if (!sched) return;
+    Object.keys(sched).forEach(slot => {
+      const sv  = sched[slot];
+      if (!sv) return;
+      const pid = sv.includes('|') ? sv.split('|')[0] : sv;
+      if (pid === 'bt_spec') return;
+      if (reqIds.has(sv) || requirements.some(r => r.id === pid)) delete sched[slot];
+    });
+  });
+}
+
 // Rebuilds SchedState.specialsSchedule from scratch for all grades, then writes
 // grade-level bt_spec blocks back into masterSchedule for auto-populate awareness.
 function buildSpecialsSchedule() {
@@ -1228,7 +1259,14 @@ function buildSpecialsSchedule() {
       const synthId = `_grade_${grade}`;
       const syntheticRotation = { [synthId]: {} };
       subjectSeq.slice(0, 5).forEach((spId, i) => { syntheticRotation[synthId][DAYS[i]] = spId; });
-      const gradeTime = findGradeSpecialsTime(grade, [{ id: synthId }], syntheticRotation, specials);
+      let gradeTime = findGradeSpecialsTime(grade, [{ id: synthId }], syntheticRotation, specials);
+      // If the schedule is full (populated before specials were configured), clear requirement
+      // blocks so specials can claim a slot; _populateGradeData will re-fill around them.
+      if (!Object.keys(gradeTime).length) {
+        _clearRequirementsForGrade(grade);
+        gradeTime = findGradeSpecialsTime(grade, [{ id: synthId }], syntheticRotation, specials);
+      }
+      if (!Object.keys(gradeTime).length) return; // school day too short to fit specials
 
       DAYS.forEach(day => {
         const startTime = gradeTime[day];
@@ -1251,8 +1289,15 @@ function buildSpecialsSchedule() {
       return;
     }
 
-    const rotation  = computeClassSpecialsRotation(classes, specials);
-    const gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials);
+    const rotation = computeClassSpecialsRotation(classes, specials);
+    let gradeTime  = findGradeSpecialsTime(grade, classes, rotation, specials);
+    // If the schedule is full (populated before specials were configured), clear requirement
+    // blocks so specials can claim a slot; _populateGradeData will re-fill around them.
+    if (!Object.keys(gradeTime).length) {
+      _clearRequirementsForGrade(grade);
+      gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials);
+    }
+    if (!Object.keys(gradeTime).length) return; // school day too short to fit specials
 
     classes.forEach(cls => {
       SchedState.specialsSchedule[cls.id] = {};
@@ -1294,9 +1339,33 @@ function buildSpecialsSchedule() {
 // Returns specials info for a grade at a given slot, or null if no specials.
 // { all: [...entries], isStart, isUnified, totalClasses }
 function getSpecialsAtSlot(day, grade, slot) {
-  const ss = SchedState.specialsSchedule || {};
+  const ss      = SchedState.specialsSchedule || {};
   const classes = getClassesForGrade(grade);
-  if (!classes.length) return null;
+
+  // Grades with no classroom teachers use a synthetic single-class placement.
+  // Build a stub entry from masterSchedule so the cell still renders richly.
+  if (!classes.length) {
+    const btId = SchedState.masterSchedule[day]?.[grade]?.[slot];
+    if (!btId || !btId.startsWith('bt_spec|')) return null;
+    const subId   = btId.split('|')[1];
+    const specials = SchedState.school.specials || [];
+    const sp       = specials.find(s => s.id === subId);
+    if (!sp) return null;
+    const daySlots  = _autoFillSlots(day);
+    const slotIdx   = daySlots.indexOf(slot);
+    const numSlots  = Math.ceil((sp.duration || 45) / 5);
+    // Find the start of this block by scanning backwards
+    let startIdx = slotIdx;
+    while (startIdx > 0 && SchedState.masterSchedule[day]?.[grade]?.[daySlots[startIdx - 1]] === btId) startIdx--;
+    return {
+      all:          [{ subjectId: subId, teacherId: null, startTime: daySlots[startIdx],
+                       cls: { id: `_grade_${grade}` }, isStart: slotIdx === startIdx,
+                       duration: sp.duration || 45 }],
+      isStart:      slotIdx === startIdx,
+      isUnified:    true,
+      totalClasses: 1,
+    };
+  }
 
   const specials  = SchedState.school.specials || [];
   const daySlots  = _autoFillSlots(day);
