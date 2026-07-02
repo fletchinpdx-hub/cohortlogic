@@ -1229,26 +1229,13 @@ function findGradeSpecialsTime(grade, classes, rotation, specials, isFreeTeacher
 // populated before specials were configured. After clearing, specials can claim a slot,
 // and _populateGradeData will re-fill around them on the next pass.
 function _clearRequirementsForGrade(grade) {
-  const s    = SchedState.school;
-  const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
-  if (!band) return;
-  const requirements = SchedState.blockTypes.filter(bt =>
-    bt.required && bt.bandMinutes && bt.bandMinutes[band.id] > 0
-  );
-  const reqIds = new Set();
-  requirements.forEach(r => {
-    reqIds.add(r.id);
-    (r.subBlocks || []).forEach(sub => reqIds.add(`${r.id}|${sub.id}`));
-  });
   DAYS.forEach(day => {
     const sched = SchedState.masterSchedule[day]?.[grade];
     if (!sched) return;
     Object.keys(sched).forEach(slot => {
-      const sv  = sched[slot];
-      if (!sv) return;
-      const pid = sv.includes('|') ? sv.split('|')[0] : sv;
-      if (pid === 'bt_spec') return;
-      if (reqIds.has(sv) || requirements.some(r => r.id === pid)) delete sched[slot];
+      const sv = sched[slot];
+      if (!sv || isFixedBlock(sv) || sv.startsWith('bt_spec')) return;
+      delete sched[slot];
     });
   });
 }
