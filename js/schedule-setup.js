@@ -612,7 +612,7 @@ function computeRecessTimes(s) {
     const assigned = Math.min(nextMorning, maxStart);
     const rounded  = Math.round(Math.max(assigned, fbMins + 30) / 5) * 5;
     morningTimes.set(`${g}-${extraIdx}`, rounded);
-    nextMorning = rounded + sl.duration + 10;
+    nextMorning = rounded + Number(sl.duration) + 10;
   });
 
   grades.forEach(g => {
@@ -714,13 +714,15 @@ function preFillFixedBlocks() {
               || (s.lunchPeriods || []).find(p => !(p.grades || []).length)
               || (s.lunchPeriods || [])[0];
       if (lp) {
-        generateTimeSlots(lp.start, minsToTime(timeToMins(lp.start) + lp.duration))
+        const lunchEnd = minsToTime(timeToMins(lp.start) + Number(lp.duration));
+        generateTimeSlots(lp.start, lunchEnd)
           .forEach(slot => { sched[slot] = lunchBT; });
       }
 
       // Recess — always overwrite for the same reason.
       (recessMap[g] || []).forEach(rs => {
-        generateTimeSlots(rs.start, minsToTime(timeToMins(rs.start) + rs.duration))
+        const recessEnd = minsToTime(timeToMins(rs.start) + Number(rs.duration));
+        generateTimeSlots(rs.start, recessEnd)
           .forEach(slot => { sched[slot] = recessBT; });
       });
     });
