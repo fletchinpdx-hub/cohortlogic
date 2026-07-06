@@ -577,11 +577,39 @@ function buildCell(slot, grade, prevSlot) {
   const prevId = prevSlot ? getBlock(day, grade, prevSlot) : null;
   const isCont  = !!(btId && btId === prevId);
   const isStart = !!(btId && !isCont);
+  const nextSlotIdx = currentSlots.indexOf(slot) + 1;
+  const nextId = nextSlotIdx < currentSlots.length ? getBlock(day, grade, currentSlots[nextSlotIdx]) : null;
+  const isEnd  = !!(btId && btId !== nextId);
 
-  // For specials slots, delegate to class-level rendering if specialsSchedule has data
+  const conflicts   = getConflicts(day, grade, slot);
+  const hasConflict = conflicts.length > 0;
+  const lockedCls   = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
+
+  // Conflicts come first — overrides specials delegation so split cell is always visible
+  if (hasConflict && btId) {
+    const primaryColor  = getBtColor(btId);
+    const primaryName   = getBtName(btId);
+    const conflictBtId  = conflicts[0];
+    const conflictColor = getBtColor(conflictBtId);
+    const conflictName  = getBtName(conflictBtId);
+    const borderTop    = isCont ? 'border-top:1px solid transparent;' : 'border-top:2px solid #ef4444;';
+    const borderBottom = isEnd  ? 'border-bottom:2px solid #ef4444;' : '';
+    let leftInner = '', rightInner = '';
+    if (isStart) {
+      leftInner  = `<span class="split-label" style="color:${primaryColor}">${primaryName}</span>`;
+      rightInner = `<span class="split-label" style="color:${conflictColor}">${conflictName}</span>`;
+    }
+    return `<td class="grid-cell split-cell filled cell-has-conflict${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
+      `<div class="split-block-wrap">` +
+      `<div class="split-half" style="background:${primaryColor}18;border-left:3px solid ${primaryColor};">${leftInner}</div>` +
+      `<div class="split-half" style="background:${conflictColor}18;border-left:3px solid ${conflictColor};">${rightInner}</div>` +
+      `</div></td>`;
+  }
+
+  // For specials slots, delegate to class-level rendering
   if (btId && btId.startsWith('bt_spec')) {
     const specInfo = getSpecialsAtSlot(day, grade, slot);
-    if (specInfo) return buildSpecialsCell(slot, grade, specInfo, isCont);
+    if (specInfo) return buildSpecialsCell(slot, grade, specInfo, isCont, isEnd);
   }
 
   let bt = null, displayName = '', style = '', inner = '';
@@ -608,30 +636,10 @@ function buildCell(slot, grade, prevSlot) {
     }
   }
 
-  const conflicts = getConflicts(day, grade, slot);
-  const hasConflict = conflicts.length > 0;
-  const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
-
-  // Conflict: render both blocks side-by-side so neither is hidden
-  if (hasConflict && bt) {
-    const conflictBtId = conflicts[0];
-    const conflictColor = getBtColor(conflictBtId);
-    const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid #ef4444;`;
-    let leftInner = '', rightInner = '';
-    if (isStart) {
-      leftInner  = `<span class="split-label" style="color:${bt.color}">${displayName}</span>`;
-      rightInner = `<span class="split-label" style="color:${conflictColor}">${getBtName(conflictBtId)}</span>`;
-    }
-    return `<td class="grid-cell split-cell filled cell-has-conflict${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}">` +
-      `<div class="split-block-wrap">` +
-      `<div class="split-half" style="background:${bt.color}18;border-left:3px solid ${bt.color};">${leftInner}</div>` +
-      `<div class="split-half" style="background:${conflictColor}18;border-left:3px solid ${conflictColor};">${rightInner}</div>` +
-      `</div></td>`;
-  }
-
   if (bt) {
-    const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`;
-    style = `background:${bt.color}18;border-left:3px solid ${bt.color};${borderTop}`;
+    const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`;
+    const borderBottom = isEnd  ? `border-bottom:2px solid ${bt.color};` : '';
+    style = `background:${bt.color}18;border-left:3px solid ${bt.color};${borderTop}${borderBottom}`;
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
       const timeRange = mins >= 10
@@ -1472,7 +1480,7 @@ function getSpecialsAtSlot(day, grade, slot) {
 }
 
 // Renders a grid cell for a specials time slot (unified or split).
-function buildSpecialsCell(slot, grade, specInfo, isCont) {
+function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   const bt        = SchedState.blockTypes.find(b => b.id === 'bt_spec');
   const fallback  = bt?.color || '#f97316';
   const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
@@ -1482,7 +1490,8 @@ function buildSpecialsCell(slot, grade, specInfo, isCont) {
     const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
     const color   = sp?.color || fallback;
     const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
-    const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
+    const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
+    const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
     let inner = '';
     if (specInfo.isStart) {
       const mins    = entry.duration;
@@ -1494,7 +1503,7 @@ function buildSpecialsCell(slot, grade, specInfo, isCont) {
         `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${mins} min</span>` +
         `${subLine}</span>`;
     }
-    const style = `background:${color}18;border-left:3px solid ${color};${borderTop}`;
+    const style = `background:${color}18;border-left:3px solid ${color};${borderTop}${borderBottom}`;
     return `<td class="grid-cell filled${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${style}">${inner}</td>`;
   }
 
@@ -1503,14 +1512,15 @@ function buildSpecialsCell(slot, grade, specInfo, isCont) {
   const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
   const color   = sp?.color || fallback;
   const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
-  const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
+  const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
+  const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
   let leftInner = '', rightInner = '';
   if (specInfo.isStart) {
     leftInner  = `<span class="split-label" style="color:${color}">${sp ? escHtml(sp.name) : 'Specials'}` +
       `${teacher ? `<span class="split-teacher">${escHtml(teacher.name.split(' ')[0])}</span>` : ''}</span>`;
     rightInner = `<span class="split-label" style="color:#64748b">${specInfo.all.length} / ${specInfo.totalClasses} classes</span>`;
   }
-  return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}">` +
+  return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
     `<div class="split-block-wrap">` +
     `<div class="split-half split-half-specials" style="background:${color}18;border-left:3px solid ${color};">${leftInner}</div>` +
     `<div class="split-half split-half-regular" style="background:#f1f5f9;border-left:3px solid #94a3b8;">${rightInner}</div>` +
