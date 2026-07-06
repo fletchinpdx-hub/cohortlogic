@@ -25,6 +25,9 @@
   padding: 0 !important;
   margin: 0 !important;
 }
+/* .view { display: none } in styles.css has same specificity as .view-full { display: flex }
+   but styles.css loads first, so view-full wins and stays visible when inactive. */
+.view-full:not(.active) { display: none; }
 
 #main:has(.view-full.active) {
   padding: 0;

@@ -540,6 +540,18 @@ function buildRow(slot, prevSlot) {
   `;
 }
 
+function getBtColor(btId) {
+  if (!btId) return '#94a3b8';
+  const pid = btId.includes('|') ? btId.split('|')[0] : btId;
+  const sub = btId.includes('|') ? btId.split('|')[1] : null;
+  if (pid === 'bt_spec' && sub) {
+    const sp = (SchedState.school.specials || []).find(s => s.id === sub);
+    if (sp?.color) return sp.color;
+  }
+  const bt = SchedState.blockTypes.find(b => b.id === pid);
+  return bt?.color || '#94a3b8';
+}
+
 function getBtName(btId) {
   const pid = btId.includes('|') ? btId.split('|')[0] : btId;
   const sub = btId.includes('|') ? btId.split('|')[1] : null;
@@ -598,29 +610,43 @@ function buildCell(slot, grade, prevSlot) {
 
   const conflicts = getConflicts(day, grade, slot);
   const hasConflict = conflicts.length > 0;
+  const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
+
+  // Conflict: render both blocks side-by-side so neither is hidden
+  if (hasConflict && bt) {
+    const conflictBtId = conflicts[0];
+    const conflictColor = getBtColor(conflictBtId);
+    const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid #ef4444;`;
+    let leftInner = '', rightInner = '';
+    if (isStart) {
+      leftInner  = `<span class="split-label" style="color:${bt.color}">${displayName}</span>`;
+      rightInner = `<span class="split-label" style="color:${conflictColor}">${getBtName(conflictBtId)}</span>`;
+    }
+    return `<td class="grid-cell split-cell filled cell-has-conflict${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}">` +
+      `<div class="split-block-wrap">` +
+      `<div class="split-half" style="background:${bt.color}18;border-left:3px solid ${bt.color};">${leftInner}</div>` +
+      `<div class="split-half" style="background:${conflictColor}18;border-left:3px solid ${conflictColor};">${rightInner}</div>` +
+      `</div></td>`;
+  }
 
   if (bt) {
     const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`;
-    const conflictBorder = hasConflict ? 'outline:2px solid #ef4444;outline-offset:-2px;' : '';
-    style = `background:${bt.color}18;border-left:3px solid ${bt.color};${borderTop}${conflictBorder}`;
+    style = `background:${bt.color}18;border-left:3px solid ${bt.color};${borderTop}`;
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
       const timeRange = mins >= 10
         ? `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(minsToTime(timeToMins(slot) + mins))} · ${mins} min</span>`
         : '';
-      const conflictTag = hasConflict
-        ? `<span class="cell-conflict-badge">⚠ also: ${conflicts.map(getBtName).join(', ')}</span>`
-        : '';
-      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}${conflictTag}</span>`;
+      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}</span>`;
     }
   } else if (hasConflict && !isCont) {
-    // Slot has conflict(s) but no primary block — show the conflicts directly
-    const names = conflicts.map(getBtName).join(' + ');
-    style = 'outline:2px solid #ef4444;outline-offset:-2px;background:#fef2f2;';
-    inner = `<span class="cell-conflict-badge">⚠ ${names}</span>`;
+    // Slot has conflict(s) but no primary block — show the conflict directly
+    const conflictBtId = conflicts[0];
+    const conflictColor = getBtColor(conflictBtId);
+    style = `background:${conflictColor}18;border-left:3px solid ${conflictColor};outline:2px solid #ef4444;outline-offset:-2px;`;
+    inner = `<span class="split-label" style="color:${conflictColor}">⚠ ${getBtName(conflictBtId)}</span>`;
   }
 
-  const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
   const conflictCls = hasConflict ? ' cell-has-conflict' : '';
   return `<td class="grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}${lockedCls}${conflictCls}"
               data-time="${slot}" data-grade="${grade}"
