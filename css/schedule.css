@@ -1520,9 +1520,23 @@
 .specials-header-row,
 .special-row {
   display: grid;
-  grid-template-columns: 1fr 110px 90px 1fr 32px;
+  grid-template-columns: 44px 1fr 110px 100px 1fr 32px;
   gap: 8px;
   align-items: end;
+}
+.sp-color-col {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+.sp-color-input {
+  width: 36px;
+  height: 32px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  padding: 1px;
+  cursor: pointer;
+  background: none;
 }
 .specials-header-row {
   font-size: 11px;
@@ -1546,17 +1560,10 @@
   margin-bottom: 0;
 }
 
-.btn-icon {
-  background: none;
-  border: 1px solid var(--gray-300);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 2px 7px;
-  color: var(--gray-500);
+.remove-sp-btn {
+  align-self: flex-end;
+  margin-bottom: 2px;
 }
-.btn-icon:hover { background: #fee2e2; color: #dc2626; }
 
 /* ── Req table — auto-calculated total cells ─────────────────── */
 .req-td-calc {
