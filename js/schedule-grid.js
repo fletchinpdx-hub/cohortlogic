@@ -453,13 +453,14 @@ function buildPaletteGroups() {
                 <span class="palette-dot" style="background:${bt.color}"></span>
                 ${bt.name}
               </div>
-              ${specials.map(sp => {
+              ${specials.map((sp, i) => {
+                const spColor = sp.color || SP_DEFAULT_COLORS[i % SP_DEFAULT_COLORS.length] || bt.color;
                 const cid = `bt_spec|${sp.id}`;
                 return `
                   <div class="palette-item palette-sub-item ${gridUI.activeBtId === cid ? 'active' : ''}"
                        data-bt-id="${cid}"
-                       style="${gridUI.activeBtId === cid ? `background:${bt.color}22` : ''}">
-                    <span class="palette-dot" style="background:${bt.color};opacity:0.75"></span>
+                       style="${gridUI.activeBtId === cid ? `background:${spColor}22` : ''}">
+                    <span class="palette-dot" style="background:${spColor}"></span>
                     <span class="palette-name">${sp.name}</span>
                     ${sp.duration ? `<span class="palette-dur">${sp.duration}m</span>` : ''}
                   </div>`;
@@ -1447,14 +1448,15 @@ function getSpecialsAtSlot(day, grade, slot) {
 // Renders a grid cell for a specials time slot (unified or split).
 function buildSpecialsCell(slot, grade, specInfo, isCont) {
   const bt        = SchedState.blockTypes.find(b => b.id === 'bt_spec');
-  const color     = bt?.color || '#f97316';
+  const fallback  = bt?.color || '#f97316';
   const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
-  const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
 
   if (specInfo.isUnified) {
     const entry   = specInfo.all[0];
     const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
+    const color   = sp?.color || fallback;
     const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
+    const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
     let inner = '';
     if (specInfo.isStart) {
       const mins    = entry.duration;
@@ -1473,7 +1475,9 @@ function buildSpecialsCell(slot, grade, specInfo, isCont) {
   // Split: some classes have specials, others do not at this time
   const entry   = specInfo.all[0];
   const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
+  const color   = sp?.color || fallback;
   const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
+  const borderTop = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
   let leftInner = '', rightInner = '';
   if (specInfo.isStart) {
     leftInner  = `<span class="split-label" style="color:${color}">${sp ? escHtml(sp.name) : 'Specials'}` +

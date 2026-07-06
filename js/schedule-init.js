@@ -6,7 +6,7 @@ const VIEW_RENDERERS = {
   staff:    () => { navigateTo('staff');    renderStaff(); },
   blocks:   () => { navigateTo('blocks');   renderBlocks(); },
   master:   () => { navigateTo('master');   renderMasterSchedule(); },
-  specials: () => { navigateTo('specials'); renderSpecialsPlaceholder(); },
+  specials: () => { navigateTo('specials'); renderSpecialsView(); },
   ia:       () => { navigateTo('ia');       renderIAPlaceholder(); },
   export:   () => { navigateTo('export');   renderExportPlaceholder(); },
 };

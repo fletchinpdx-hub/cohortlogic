@@ -37,12 +37,14 @@ function renderMMRow(m) {
 }
 
 const DEFAULT_SPECIALS = [
-  { id: 'sp_pe',  name: 'PE',      duration: 45, classesPerWeek: 1, teacherIds: [] },
-  { id: 'sp_mu',  name: 'Music',   duration: 45, classesPerWeek: 1, teacherIds: [] },
-  { id: 'sp_lib', name: 'Library', duration: 45, classesPerWeek: 1, teacherIds: [] },
+  { id: 'sp_pe',  name: 'PE',      duration: 45, classesPerWeek: 1, teacherIds: [], color: '#f97316' },
+  { id: 'sp_mu',  name: 'Music',   duration: 45, classesPerWeek: 1, teacherIds: [], color: '#a855f7' },
+  { id: 'sp_lib', name: 'Library', duration: 45, classesPerWeek: 1, teacherIds: [], color: '#3b82f6' },
 ];
+const SP_DEFAULT_COLORS = ['#f97316','#a855f7','#3b82f6','#10b981','#ec4899','#14b8a6','#f59e0b','#6366f1'];
 
-function renderSpecialRow(sp) {
+function renderSpecialRow(sp, idx) {
+  const color = sp.color || SP_DEFAULT_COLORS[(idx || 0) % SP_DEFAULT_COLORS.length];
   const specialsTeachers = SchedState.staff.filter(s => s.role === 'specials_teacher');
   const assignedIds = sp.teacherIds || [];
   const teacherHtml = specialsTeachers.length
@@ -55,22 +57,34 @@ function renderSpecialRow(sp) {
 
   return `
     <div class="special-row" data-sp-id="${sp.id}">
+      <div class="sp-color-col">
+        <input type="color" class="sp-color-input" value="${color}" title="Block color">
+      </div>
       <input type="text" class="input sp-name" placeholder="e.g. PE" value="${escHtml(sp.name || '')}">
       <div class="sp-field">
         <label class="form-label">Duration (min)</label>
         <input type="number" class="input input-sm sp-duration" placeholder="45" min="5" step="5" value="${sp.duration || 45}">
       </div>
       <div class="sp-field">
-        <label class="form-label">Classes/week</label>
+        <label class="form-label">Sessions/class/wk</label>
         <input type="number" class="input input-sm sp-cpw" placeholder="1" min="1" max="5" step="1" value="${sp.classesPerWeek || 1}">
       </div>
       <div class="sp-field sp-field-teachers">
-        <label class="form-label">Teachers</label>
+        <label class="form-label">Teacher</label>
         <div class="sp-teacher-list">${teacherHtml}</div>
       </div>
       <button class="btn-icon remove-sp-btn" data-sp-id="${sp.id}" title="Remove">×</button>
     </div>
   `;
+}
+
+function wireSpRemove() {
+  document.querySelectorAll('.remove-sp-btn').forEach(btn => {
+    btn.replaceWith(btn.cloneNode(true));
+  });
+  document.querySelectorAll('.remove-sp-btn').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.special-row').remove());
+  });
 }
 
 function timeSlots15(start, end) {
@@ -213,23 +227,6 @@ function renderSchoolInfo() {
         </div>
       </div>
 
-      <!-- Specials -->
-      <div class="form-section">
-        <h2 class="form-section-title">Specials</h2>
-        <p class="form-hint">Subjects taught by specialist teachers that rotate across classes. Add specials teachers in Staff Roster, then assign them to subjects here.</p>
-        <div class="specials-header-row">
-          <span>Subject</span>
-          <span>Duration</span>
-          <span>Classes/wk</span>
-          <span>Teachers</span>
-          <span></span>
-        </div>
-        <div id="specials-list">
-          ${(s.specials || DEFAULT_SPECIALS).map(sp => renderSpecialRow(sp)).join('')}
-        </div>
-        <button class="btn btn-outline btn-sm" id="add-special-btn" style="margin-top:8px">+ Add Special</button>
-      </div>
-
     </div>
 
     <div class="view-actions">
@@ -289,23 +286,6 @@ function renderSchoolInfo() {
 
   wireAltDayRemove();
   wireLunchEvents();
-
-  // Specials add/remove
-  document.getElementById('add-special-btn').addEventListener('click', () => {
-    const newSp = { id: uid(), name: '', duration: 45, classesPerWeek: 1, teacherIds: [] };
-    document.getElementById('specials-list').insertAdjacentHTML('beforeend', renderSpecialRow(newSp));
-    wireSpRemove();
-  });
-  wireSpRemove();
-
-  function wireSpRemove() {
-    document.querySelectorAll('.remove-sp-btn').forEach(btn => {
-      btn.replaceWith(btn.cloneNode(true));
-    });
-    document.querySelectorAll('.remove-sp-btn').forEach(btn => {
-      btn.addEventListener('click', () => btn.closest('.special-row').remove());
-    });
-  }
 
   document.getElementById('school-next-btn').addEventListener('click', saveSchoolAndContinue);
 }
@@ -774,14 +754,6 @@ function saveSchoolAndContinue() {
   s.earlyReleaseDays = s.altDays.filter(a => a.earlyRelease).map(a => a.day);
   s.earlyReleaseEnd  = s.altDays.find(a => a.earlyRelease)?.earlyRelease || '';
 
-  s.specials = [...document.querySelectorAll('.special-row')].map(row => ({
-    id:             row.dataset.spId,
-    name:           row.querySelector('.sp-name').value.trim(),
-    duration:       parseInt(row.querySelector('.sp-duration').value) || 45,
-    classesPerWeek: parseInt(row.querySelector('.sp-cpw').value) || 1,
-    teacherIds:     [...row.querySelectorAll('.sp-teacher-cb:checked')].map(cb => cb.dataset.teacherId),
-  })).filter(sp => sp.name);
-
   saveToLocal();
   preFillFixedBlocks();
   updateSidebarStatus();
@@ -811,7 +783,7 @@ function renderStaff() {
 
     <div class="view-actions">
       <button class="btn btn-outline" id="staff-back-btn">← Back to School Info</button>
-      <button class="btn btn-primary" id="staff-next-btn">Save &amp; Continue to Block Types →</button>
+      <button class="btn btn-primary" id="staff-next-btn">Save &amp; Continue to Specials →</button>
       <div class="save-status" id="staff-save-status"></div>
     </div>
   `;
@@ -1016,6 +988,81 @@ function wireStaffTable() {
 function saveStaffAndContinue() {
   saveToLocal();
   updateSidebarStatus();
+  navigateTo('specials');
+  renderSpecialsView();
+}
+
+// ── Step 2b: Specials ─────────────────────────────────────────────────────────
+
+function renderSpecialsView() {
+  const specials = SchedState.school.specials && SchedState.school.specials.length
+    ? SchedState.school.specials
+    : JSON.parse(JSON.stringify(DEFAULT_SPECIALS));
+
+  document.getElementById('view-specials').innerHTML = `
+    <div class="view-header">
+      <h1>Specials</h1>
+      <p class="view-subtitle">Define the special subjects your students attend — PE, Music, Library, Art, etc. — and assign the teachers who lead them.</p>
+    </div>
+
+    <div class="setup-form">
+      <div class="form-section">
+        <h2 class="form-section-title">Special Subjects</h2>
+        <p class="form-hint">Each special gets a color used on the master schedule. Assign one or more teachers who teach that subject.</p>
+        <div id="specials-list">
+          ${specials.map((sp, i) => renderSpecialRow(sp, i)).join('')}
+        </div>
+        <button class="btn btn-outline btn-sm mt-8" id="add-special-btn">+ Add Special</button>
+      </div>
+    </div>
+
+    <div class="view-actions">
+      <button class="btn btn-outline" id="specials-back-btn">← Back to Staff Roster</button>
+      <button class="btn btn-primary" id="specials-next-btn">Save &amp; Continue to Block Types →</button>
+    </div>
+  `;
+
+  wireSpRemove();
+
+  document.getElementById('add-special-btn').addEventListener('click', () => {
+    const idx = document.querySelectorAll('.special-row').length;
+    const newSp = {
+      id: 'sp_' + Date.now(),
+      name: '',
+      duration: 45,
+      classesPerWeek: 1,
+      teacherIds: [],
+      color: SP_DEFAULT_COLORS[idx % SP_DEFAULT_COLORS.length],
+    };
+    const div = document.createElement('div');
+    div.innerHTML = renderSpecialRow(newSp, idx).trim();
+    document.getElementById('specials-list').appendChild(div.firstChild);
+    wireSpRemove();
+  });
+
+  document.getElementById('specials-back-btn').addEventListener('click', () => {
+    navigateTo('staff');
+    renderStaff();
+  });
+  document.getElementById('specials-next-btn').addEventListener('click', saveSpecialsAndContinue);
+}
+
+function saveSpecialsAndContinue() {
+  const rows = document.querySelectorAll('#specials-list .special-row');
+  SchedState.school.specials = [...rows].map(row => {
+    const existingId = row.dataset.spId;
+    const checkedTeachers = [...row.querySelectorAll('.sp-teacher-cb:checked')].map(cb => cb.dataset.teacherId);
+    return {
+      id:             existingId || ('sp_' + Date.now()),
+      name:           row.querySelector('.sp-name').value.trim(),
+      duration:       Number(row.querySelector('.sp-duration').value) || 45,
+      classesPerWeek: Number(row.querySelector('.sp-cpw').value) || 1,
+      teacherIds:     checkedTeachers,
+      color:          row.querySelector('.sp-color-input').value,
+    };
+  }).filter(sp => sp.name);
+  saveToLocal();
+  updateSidebarStatus();
   navigateTo('blocks');
   renderBlocks();
 }
@@ -1153,8 +1200,9 @@ function renderReqRow(bt, bands) {
 function renderBlocks() {
   const s       = SchedState.school;
   const bands   = s.gradeBands || [];
-  const reqBTs  = SchedState.blockTypes.filter(bt => bt.required);
+  const reqBTs  = SchedState.blockTypes.filter(bt => bt.required && bt.id !== 'bt_spec');
   const otherBTs = SchedState.blockTypes.filter(bt => !bt.required);
+  const configuredSpecials = s.specials && s.specials.length ? s.specials : [];
   const catOrder = ['instruction','sel','specials','intervention','behavior','transition','admin'];
 
   document.getElementById('view-blocks').innerHTML = `
@@ -1173,6 +1221,20 @@ function renderBlocks() {
         <button class="btn btn-outline btn-sm" id="add-band-btn">+ Add Band</button>
         ${bands.length ? '<button class="btn btn-primary btn-sm" id="refresh-req-btn">Update Requirements Table →</button>' : ''}
       </div>
+    </div>
+
+    <div class="form-section">
+      <h2 class="form-section-title">Specials</h2>
+      <p class="form-hint">Colors are used on the master schedule. Name and duration come from the Specials step — <a href="#" data-nav="specials" class="link-inline">edit there</a>.</p>
+      ${configuredSpecials.length ? `
+      <div class="specials-color-list">
+        ${configuredSpecials.map((sp, i) => `
+          <div class="specials-color-row" data-sp-id="${sp.id}">
+            <input type="color" class="sp-color-input-bt" value="${sp.color || SP_DEFAULT_COLORS[i % SP_DEFAULT_COLORS.length]}" title="Block color">
+            <span class="specials-color-name">${escHtml(sp.name)}</span>
+            <span class="specials-color-detail">${sp.duration || 45} min · ${sp.classesPerWeek || 1}×/wk</span>
+          </div>`).join('')}
+      </div>` : `<p class="text-muted">No specials configured yet — <a href="#" data-nav="specials" class="link-inline">set them up in the Specials step</a>.</p>`}
     </div>
 
     <div class="form-section">
@@ -1236,7 +1298,7 @@ function renderBlocks() {
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-outline" id="blocks-back-btn">← Back to School Info</button>
+      <button class="btn btn-outline" id="blocks-back-btn">← Back to Specials</button>
       <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Master Schedule →</button>
       <div class="save-status" id="blocks-save-status"></div>
     </div>
@@ -1245,7 +1307,16 @@ function renderBlocks() {
   wireBandsSection();
   wireReqTable();
   wireOtherBlocks();
-  document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('staff'); renderStaff(); });
+
+  document.querySelectorAll('.sp-color-input-bt').forEach(input => {
+    input.addEventListener('input', () => {
+      const spId = input.closest('.specials-color-row').dataset.spId;
+      const sp   = (SchedState.school.specials || []).find(s => s.id === spId);
+      if (sp) { sp.color = input.value; saveToLocal(); }
+    });
+  });
+
+  document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('specials'); renderSpecialsView(); });
   document.getElementById('blocks-next-btn').addEventListener('click', saveBlocksAndContinue);
 }
 

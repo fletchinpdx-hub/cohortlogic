@@ -1791,3 +1791,45 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* ── Specials color list (Block Types page) ─────────────────────────────── */
+.specials-color-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.specials-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+}
+.sp-color-input-bt {
+  width: 32px;
+  height: 28px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  padding: 1px;
+  cursor: pointer;
+  background: none;
+  flex-shrink: 0;
+}
+.specials-color-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  min-width: 80px;
+}
+.specials-color-detail {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.link-inline {
+  color: var(--blue-500, #3b82f6);
+  text-decoration: none;
+}
+.link-inline:hover { text-decoration: underline; }
