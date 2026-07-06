@@ -592,17 +592,21 @@ function buildCell(slot, grade, prevSlot) {
     const conflictBtId  = conflicts[0];
     const conflictColor = getBtColor(conflictBtId);
     const conflictName  = getBtName(conflictBtId);
+    // Show labels at: (a) primary block start, OR (b) first slot the conflict appears
+    const prevConflicts     = prevSlot ? getConflicts(day, grade, prevSlot) : [];
+    const isConflictStart   = !prevConflicts.includes(conflictBtId);
+    const showLabels        = isStart || isConflictStart;
     const borderTop    = isCont ? 'border-top:1px solid transparent;' : 'border-top:2px solid #ef4444;';
     const borderBottom = isEnd  ? 'border-bottom:2px solid #ef4444;' : '';
     let leftInner = '', rightInner = '';
-    if (isStart) {
+    if (showLabels) {
       leftInner  = `<span class="split-label" style="color:${primaryColor}">${primaryName}</span>`;
       rightInner = `<span class="split-label" style="color:${conflictColor}">${conflictName}</span>`;
     }
     return `<td class="grid-cell split-cell filled cell-has-conflict${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
       `<div class="split-block-wrap">` +
-      `<div class="split-half" style="background:${primaryColor}18;border-left:3px solid ${primaryColor};">${leftInner}</div>` +
-      `<div class="split-half" style="background:${conflictColor}18;border-left:3px solid ${conflictColor};">${rightInner}</div>` +
+      `<div class="split-half" style="background:${primaryColor}30;border-left:3px solid ${primaryColor};">${leftInner}</div>` +
+      `<div class="split-half" style="background:${conflictColor}30;border-left:3px solid ${conflictColor};">${rightInner}</div>` +
       `</div></td>`;
   }
 
