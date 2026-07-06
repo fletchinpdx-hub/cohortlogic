@@ -1161,7 +1161,7 @@ function renderSubTable(bt, bands) {
           `).join('')}
         </tbody>
       </table>
-      <button class="btn btn-sm add-sub-btn" data-parent-id="${bt.id}">+ Add Sub-block</button>
+      <button class="btn btn-sm btn-outline add-sub-btn" data-parent-id="${bt.id}">+ Add Sub-block</button>
     </div>
   `;
 }
