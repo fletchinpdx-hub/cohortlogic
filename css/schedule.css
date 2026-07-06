@@ -1558,6 +1558,7 @@
 .sp-field .form-label {
   font-size: 11px;
   margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .remove-sp-btn {

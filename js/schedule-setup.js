@@ -66,7 +66,7 @@ function renderSpecialRow(sp, idx) {
         <input type="number" class="input input-sm sp-duration" placeholder="45" min="5" step="5" value="${sp.duration || 45}">
       </div>
       <div class="sp-field">
-        <label class="form-label">Sessions/class/wk</label>
+        <label class="form-label">Sessions/wk</label>
         <input type="number" class="input input-sm sp-cpw" placeholder="1" min="1" max="5" step="1" value="${sp.classesPerWeek || 1}">
       </div>
       <div class="sp-field sp-field-teachers">
