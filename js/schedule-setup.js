@@ -51,7 +51,7 @@ function renderSpecialRow(sp, idx) {
     ? specialsTeachers.map(t => `
         <label class="sp-teacher-check">
           <input type="checkbox" class="sp-teacher-cb" data-teacher-id="${t.id}" ${assignedIds.includes(t.id) ? 'checked' : ''}>
-          <span class="color-swatch-xs" style="background:${t.color}"></span>${escHtml(t.name)}
+          ${escHtml(t.name)}
         </label>`).join('')
     : `<span class="text-muted sp-no-teachers">Add specials teachers in Staff Roster first</span>`;
 

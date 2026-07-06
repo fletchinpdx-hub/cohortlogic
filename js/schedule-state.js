@@ -152,6 +152,12 @@ function updateSidebarStatus() {
   const blockCount = SchedState.blockTypes.length;
   blockText.textContent = `${blockCount} block type${blockCount !== 1 ? 's' : ''}`;
   blockDot.classList.add('blue');
+
+  const masterNav = document.getElementById('nav-master');
+  if (masterNav) {
+    const setupDone = (SchedState.school.grades || []).length > 0;
+    masterNav.classList.toggle('nav-item-locked', !setupDone);
+  }
 }
 
 // Ensure bt_mm / bt_lunch / bt_recess are always in SchedState.blockTypes.
