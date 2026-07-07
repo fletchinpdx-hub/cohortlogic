@@ -427,6 +427,7 @@ function renderMasterSchedule() {
   showLunchOutOfHoursWarning();
   showMissingRequirementsWarning();
   showConflictBanner();
+  showSpecialsCoverageBanner();
   document.getElementById('copy-day-btn').addEventListener('click', showCopyDayMenu);
 }
 
@@ -1405,7 +1406,6 @@ function buildSpecialsSchedule() {
       _clearRequirementsForGrade(grade);
       gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     }
-    console.log('[v61 specials]', grade, 'gradeTime=', JSON.stringify(gradeTime), 'booked=', JSON.stringify(booked));
     if (!Object.keys(gradeTime).length) { failedGrades.push(grade); return; }
 
     classes.forEach(cls => {
@@ -1687,6 +1687,7 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
   _populateGradeData(grade, clearFirst, null);
   saveToLocal();
   rebuildTbody();
+  showSpecialsCoverageBanner();
 }
 
 // Called from renderMasterSchedule. Runs _populateGradeData for every grade so that:
@@ -1993,6 +1994,84 @@ function exportXLSX() {
   XLSX.writeFile(wb, fname);
 }
 
+// ── Specials coverage validation ──────────────────────────────────────────────
+
+// Returns per-class coverage info: expected days from rotation vs. actual scheduled days.
+function getSpecialsCoverageReport() {
+  const specials = SchedState.school.specials || [];
+  if (!specials.length) return { classes: [], hasIssues: false };
+
+  const ss = SchedState.specialsSchedule || {};
+  const classReports = [];
+
+  gradesSorted().forEach(grade => {
+    const classes = getClassesForGrade(grade);
+    if (!classes.length) return; // synthetic grades not tracked at class level
+
+    const rotation = computeClassSpecialsRotation(classes, specials);
+    classes.forEach(cls => {
+      const expected = rotation[cls.id] || {};
+      const actual   = ss[cls.id]    || {};
+      const missing  = Object.entries(expected)
+        .filter(([day, spId]) => {
+          const entry = actual[day];
+          return !entry || entry.subjectId !== spId;
+        })
+        .map(([day, spId]) => {
+          const sp = specials.find(s => s.id === spId);
+          return { day, subjectName: sp?.name || 'Specials', color: sp?.color || '#f97316' };
+        });
+      classReports.push({
+        grade, gradeLabel: GRADE_LABELS[grade] || grade,
+        classId: cls.id, className: cls.name,
+        expectedCount: Object.keys(expected).length,
+        actualCount:   Object.keys(actual).length,
+        missing,
+        complete: missing.length === 0,
+      });
+    });
+  });
+
+  return { classes: classReports, hasIssues: classReports.some(r => !r.complete) };
+}
+
+function showSpecialsCoverageBanner() {
+  const existing = document.getElementById('specials-coverage-banner');
+  if (existing) existing.remove();
+
+  const { classes, hasIssues } = getSpecialsCoverageReport();
+  if (!hasIssues) return;
+
+  const incomplete = classes.filter(r => !r.complete);
+  const byGrade = {};
+  incomplete.forEach(r => {
+    if (!byGrade[r.grade]) byGrade[r.grade] = { gradeLabel: r.gradeLabel, classes: [] };
+    byGrade[r.grade].classes.push(r);
+  });
+
+  const list = Object.values(byGrade).map(g => {
+    const items = g.classes.map(c => {
+      const missing = c.missing.map(m => `${m.subjectName} (${m.day.slice(0,3)})`).join(', ');
+      return `${escHtml(c.className)} — missing ${escHtml(missing)}`;
+    }).join('; ');
+    return `<li><strong>${escHtml(g.gradeLabel)}:</strong> ${items}</li>`;
+  }).join('');
+
+  const banner = document.createElement('div');
+  banner.id = 'specials-coverage-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  banner.innerHTML =
+    `<div><strong>⚠ Incomplete specials coverage (${incomplete.length} class${incomplete.length !== 1 ? 'es' : ''}):</strong> ` +
+    `Some classes are missing specials sessions — a teacher was already booked or no free slot could be found on that day.` +
+    `<ul style="margin:4px 0 0 16px;padding:0">${list}</ul>` +
+    `<div style="font-size:12px;color:#991b1b;margin-top:4px">` +
+    `Try freeing up schedule space around the specials block, or check teacher availability in the Specials tab.` +
+    `</div></div>`;
+
+  const topBar = document.querySelector('.grid-top-bar');
+  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+}
+
 // ── Specials Schedule View ────────────────────────────────────────────────────
 
 const specialsSchedUI = { selectedTeacherId: null };
@@ -2022,6 +2101,55 @@ function renderSpecialsScheduleView() {
   }
 
   const teacherSubjects = specials.filter(sp => (sp.teacherIds || []).includes(specialsSchedUI.selectedTeacherId));
+  const { classes: coverageClasses, hasIssues } = getSpecialsCoverageReport();
+  const incomplete = coverageClasses.filter(r => !r.complete);
+
+  let coverageHtml = '';
+  if (coverageClasses.length) {
+    const total    = coverageClasses.length;
+    const complete = coverageClasses.filter(r => r.complete).length;
+    const statusClass = hasIssues ? 'coverage-status-warn' : 'coverage-status-ok';
+    const statusLabel = hasIssues
+      ? `${incomplete.length} of ${total} class${total !== 1 ? 'es' : ''} incomplete`
+      : `All ${total} class${total !== 1 ? 'es' : ''} fully scheduled ✓`;
+
+    let detailRows = '';
+    if (hasIssues) {
+      // Group by grade for the detail table
+      const gradesSeen = [...new Set(coverageClasses.map(c => c.grade))];
+      detailRows = gradesSeen.map(grade => {
+        const gradeClasses = coverageClasses.filter(c => c.grade === grade);
+        return gradeClasses.map((c, i) => `
+          <tr>
+            ${i === 0 ? `<td class="cov-grade" rowspan="${gradeClasses.length}">${escHtml(c.gradeLabel)}</td>` : ''}
+            <td class="cov-class">${escHtml(c.className)}</td>
+            <td class="cov-status">
+              ${c.complete
+                ? '<span class="cov-ok">✓</span>'
+                : `<span class="cov-warn">⚠ Missing: ${c.missing.map(m =>
+                    `<span style="color:${m.color}">${escHtml(m.subjectName)}</span> (${m.day.slice(0,3)})`
+                  ).join(', ')}</span>`}
+            </td>
+          </tr>`).join('');
+      }).join('');
+    }
+
+    coverageHtml = `
+      <div class="coverage-panel">
+        <div class="coverage-panel-header">
+          <span class="coverage-panel-title">Coverage</span>
+          <span class="coverage-status ${statusClass}">${statusLabel}</span>
+          ${hasIssues ? `<span class="coverage-hint">Check teacher availability or free up schedule space</span>` : ''}
+        </div>
+        ${hasIssues ? `
+          <div class="coverage-detail">
+            <table class="cov-table">
+              <thead><tr><th>Grade</th><th>Class</th><th>Status</th></tr></thead>
+              <tbody>${detailRows}</tbody>
+            </table>
+          </div>` : ''}
+      </div>`;
+  }
 
   container.innerHTML = `
     <div class="master-shell">
@@ -2032,6 +2160,8 @@ function renderSpecialsScheduleView() {
             <p class="grid-subtitle">Week-at-a-glance by specials teacher</p>
           </div>
         </div>
+
+        ${coverageHtml}
 
         <div class="specials-teacher-bar">
           ${teachers.map(t => {
