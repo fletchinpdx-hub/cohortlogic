@@ -906,8 +906,16 @@ function commitMove() {
   const destStartIdx = currentSlots.indexOf(drag.endSlot);
   const len          = drag.moveSlots.length;
 
-  // Erase source (also clears conflicts at those slots)
-  drag.moveSlots.forEach(s => setBlock(day, srcGrade, s, null));
+  // Erase source: if a slot has a displaced conflict, restore that block instead of deleting it
+  drag.moveSlots.forEach(s => {
+    const slotConflicts = getConflicts(day, srcGrade, s);
+    if (slotConflicts.length > 0) {
+      SchedState.masterSchedule[day][srcGrade][s] = slotConflicts[0];
+      clearConflict(day, srcGrade, s);
+    } else {
+      setBlock(day, srcGrade, s, null);
+    }
+  });
 
   // Write destination — use placeBlock so anything already there becomes a conflict
   for (let i = 0; i < len; i++) {
@@ -1060,8 +1068,8 @@ function showConflictBanner() {
   const existing = document.getElementById('conflict-banner');
   if (existing) existing.remove();
 
-  // Collect all conflicts across all days
-  const items = [];
+  // Group conflicts by (day, grade, primary, displaced) → collect all slots, then show as a time range
+  const conflictMap = new Map();
   DAYS.forEach(day => {
     const dayConflicts = SchedState.conflicts[day];
     if (!dayConflicts) return;
@@ -1069,29 +1077,43 @@ function showConflictBanner() {
       Object.entries(slots).forEach(([slot, displaced]) => {
         if (!displaced.length) return;
         const primary = getBlock(day, grade, slot);
-        items.push({
-          day, grade, slot,
-          primary: primary ? getBtName(primary) : '(empty)',
-          displaced: displaced.map(getBtName),
-        });
+        const key = `${day}|${grade}|${primary}|${displaced.join(',')}`;
+        if (!conflictMap.has(key)) {
+          conflictMap.set(key, {
+            day, grade,
+            primary:  primary ? getBtName(primary) : '(empty)',
+            displaced: displaced.map(getBtName).join(', '),
+            slots: [],
+          });
+        }
+        conflictMap.get(key).slots.push(slot);
       });
     });
   });
 
-  if (!items.length) return;
+  if (!conflictMap.size) return;
+
+  const groups = [...conflictMap.values()];
 
   const banner = document.createElement('div');
   banner.id        = 'conflict-banner';
   banner.className = 'setup-banner setup-banner-error';
 
-  const list = items.map(it =>
-    `<li><strong>${GRADE_LABELS[it.grade] || it.grade}</strong> ${it.day} at ${fmtTime12(it.slot)}: ` +
-    `<em>${it.primary}</em> over <em>${it.displaced.join(', ')}</em></li>`
-  ).join('');
+  const list = groups.map(g => {
+    const sorted   = g.slots.slice().sort();
+    const start    = sorted[0];
+    const endStart = sorted[sorted.length - 1];
+    const endTime  = minsToTime(timeToMins(endStart) + 5);
+    const timeStr  = start === endStart
+      ? `at ${fmtTime12(start)}`
+      : `${fmtTime12(start)} – ${fmtTime12(endTime)}`;
+    return `<li><strong>${GRADE_LABELS[g.grade] || g.grade}</strong> ${g.day} ${timeStr}: ` +
+      `<em>${g.primary}</em> over <em>${g.displaced}</em></li>`;
+  }).join('');
 
   banner.innerHTML =
     `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">` +
-    `<div><strong>⚠ Double-booked time slots (${items.length}):</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>` +
+    `<div><strong>⚠ Double-booked time slots (${groups.length}):</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>` +
     `<button id="conflict-banner-dismiss" style="background:none;border:none;cursor:pointer;font-size:16px;flex-shrink:0">×</button>` +
     `</div>`;
 
@@ -1969,4 +1991,237 @@ function exportXLSX() {
 
   const fname = ((s.name || 'schedule').replace(/\s+/g, '_') + '_' + (s.year || '') + '_schedule.xlsx').replace(/[^a-zA-Z0-9_.-]/g, '_');
   XLSX.writeFile(wb, fname);
+}
+
+// ── Specials Schedule View ────────────────────────────────────────────────────
+
+const specialsSchedUI = { selectedTeacherId: null };
+
+function renderSpecialsScheduleView() {
+  const container = document.getElementById('view-specials-sched');
+  if (!container) return;
+
+  const specials  = SchedState.school.specials || [];
+  const teacherIds = [...new Set(specials.flatMap(sp => sp.teacherIds || []))];
+  const teachers  = teacherIds.map(id => SchedState.staff.find(s => s.id === id)).filter(Boolean);
+
+  if (!specials.length || !teachers.length) {
+    container.innerHTML = `
+      <div class="view-header"><h1>Specials Schedule</h1></div>
+      <div class="empty-state">
+        <div class="empty-icon">🎨</div>
+        <p>${!specials.length ? 'No specials configured yet.' : 'No teachers assigned to specials yet.'} Set up specials and assign teachers in the Specials tab.</p>
+        <button class="btn btn-primary mt-16" data-nav="specials">Go to Specials Setup →</button>
+      </div>`;
+    container.querySelector('[data-nav]')?.addEventListener('click', () => { navigateTo('specials'); renderSpecialsView(); });
+    return;
+  }
+
+  if (!specialsSchedUI.selectedTeacherId || !teachers.find(t => t.id === specialsSchedUI.selectedTeacherId)) {
+    specialsSchedUI.selectedTeacherId = teachers[0].id;
+  }
+
+  const teacherSubjects = specials.filter(sp => (sp.teacherIds || []).includes(specialsSchedUI.selectedTeacherId));
+
+  container.innerHTML = `
+    <div class="master-shell">
+      <div class="grid-side">
+        <div class="grid-top-bar">
+          <div>
+            <h1 class="grid-title">Specials Schedule</h1>
+            <p class="grid-subtitle">Week-at-a-glance by specials teacher</p>
+          </div>
+        </div>
+
+        <div class="specials-teacher-bar">
+          ${teachers.map(t => {
+            const tSubjs = specials.filter(sp => (sp.teacherIds || []).includes(t.id));
+            const color  = tSubjs[0]?.color || '#f97316';
+            const active = t.id === specialsSchedUI.selectedTeacherId;
+            return `<button class="teacher-chip${active ? ' active' : ''}" data-teacher-id="${t.id}"
+              style="${active ? `background:${color}18;border-color:${color};color:${color}` : ''}">
+              <span class="teacher-chip-dot" style="background:${color}"></span>
+              ${escHtml(t.name)}
+            </button>`;
+          }).join('')}
+        </div>
+
+        ${teacherSubjects.length ? `
+          <div class="specials-teacher-meta">
+            Teaches:
+            ${teacherSubjects.map(sp =>
+              `<span class="specials-subject-tag" style="color:${sp.color};background:${sp.color}18;border-color:${sp.color}40">${escHtml(sp.name)}</span>`
+            ).join('')}
+          </div>` : ''}
+
+        <div class="grid-scroll-wrap">
+          ${buildSpecialsTeacherGrid(specialsSchedUI.selectedTeacherId)}
+        </div>
+
+        <div class="grid-footer">
+          <button class="btn btn-outline" id="specials-sched-back-btn">← Back to Master Schedule</button>
+        </div>
+      </div>
+    </div>`;
+
+  container.querySelector('#specials-sched-back-btn').addEventListener('click', () => {
+    navigateTo('master'); renderMasterSchedule();
+  });
+  container.querySelectorAll('.teacher-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      specialsSchedUI.selectedTeacherId = chip.dataset.teacherId;
+      renderSpecialsScheduleView();
+    });
+  });
+}
+
+function buildSpecialsTeacherGrid(teacherId) {
+  const sc      = SchedState.school;
+  const specials = sc.specials || [];
+  const ss      = SchedState.specialsSchedule || {};
+
+  // slotMap[day][slot] = { grade, gradeLabel, classLabel, subjectId, subjectName, color, isStart, duration, startTime }
+  const slotMap = {};
+  DAYS.forEach(day => { slotMap[day] = {}; });
+
+  // 1. From specialsSchedule (grades WITH classroom teachers)
+  Object.entries(ss).forEach(([classId, days]) => {
+    const staff = SchedState.staff.find(s => s.id === classId);
+    const grade = staff?.gradeAssignment;
+    DAYS.forEach(day => {
+      const entry = days[day];
+      if (!entry || entry.teacherId !== teacherId) return;
+      const sp  = specials.find(s => s.id === entry.subjectId);
+      const dur = sp?.duration || 45;
+      const color = sp?.color || '#f97316';
+      const numSlots = Math.ceil(dur / 5);
+      const daySlots = _autoFillSlots(day);
+      const startIdx = daySlots.indexOf(entry.startTime);
+      if (startIdx < 0) return;
+      for (let j = 0; j < numSlots && startIdx + j < daySlots.length; j++) {
+        const sl = daySlots[startIdx + j];
+        if (!slotMap[day][sl]) {
+          slotMap[day][sl] = {
+            grade,
+            gradeLabel: GRADE_LABELS[grade] || grade,
+            classLabel: staff?.name || '',
+            subjectId:   entry.subjectId,
+            subjectName: sp?.name || 'Specials',
+            color,
+            isStart:   j === 0,
+            duration:  dur,
+            startTime: entry.startTime,
+          };
+        }
+      }
+    });
+  });
+
+  // 2. From masterSchedule (grades WITHOUT classroom teachers)
+  gradesSorted().forEach(grade => {
+    if (getClassesForGrade(grade).length > 0) return;
+    DAYS.forEach(day => {
+      const sched    = SchedState.masterSchedule[day]?.[grade];
+      if (!sched) return;
+      const daySlots = _autoFillSlots(day);
+      daySlots.forEach((sl, idx) => {
+        const v = sched[sl];
+        if (!v || !v.startsWith('bt_spec|')) return;
+        const spId = v.split('|')[1];
+        const sp   = specials.find(s => s.id === spId);
+        if (!(sp?.teacherIds || []).includes(teacherId)) return;
+        const prevSl = idx > 0 ? daySlots[idx - 1] : null;
+        const isStart = !prevSl || sched[prevSl] !== v;
+        let startTime = sl;
+        if (!isStart && prevSl && slotMap[day][prevSl]) startTime = slotMap[day][prevSl].startTime;
+        slotMap[day][sl] = {
+          grade,
+          gradeLabel:  GRADE_LABELS[grade] || grade,
+          classLabel:  '',
+          subjectId:   spId,
+          subjectName: sp?.name || 'Specials',
+          color:       sp?.color || '#f97316',
+          isStart,
+          duration:    sp?.duration || 45,
+          startTime,
+        };
+      });
+    });
+  });
+
+  // Determine visible time range — specials block extents ± 15 min padding
+  const cands = [sc.firstBell, sc.studentCampusStart, sc.dayStart].filter(t => t && /^\d\d:\d\d/.test(t));
+  const fb    = cands.length ? cands.reduce((a, b) => a < b ? a : b) : '07:30';
+  let minMins = Infinity, maxMins = 0, hasAny = false;
+  DAYS.forEach(day => {
+    Object.entries(slotMap[day]).forEach(([sl, entry]) => {
+      hasAny = true;
+      const m = timeToMins(sl);
+      if (m < minMins) minMins = m;
+      const endM = entry.isStart ? m + entry.duration : m + 5;
+      if (endM > maxMins) maxMins = endM;
+    });
+  });
+
+  if (!hasAny) {
+    return `<div style="padding:48px 24px;text-align:center;color:#64748b">
+      No classes scheduled for this teacher yet.<br>
+      Auto-fill the master schedule to generate specials assignments.
+    </div>`;
+  }
+
+  const displayStart = minsToTime(Math.max(minMins - 15, timeToMins(fb)));
+  const displayEnd   = minsToTime(maxMins + 15);
+  const slots = generateTimeSlots(displayStart, displayEnd);
+
+  const headCols = DAYS.map(d => `<th class="th-grade">${d.slice(0, 3)}</th>`).join('');
+
+  const rows = slots.map((slot, i) => {
+    const [, m] = slot.split(':').map(Number);
+    const showLabel = m % 15 === 0;
+    const isMajor   = m === 0;
+
+    const cells = DAYS.map(day => {
+      const entry = slotMap[day][slot];
+      if (!entry) return `<td class="grid-cell" data-time="${slot}"></td>`;
+
+      const prevSlot  = i > 0 ? slots[i - 1] : null;
+      const prevEntry = prevSlot ? slotMap[day][prevSlot] : null;
+      const isCont    = !!(prevEntry && prevEntry.subjectId === entry.subjectId && prevEntry.grade === entry.grade);
+      const nextSlot  = i < slots.length - 1 ? slots[i + 1] : null;
+      const nextEntry = nextSlot ? slotMap[day][nextSlot] : null;
+      const isEnd     = !(nextEntry && nextEntry.subjectId === entry.subjectId && nextEntry.grade === entry.grade);
+      const c = entry.color;
+      const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${c};`;
+      const borderBottom = isEnd  ? `border-bottom:2px solid ${c};`     : '';
+      const style = `background:${c}18;border-left:3px solid ${c};${borderTop}${borderBottom}`;
+
+      let inner = '';
+      if (!isCont) {
+        const endSlot = minsToTime(timeToMins(slot) + entry.duration);
+        const classLine = entry.classLabel
+          ? `${escHtml(entry.gradeLabel)} · ${escHtml(entry.classLabel)}`
+          : escHtml(entry.gradeLabel);
+        inner = `<span class="cell-label" style="color:${c}">
+          ${escHtml(entry.subjectName)}
+          <span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${entry.duration} min</span>
+          <span class="cell-specials-subject">${classLine}</span>
+        </span>`;
+      }
+
+      return `<td class="grid-cell filled${isCont ? ' cont' : ''}" data-time="${slot}" style="${style}">${inner}</td>`;
+    }).join('');
+
+    return `<tr class="sched-row${isMajor ? ' row-hour' : ''}" data-time="${slot}">
+      <td class="td-time${showLabel ? '' : ' td-time-minor'}">${showLabel ? fmtTime(slot) : ''}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  return `<table class="sched-table" cellspacing="0">
+    <thead><tr class="sched-head-row">
+      <th class="th-time"></th>${headCols}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }

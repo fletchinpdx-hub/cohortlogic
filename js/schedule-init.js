@@ -2,13 +2,14 @@ if (typeof trackSession === 'function') trackSession();
 
 // Delegated handler for data-nav buttons rendered inside view innerHTML
 const VIEW_RENDERERS = {
-  school:   () => { navigateTo('school');   renderSchoolInfo(); },
-  staff:    () => { navigateTo('staff');    renderStaff(); },
-  blocks:   () => { navigateTo('blocks');   renderBlocks(); },
-  master:   () => { navigateTo('master');   renderMasterSchedule(); },
-  specials: () => { navigateTo('specials'); renderSpecialsView(); },
-  ia:       () => { navigateTo('ia');       renderIAPlaceholder(); },
-  export:   () => { navigateTo('export');   renderExportPlaceholder(); },
+  school:          () => { navigateTo('school');          renderSchoolInfo(); },
+  staff:           () => { navigateTo('staff');           renderStaff(); },
+  blocks:          () => { navigateTo('blocks');          renderBlocks(); },
+  master:          () => { navigateTo('master');          renderMasterSchedule(); },
+  specials:        () => { navigateTo('specials');        renderSpecialsView(); },
+  'specials-sched':() => { navigateTo('specials-sched'); renderSpecialsScheduleView(); },
+  ia:              () => { navigateTo('ia');              renderIAPlaceholder(); },
+  export:          () => { navigateTo('export');          renderExportPlaceholder(); },
 };
 
 document.getElementById('main').addEventListener('click', e => {

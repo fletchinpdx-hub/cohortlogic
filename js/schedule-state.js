@@ -158,6 +158,12 @@ function updateSidebarStatus() {
     const setupDone = (SchedState.school.grades || []).length > 0;
     masterNav.classList.toggle('nav-item-locked', !setupDone);
   }
+
+  const specialsSchedNav = document.getElementById('nav-specials-sched');
+  if (specialsSchedNav) {
+    const hasSpecials = (SchedState.school.specials || []).length > 0;
+    specialsSchedNav.classList.toggle('nav-item-locked', !hasSpecials);
+  }
 }
 
 // Ensure bt_mm / bt_lunch / bt_recess are always in SchedState.blockTypes.
