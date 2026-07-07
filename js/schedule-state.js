@@ -74,6 +74,9 @@ const SchedState = {
     // Alternate schedule days: [{ day, lateStart, earlyRelease, altLunchRecess }]
     altDays: [],
 
+    // Specials rotation: 'intermittent' (cycle all before repeating) | 'sequential' (block-by-block)
+    specialsRotationMode: 'intermittent',
+
     // Legacy fields kept for backward-compat with saved data
     dayStart: '07:30',
     dayEnd: '14:30',
@@ -98,6 +101,17 @@ const SchedState = {
   // specialsSchedule[classId][day] = { subjectId, teacherId, startTime }
   // classId = classroom teacher's staff id; source of truth for class-level specials.
   specialsSchedule: {},
+
+  // iaAllocations: [{ id, name, color, hoursPerWeek }]
+  iaAllocations: [
+    { id: 'ia_gened', name: 'Gen Ed',             color: '#3b82f6', hoursPerWeek: 0 },
+    { id: 'ia_eld',   name: 'ELD',                color: '#f59e0b', hoursPerWeek: 0 },
+    { id: 'ia_hdt',   name: 'High Dose Tutoring', color: '#10b981', hoursPerWeek: 0 },
+    { id: 'ia_title', name: 'Title',              color: '#ec4899', hoursPerWeek: 0 },
+  ],
+
+  // iaSchedule[day][iaId][slot] = { allocId, grade, activity } | undefined
+  iaSchedule: {},
 };
 
 // ── Palette for auto-assigning staff colors ──────────────────────────────────
@@ -163,6 +177,12 @@ function updateSidebarStatus() {
   if (specialsSchedNav) {
     const hasSpecials = (SchedState.school.specials || []).length > 0;
     specialsSchedNav.classList.toggle('nav-item-locked', !hasSpecials);
+  }
+
+  const iaNav = document.getElementById('nav-ia') || document.querySelector('[data-view="ia"]');
+  if (iaNav) {
+    const hasIAs = SchedState.staff.some(s => s.role === 'ia');
+    iaNav.classList.toggle('nav-item-locked', !hasIAs);
   }
 }
 
@@ -245,10 +265,12 @@ function migrateSubBlockMinutes() {
 // ── Persistence: localStorage (immediate) ───────────────────────────────────
 function saveToLocal() {
   const payload = {
-    school:         SchedState.school,
-    staff:          SchedState.staff,
-    blockTypes:     SchedState.blockTypes,
-    masterSchedule: SchedState.masterSchedule,
+    school:          SchedState.school,
+    staff:           SchedState.staff,
+    blockTypes:      SchedState.blockTypes,
+    masterSchedule:  SchedState.masterSchedule,
+    iaAllocations:   SchedState.iaAllocations,
+    iaSchedule:      SchedState.iaSchedule,
   };
   localStorage.setItem('cl_schedule_data', JSON.stringify(payload));
   if (SchedState.school.name) {
@@ -300,6 +322,18 @@ function loadFromLocal() {
       migrateSubBlockMinutes();
     }
     if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
+    if (data.iaAllocations)  SchedState.iaAllocations  = data.iaAllocations;
+    if (data.iaSchedule)     SchedState.iaSchedule     = data.iaSchedule;
+    // Defaults for fields added after initial release
+    if (!SchedState.school.specialsRotationMode) SchedState.school.specialsRotationMode = 'intermittent';
+    // Migrate legacy morningMeetings → bt_mm.uniformStart/End (one-time, lazy)
+    const btMM = SchedState.blockTypes.find(bt => bt.id === 'bt_mm');
+    const legacyMMs = SchedState.school.morningMeetings || [];
+    if (btMM && !btMM.uniformStart && legacyMMs.length > 0 && legacyMMs[0].start && legacyMMs[0].end) {
+      btMM.uniformStart = legacyMMs[0].start;
+      btMM.uniformEnd   = legacyMMs[0].end;
+      btMM.uniformMode  = 'time';
+    }
     return true;
   } catch (e) {
     return false;

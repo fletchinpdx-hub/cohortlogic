@@ -8,7 +8,7 @@ const VIEW_RENDERERS = {
   master:          () => { navigateTo('master');          renderMasterSchedule(); },
   specials:        () => { navigateTo('specials');        renderSpecialsView(); },
   'specials-sched':() => { navigateTo('specials-sched'); renderSpecialsScheduleView(); },
-  ia:              () => { navigateTo('ia');              renderIAPlaceholder(); },
+  ia:              () => { navigateTo('ia');              renderIAScheduleView(); },
   export:          () => { navigateTo('export');          renderExportPlaceholder(); },
 };
 

@@ -187,12 +187,6 @@ function renderSchoolInfo() {
 
         </div>
 
-        <div class="form-section-title" style="font-size:13px;font-weight:600;color:var(--gray-600);margin-top:16px">Morning / Community Meetings</div>
-        <p class="form-hint" style="margin:4px 0 8px">Daily meetings blocked on the schedule. Add as many as needed.</p>
-        <div id="mm-list">
-          ${(s.morningMeetings || []).map(m => renderMMRow(m)).join('')}
-        </div>
-        <button class="btn btn-outline btn-sm" id="add-mm-btn">+ Add Meeting</button>
       </div>
 
       <!-- Lunch Periods -->
@@ -244,23 +238,6 @@ function renderSchoolInfo() {
       wireRecessEvents();
     });
   });
-
-  // Morning meetings — add / remove
-  document.getElementById('add-mm-btn').addEventListener('click', () => {
-    const newM = { id: uid(), name: '', start: '', end: '' };
-    document.getElementById('mm-list').insertAdjacentHTML('beforeend', renderMMRow(newM));
-    wireMMRemove();
-  });
-  wireMMRemove();
-
-  function wireMMRemove() {
-    document.querySelectorAll('.remove-mm-btn').forEach(btn => {
-      btn.replaceWith(btn.cloneNode(true));
-    });
-    document.querySelectorAll('.remove-mm-btn').forEach(btn => {
-      btn.addEventListener('click', () => btn.closest('.mm-row').remove());
-    });
-  }
 
   // Lunch add
   document.getElementById('add-lunch-btn').addEventListener('click', () => {
@@ -649,7 +626,35 @@ function computeRecessTimes(s) {
 function isFixedBlock(id) {
   if (!id) return false;
   const base = id.includes('|') ? id.split('|')[0] : id;
-  return base === 'bt_mm' || base === 'bt_lunch' || base === 'bt_recess';
+  if (base === 'bt_mm' || base === 'bt_lunch' || base === 'bt_recess') return true;
+  const bt = SchedState.blockTypes.find(b => b.id === base);
+  return !!(bt && bt.uniformStart && bt.uniformEnd);
+}
+
+// Find the first time window common to ALL grades where numSlots consecutive slots are free.
+function _findUniformSlot(durationMins) {
+  const grades = gradesSorted();
+  if (!grades.length) return null;
+  const numSlots = Math.ceil(durationMins / 5);
+  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  for (const day of DAYS) {
+    const slots = generateTimeSlots(
+      SchedState.school.firstBell || '08:00',
+      SchedState.school.dismissal || '14:30'
+    );
+    for (let i = 0; i <= slots.length - numSlots; i++) {
+      const window = slots.slice(i, i + numSlots);
+      const allFree = grades.every(g => {
+        const sched = SchedState.masterSchedule[day]?.[g] || {};
+        return window.every(sl => !sched[sl] || isFixedBlock(sched[sl]));
+      });
+      if (allFree) {
+        const endMins = timeToMins(slots[i + numSlots - 1]) + 5;
+        return { start: slots[i], end: minsToTime(endMins) };
+      }
+    }
+  }
+  return null;
 }
 
 // Pre-fills the master schedule with fixed blocks from School Info settings.
@@ -673,12 +678,14 @@ function preFillFixedBlocks() {
       // Clear old auto-placed fixed blocks (bt_mm, bt_mm|id, bt_lunch, bt_recess)
       Object.keys(sched).forEach(slot => { if (isFixedBlock(sched[slot])) delete sched[slot]; });
 
-      // Morning / community meetings — each gets its own compound ID (bt_mm|meetingId)
-      // so named meetings render with their individual label in the grid.
-      const meetings = s.morningMeetings?.length
-        ? s.morningMeetings
-        : (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd
-          ? [{ start: s.morningMeetingStart, end: s.morningMeetingEnd }] : []);
+      // Morning meeting / bt_mm — prefer block type's uniformStart/End over legacy morningMeetings
+      const btMM = SchedState.blockTypes.find(bt => bt.id === 'bt_mm');
+      const meetings = (btMM?.uniformStart && btMM?.uniformEnd)
+        ? [{ id: null, start: btMM.uniformStart, end: btMM.uniformEnd }]
+        : (s.morningMeetings?.length
+          ? s.morningMeetings
+          : (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd
+            ? [{ start: s.morningMeetingStart, end: s.morningMeetingEnd }] : []));
       meetings.forEach(m => {
         if (!m.start || !m.end) return;
         const slotId = m.id ? `bt_mm|${m.id}` : 'bt_mm';
@@ -686,6 +693,14 @@ function preFillFixedBlocks() {
           if (!sched[slot] || isFixedBlock(sched[slot])) sched[slot] = slotId;
         });
       });
+
+      // Other uniform block types with fixed time config
+      SchedState.blockTypes.filter(bt => bt.id !== 'bt_mm' && bt.uniformStart && bt.uniformEnd)
+        .forEach(bt => {
+          generateTimeSlots(bt.uniformStart, bt.uniformEnd).forEach(slot => {
+            if (!sched[slot] || isFixedBlock(sched[slot])) sched[slot] = bt.id;
+          });
+        });
 
       // Lunch — try: grade explicitly listed → universal period (no grades) → any period.
       // Always overwrite: if the user fixes a bad lunch time the corrected slot
@@ -727,17 +742,6 @@ function saveSchoolAndContinue() {
   s.dismissal            = document.getElementById('dismissal').value;
   s.dayStart = s.firstBell;
   s.dayEnd   = s.dismissal;
-
-  s.morningMeetings = [...document.querySelectorAll('.mm-row')].map(row => ({
-    id:    row.dataset.mmId,
-    name:  row.querySelector('.mm-name').value.trim() || 'Meeting',
-    start: row.querySelector('.mm-start').value,
-    end:   row.querySelector('.mm-end').value,
-  })).filter(m => m.start && m.end);
-  // Keep legacy fields in sync for backward-compat
-  s.morningMeetingEnabled = s.morningMeetings.length > 0;
-  s.morningMeetingStart   = s.morningMeetings[0]?.start || '';
-  s.morningMeetingEnd     = s.morningMeetings[0]?.end   || '';
 
   s.altDays = [];
   document.querySelectorAll('.alt-day-row').forEach(row => {
@@ -1014,6 +1018,29 @@ function renderSpecialsView() {
         </div>
         <button class="btn btn-outline btn-sm mt-8" id="add-special-btn">+ Add Special</button>
       </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Weekly Rotation Mode</h2>
+        <p class="form-hint">Controls how a class cycles through specials across the week.</p>
+        <div class="specials-rotation-opts">
+          <label class="rotation-opt ${(SchedState.school.specialsRotationMode || 'intermittent') === 'intermittent' ? 'active' : ''}">
+            <input type="radio" name="specials-rotation" value="intermittent"
+                   ${(SchedState.school.specialsRotationMode || 'intermittent') === 'intermittent' ? 'checked' : ''} />
+            <div class="rotation-opt-body">
+              <div class="rotation-opt-title">Intermittent <span class="badge-default">Default</span></div>
+              <div class="rotation-opt-desc">Cycle through all specials before repeating any. If you have Music, Library, and PE — a class gets each one before Music appears again.</div>
+            </div>
+          </label>
+          <label class="rotation-opt ${SchedState.school.specialsRotationMode === 'sequential' ? 'active' : ''}">
+            <input type="radio" name="specials-rotation" value="sequential"
+                   ${SchedState.school.specialsRotationMode === 'sequential' ? 'checked' : ''} />
+            <div class="rotation-opt-body">
+              <div class="rotation-opt-title">Sequential</div>
+              <div class="rotation-opt-desc">Complete all sessions of one special before moving to the next. Music × 2 days, then Library × 1 day, then PE × 1 day.</div>
+            </div>
+          </label>
+        </div>
+      </div>
     </div>
 
     <div class="view-actions">
@@ -1048,6 +1075,9 @@ function renderSpecialsView() {
 }
 
 function saveSpecialsAndContinue() {
+  const rotationEl = document.querySelector('input[name="specials-rotation"]:checked');
+  if (rotationEl) SchedState.school.specialsRotationMode = rotationEl.value;
+
   const rows = document.querySelectorAll('#specials-list .special-row');
   SchedState.school.specials = [...rows].map(row => {
     const existingId = row.dataset.spId;
@@ -1239,7 +1269,7 @@ function renderBlocks() {
 
     <div class="form-section">
       <h2 class="form-section-title">Uniform Block Types</h2>
-      <p class="form-hint">Blocks with one fixed duration for all grade levels — palette items for manual placement and auto-fill. Set the duration to enable click-to-place in the schedule grid.</p>
+      <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade.</p>
       <div id="add-block-form" class="inline-form hidden"></div>
       <div class="req-table-wrap">
         <table class="req-table">
@@ -1247,10 +1277,15 @@ function renderBlocks() {
             <th class="req-th-block">Block</th>
             <th class="req-th-color">Color</th>
             <th class="req-th-band" style="width:110px">Min/Day<span class="req-th-hint">optional</span></th>
+            <th class="req-th-band" style="min-width:160px">School-wide Time<span class="req-th-hint">all grades</span></th>
             <th class="req-th-actions" style="width:80px"></th>
           </tr></thead>
           <tbody>
-            ${otherBTs.map(bt => `
+            ${otherBTs.map(bt => {
+              const hasUniform = bt.uniformStart && bt.uniformEnd;
+              const uniformLabel = hasUniform ? `${fmtTime12(bt.uniformStart)} – ${fmtTime12(bt.uniformEnd)}` : '';
+              const isTimeModeOrDefault = !bt.uniformMode || bt.uniformMode === 'time';
+              return `
               <tr>
                 <td class="req-td-block" style="display:table-cell;align-items:unset">
                   <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${bt.color};margin-right:6px;vertical-align:middle"></span>
@@ -1264,12 +1299,41 @@ function renderBlocks() {
                   <input type="number" class="uniform-dur-input" value="${bt.defaultDuration || ''}"
                          placeholder="—" min="5" step="5" data-bt-id="${bt.id}" />
                 </td>
+                <td class="req-td-schoolwide">
+                  <div class="schoolwide-config" id="sw-config-${bt.id}">
+                    <div class="sw-mode-row">
+                      <label class="sw-radio-label">
+                        <input type="radio" name="sw-mode-${bt.id}" class="sw-mode-radio" value="time"
+                               data-bt-id="${bt.id}" ${isTimeModeOrDefault ? 'checked' : ''}> Fixed
+                      </label>
+                      <span class="sw-time-inputs" id="sw-time-${bt.id}" ${!isTimeModeOrDefault ? 'style="display:none"' : ''}>
+                        <input type="time" class="sw-start-input" value="${bt.uniformStart || ''}" data-bt-id="${bt.id}" />
+                        <span class="sw-sep">–</span>
+                        <input type="time" class="sw-end-input"   value="${bt.uniformEnd   || ''}" data-bt-id="${bt.id}" />
+                      </span>
+                      <label class="sw-radio-label" style="margin-left:8px">
+                        <input type="radio" name="sw-mode-${bt.id}" class="sw-mode-radio" value="duration"
+                               data-bt-id="${bt.id}" ${bt.uniformMode === 'duration' ? 'checked' : ''}> Auto
+                      </label>
+                      <span class="sw-dur-inputs" id="sw-dur-${bt.id}" ${bt.uniformMode !== 'duration' ? 'style="display:none"' : ''}>
+                        <input type="number" class="sw-mins-input" value="${bt.uniformMinutes || ''}"
+                               data-bt-id="${bt.id}" placeholder="min" min="5" step="5" style="width:56px" />
+                        <button class="btn btn-sm btn-outline sw-find-btn" data-bt-id="${bt.id}">Find</button>
+                      </span>
+                    </div>
+                    <div class="sw-action-row">
+                      <button class="btn btn-sm btn-primary sw-apply-btn" data-bt-id="${bt.id}">Apply</button>
+                      ${hasUniform || bt.uniformMode === 'duration' ? `<button class="btn btn-sm btn-ghost sw-clear-btn" data-bt-id="${bt.id}">Clear</button>` : ''}
+                      ${uniformLabel ? `<span class="sw-current-label">${uniformLabel} · all grades</span>` : ''}
+                    </div>
+                  </div>
+                </td>
                 <td class="req-td-actions" style="display:table-cell;white-space:nowrap">
                   <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
                   <button class="icon-btn remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
                 </td>
-              </tr>
-            `).join('')}
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -1471,6 +1535,84 @@ function wireOtherBlocks() {
       const val = parseInt(inp.value, 10);
       if (isNaN(val) || val < 5) { delete bt.defaultDuration; } else { bt.defaultDuration = val; }
       saveToLocal();
+    });
+  });
+
+  // School-wide time mode radios
+  document.querySelectorAll('.sw-mode-radio').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const id = radio.dataset.btId;
+      const isTime = radio.value === 'time';
+      document.getElementById(`sw-time-${id}`)?.style.setProperty('display', isTime ? '' : 'none');
+      document.getElementById(`sw-dur-${id}`)?.style.setProperty('display', isTime ? 'none' : '');
+    });
+  });
+
+  // Apply school-wide time (fixed mode)
+  document.querySelectorAll('.sw-apply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id  = btn.dataset.btId;
+      const bt  = SchedState.blockTypes.find(b => b.id === id);
+      if (!bt) return;
+      const mode = document.querySelector(`input[name="sw-mode-${id}"]:checked`)?.value || 'time';
+      if (mode === 'time') {
+        const start = document.querySelector(`.sw-start-input[data-bt-id="${id}"]`)?.value;
+        const end   = document.querySelector(`.sw-end-input[data-bt-id="${id}"]`)?.value;
+        if (!start || !end) { alert('Enter both a start and end time.'); return; }
+        bt.uniformMode  = 'time';
+        bt.uniformStart = start;
+        bt.uniformEnd   = end;
+        delete bt.uniformMinutes;
+      } else {
+        const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${id}"]`)?.value || '0', 10);
+        if (!mins || mins < 5) { alert('Enter a duration (minimum 5 minutes).'); return; }
+        bt.uniformMode    = 'duration';
+        bt.uniformMinutes = mins;
+        bt.uniformStart   = '';
+        bt.uniformEnd     = '';
+      }
+      saveToLocal();
+      preFillFixedBlocks();
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+
+  // Clear school-wide time
+  document.querySelectorAll('.sw-clear-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === btn.dataset.btId);
+      if (!bt) return;
+      delete bt.uniformStart;
+      delete bt.uniformEnd;
+      delete bt.uniformMinutes;
+      delete bt.uniformMode;
+      preFillFixedBlocks();
+      saveToLocal();
+      renderBlocks();
+    });
+  });
+
+  // Auto-find: scan master schedule for a common free window across all grades
+  document.querySelectorAll('.sw-find-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id   = btn.dataset.btId;
+      const bt   = SchedState.blockTypes.find(b => b.id === id);
+      if (!bt) return;
+      const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${id}"]`)?.value || '0', 10);
+      if (!mins || mins < 5) { alert('Enter a duration first.'); return; }
+      const result = _findUniformSlot(mins);
+      if (!result) {
+        alert('No common free window found across all grades for that duration. Try shortening the duration or clearing some blocks first.');
+        return;
+      }
+      bt.uniformMode  = 'time';
+      bt.uniformStart = result.start;
+      bt.uniformEnd   = result.end;
+      delete bt.uniformMinutes;
+      preFillFixedBlocks();
+      saveToLocal();
+      renderBlocks();
     });
   });
 
