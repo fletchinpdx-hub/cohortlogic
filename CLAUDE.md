@@ -7,7 +7,7 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 **GitHub:** github.com/fletchinpdx-hub/cohortlogic  
 **Supabase project:** dlqnzlwuzktcljxxxlit  
 **Local dev:** http://localhost:3456 (run via `npx serve -l 3456 .`)  
-**Hosting:** Netlify (auto-deploys on push to `main`). Switching to Cloudflare Pages soon.
+**Hosting:** Cloudflare Workers (static assets via `wrangler.toml`). Deploy with `npx wrangler deploy` from `/Users/michaelfletcher/Documents/cohortlogic/`. GitHub push auto-deploys via Cloudflare Pages integration — but wrangler is the reliable fallback. Netlify site should be deleted.
 
 ## Compact Instructions
 When compacting this conversation, preserve:
@@ -47,7 +47,9 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 - 15-minute inactivity session timeout with 60-second warning banner
 
 ### 3. Building Schedule Builder (`schedule-app.html`)
-Master schedule builder for school administrators. Phase 1 is complete and live.
+Master schedule builder for school administrators. Phase 1 complete; Phase 2 Specials Schedule view live.
+
+**Cache buster:** currently `?v=66` on all 5 script tags in `schedule-app.html`. Bump on every deploy.
 
 **Data model — file-based, not Supabase:**
 - Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
@@ -55,33 +57,48 @@ Master schedule builder for school administrators. Phase 1 is complete and live.
 - Supabase used only for auth + product gating (`enabled_products` includes `schedule_builder`).
 - `downloadScheduleFile()` / `loadScheduleFromFile(file)` in `schedule-state.js`.
 
-**Nav flow:**
-- Phase 1 Setup: School Info → Block Types → Master Schedule
-- Phase 2 Detail: Staff Roster → Specials (locked) → IA Schedule (locked)
-- Finish: Export (locked)
+**Nav flow (current):**
+- Phase 1 — Setup: School Info → Staff Roster → Specials → Block Types
+- Phase 1 — Build: Master Schedule (locked until grades configured)
+- Phase 2 — Detail: Specials Schedule (locked until specials configured) → IA Schedule (placeholder)
+- Finish: Export (placeholder)
 
 **Key state — `SchedState` in `schedule-state.js`:**
-- `school` — name, year, grades, time bounds (firstBell, dismissal, studentCampusStart…), morningMeetings[], lunchPeriods[], gradeRecesses{}, gradeBands[]
-- `blockTypes[]` — DEFAULT_BLOCK_TYPES (17 blocks); required blocks have bandMinutes{} / subBandMinutes{}; ELA has sub-blocks that auto-sum to the total
+- `school` — name, year, grades, time bounds (firstBell, dismissal, studentCampusStart…), morningMeetings[], lunchPeriods[], gradeRecesses{}, gradeBands[], specials[]
+- `blockTypes[]` — DEFAULT_BLOCK_TYPES (17 blocks); required blocks have bandMinutes{} / subBandMinutes{}; ELA has sub-blocks
 - `masterSchedule[day][grade][slot]` = blockTypeId — 5-minute slots Mon–Fri
+- `conflicts[day][grade][slot]` = [btId, …] — blocks displaced by manual drag; never created by auto-fill
+- `specialsSchedule[classId][day]` = `{ subjectId, teacherId, startTime }` — class-level specials (source of truth for Specials Schedule view)
 
 **Key JS files:**
-- `js/schedule-state.js` — SchedState, DEFAULT_BLOCK_TYPES, saveToLocal, loadFromLocal, downloadScheduleFile, loadScheduleFromFile, uid()
-- `js/schedule-setup.js` — School Info, Block Types, Staff Roster views + save flows
-- `js/schedule-grid.js` — Master Schedule grid, drag-to-move, auto-populate, XLSX export, copy-day
-- `js/schedule-init.js` — boot (auth + product gate), landing screen, download/load button wiring
+- `js/schedule-state.js` — SchedState, DEFAULT_BLOCK_TYPES, saveToLocal, loadFromLocal, downloadScheduleFile, loadScheduleFromFile, uid(), updateSidebarStatus()
+- `js/schedule-setup.js` — School Info, Staff Roster, Specials, Block Types views + save flows; SP_DEFAULT_COLORS
+- `js/schedule-grid.js` — Master Schedule grid, drag-to-move, auto-populate, conflict rendering, specials scheduling, Specials Schedule view, XLSX export, coverage validation
+- `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring
 
 **Key behaviors:**
-- `preFillFixedBlocks()` — auto-places lunch/recess/morning meetings from School Info settings into masterSchedule
-- `autoPopulateGrade(grade)` — fills required instructional blocks into open time slots per grade band requirements
-- `autoPopulateIfEmpty()` — called on master schedule entry; auto-fills all grades if no instructional blocks exist yet
-- Drag-to-move: pointerdown on a filled cell with no paint tool → picks up the block; drag to new position; click without drag leaves it in place
-- Grade band columns: click column header to auto-fill that grade
-- Download button in sidebar footer turns amber (⚠) when there are unsaved changes
+- `preFillFixedBlocks()` — auto-places lunch/recess/morning meetings from School Info settings
+- `autoPopulateGrade(grade)` — fills required instructional blocks per grade band requirements
+- `autoPopulateIfEmpty()` — runs on master schedule entry; auto-fills all grades if empty
+- `buildSpecialsSchedule()` — computes class-level rotation, finds grade-wide time slots, writes bt_spec|spId to masterSchedule and specialsSchedule
+- `getSpecialsCoverageReport()` — detects classes with missing specials (day-level gaps not caught by grade-level failure); called from master schedule and Specials Schedule view
+- `getBtColor(btId)` / `getBtName(btId)` — resolve color/name for any block ID including compound `bt_spec|sp_id`
+- Drag-to-move: pointerdown on filled cell with no paint tool → picks up block; commitMove() restores displaced conflict blocks instead of deleting them
+- Conflict split cells: `placeBlock()` stores displaced block in `conflicts[]`; `buildCell()` renders side-by-side halves; isConflictStart logic shows labels even mid-block
+- Conflict banner groups consecutive same-conflict slots into one time-range entry (not one per 5-min slot)
+- Specials Schedule view: per-teacher weekly grid (Mon–Fri × time rows), teacher chip picker, coverage summary panel at top
 
-**CSP constraint:** `script-src 'self' cdn.jsdelivr.net cdn.sheetjs.com` — no `unsafe-inline`. All event handlers via `addEventListener`.
+**CSP constraint:** `script-src 'self' cdn.jsdelivr.net cdn.sheetjs.com` — no `unsafe-inline`. All event handlers via `addEventListener`. Never use `onclick=`/`onchange=`/`oninput=` HTML attributes.
 
-**Phase 2 not yet built:** Specials, IA Schedule, Export views are placeholder cards.
+**Specials data flow:**
+1. Specials tab (Setup): define specials (name, duration, sessions/wk, color) + assign teachers
+2. Block Types tab: shows derived specials list with per-special color pickers (no editable `bt_spec` row)
+3. Master Schedule: `buildSpecialsSchedule()` auto-places `bt_spec|sp_id` blocks; per-special colors used throughout
+4. Specials Schedule (Phase 2): reads `specialsSchedule` + masterSchedule; shows teacher's weekly grid + coverage report
+
+**SP_DEFAULT_COLORS:** defined at top of `schedule-setup.js`, globally accessible to `schedule-grid.js` (loads after).
+
+**`.clsched` file format:** v3 JSON; `school.specials[]` persisted with `color` field.
 
 ---
 
@@ -315,10 +332,11 @@ supabase/migrations/
 ---
 
 ## Deployment
-- Claude pushes to `main` → Cloudflare Workers auto-deploys (no manual step needed)
+- **Always use `npx wrangler deploy`** from `/Users/michaelfletcher/Documents/cohortlogic/` — GitHub auto-deploy broke after v54 and is NOT reliable
 - Live at: https://cohortlogic.com (DNS cutover complete — Cloudflare managing DNS)
 - `wrangler.toml` configures static asset deployment (no build step)
 - `_headers` file sets all security headers (supported by Cloudflare Workers static assets)
+- Hard refresh in browser (Cmd+Shift+R) needed after deploy to force re-download of cached HTML/JS
 
 ---
 
@@ -361,8 +379,16 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 ---
 
 ## Pending / to do
+
+### Schedule Builder
+- **Specials scheduling algorithm** — `buildSpecialsSchedule()` finds one grade-wide time slot per day; if a teacher is already booked by an earlier grade that day, the later grade silently misses specials. Coverage gaps are now detected and surfaced but not auto-resolved. Consider: per-subject independent slot search, or grade priority ordering
+- **IA Schedule view** — Phase 2, placeholder card; not yet built
+- **Export view** — Phase 2/Finish, placeholder card; not yet built
+- **FERPA privacy policy page** — older pending item
+- **Teacher-level RLS** — on hold; needs product decisions
+
+### Other products
 - **Test signup flow end-to-end** — verify email confirmation → pending approvals → approval → login works
-- **Teacher-level RLS** — on hold; needs product decisions on role model and homeroom assignment UX
 - **CICO weekly trend chart** — 8-week bar chart in CICO Analytics to show usage trajectory
 - **Pending Approvals UX** — edge cases for returning deactivated users (currently uses 3-day heuristic)
 - **Disable Netlify site** — migration complete; go to Netlify → site settings → Delete this site
@@ -372,6 +398,3 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 - **Data retention policy** — process decision, not yet defined
 - Class Builder: print view, lock student to class
 - CICO: mobile polish, print-friendly check-in sheets
-- **Schedule Builder Phase 2:** Specials breakdown, IA Schedule assignment, Export view (currently placeholder cards)
-- Schedule Builder: conflict detection (double-booked grades/staff)
-- Schedule Builder: per-staff schedule views for export
