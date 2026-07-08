@@ -1400,6 +1400,15 @@ function buildSpecialsSchedule() {
     }
     return true;
   };
+  const busyCount = tid => {
+    const db = booked[tid];
+    if (!db) return 0;
+    return Object.values(db).reduce((s, slots) => s + slots.size, 0);
+  };
+  // Pick the free teacher with the fewest total booked slots so load spreads evenly.
+  const leastBusyFree = (teachers, day, start, dur) =>
+    teachers.filter(t => isFree(t, day, start, dur))
+            .sort((a, b) => busyCount(a) - busyCount(b))[0] || null;
 
   const failedGrades = [];
   gradesSorted().forEach(grade => {
@@ -1437,7 +1446,7 @@ function buildSpecialsSchedule() {
         const startIdx = daySlots.indexOf(startTime);
         if (startIdx < 0) return;
         // Book the teacher so later grades don't conflict
-        const tid = (sp?.teacherIds || []).find(t => isFree(t, day, startTime, dur));
+        const tid = leastBusyFree(sp?.teacherIds || [], day, startTime, dur);
         if (tid) book(tid, day, startTime, dur);
         if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
         if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
@@ -1458,7 +1467,8 @@ function buildSpecialsSchedule() {
       _clearRequirementsForGrade(grade);
       gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     }
-    if (!Object.keys(gradeTime).length) { failedGrades.push(grade); return; }
+    // Don't give up if no grade-wide slot found — days with no grade-time fall back to
+    // per-class individual scheduling in the recovery pass below.
 
     classes.forEach(cls => {
       SchedState.specialsSchedule[cls.id] = {};
@@ -1468,7 +1478,7 @@ function buildSpecialsSchedule() {
         if (!spId || !startTime) return;
         const sp        = specials.find(s => s.id === spId);
         const dur       = sp?.duration || 45;
-        const teacherId = (sp?.teacherIds || []).find(tid => isFree(tid, day, startTime, dur)) || null;
+        const teacherId = leastBusyFree(sp?.teacherIds || [], day, startTime, dur);
         if (teacherId) book(teacherId, day, startTime, dur);
         SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, teacherId, startTime };
       });
@@ -1533,7 +1543,7 @@ function buildSpecialsSchedule() {
               if (sv && sv !== btId) { ok = false; break; }
             }
             if (!ok) continue;
-            const tid = teachers.find(t => isFree(t, day, daySlots[i], dur));
+            const tid = leastBusyFree(teachers, day, daySlots[i], dur);
             if (!tid) continue;
             ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
             book(tid, day, daySlots[i], dur);
@@ -1562,6 +1572,12 @@ function buildSpecialsSchedule() {
         for (const day of orderedDays) { if (fill <= 0) break; tryDay(day, true);  }
       });
     });
+
+    // If recovery placed nothing at all, the grade truly couldn't be scheduled.
+    const anyPlaced = classes.some(cls =>
+      DAYS.some(d => SchedState.specialsSchedule[cls.id]?.[d]?.teacherId)
+    );
+    if (!anyPlaced) failedGrades.push(grade);
 
     // Write grade-level bt_spec to masterSchedule so auto-populate sees those slots as occupied.
     DAYS.forEach(day => {
