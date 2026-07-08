@@ -1699,8 +1699,7 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
   let leftInner = '', rightInner = '';
   if (specInfo.isStart) {
-    leftInner  = `<span class="split-label" style="color:${color}">${sp ? escHtml(sp.name) : 'Specials'}` +
-      `${teacher ? `<span class="split-teacher">${escHtml(teacher.name.split(' ')[0])}</span>` : ''}</span>`;
+    leftInner  = `<span class="split-label" style="color:${color}">Specials</span>`;
     rightInner = `<span class="split-label" style="color:#64748b">${specInfo.all.length} of ${specInfo.totalClasses} classes</span>`;
   }
   return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
