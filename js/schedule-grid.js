@@ -1354,6 +1354,51 @@ function _clearRequirementsForGrade(grade) {
   });
 }
 
+// Find a single daily start time (fixed across all 5 days) for the carousel model:
+//   - grade's master schedule is clear at that time on every day
+//   - enough teachers free per special on every day to cover all classes needing it
+// Returns a 'HH:MM' string or null.
+function findGradeFixedTime(grade, classes, rotation, specials, isFreeTeacher) {
+  if (!classes.length || !specials.length) return null;
+  const maxDur   = Math.max(...specials.map(sp => sp.duration || 45));
+  const numSl    = Math.ceil(maxDur / 5);
+  const refSlots = _autoFillSlots('Mon');
+
+  for (let i = 0; i <= refSlots.length - numSl; i++) {
+    const candidateStart = refSlots[i];
+    let ok = true;
+
+    for (const day of DAYS) {
+      if (!ok) break;
+      const slots = _autoFillSlots(day);
+      const si    = slots.indexOf(candidateStart);
+      if (si < 0) { ok = false; break; }
+
+      const sched = SchedState.masterSchedule[day]?.[grade] || {};
+      for (let j = 0; j < numSl; j++) {
+        const sl = slots[si + j];
+        if (!sl) { ok = false; break; }
+        const sv = sched[sl];
+        if (sv && !sv.startsWith('bt_spec')) { ok = false; break; }
+      }
+      if (!ok || !isFreeTeacher) continue;
+
+      // Verify enough teachers are free for each special on this day.
+      for (const sp of specials) {
+        const needed    = classes.filter(cls => rotation[cls.id]?.[day] === sp.id).length;
+        if (!needed) continue;
+        const freeCount = (sp.teacherIds || []).filter(tid =>
+          isFreeTeacher(tid, day, candidateStart, sp.duration || 45)
+        ).length;
+        if (freeCount < needed) { ok = false; break; }
+      }
+    }
+
+    if (ok) return candidateStart;
+  }
+  return null;
+}
+
 // Rebuilds SchedState.specialsSchedule from scratch for all grades, then writes
 // grade-level bt_spec blocks back into masterSchedule for auto-populate awareness.
 function buildSpecialsSchedule() {
@@ -1459,145 +1504,58 @@ function buildSpecialsSchedule() {
       return;
     }
 
+    // Carousel model: find ONE fixed time valid across all 5 days where all specials
+    // teachers are free simultaneously. If not found, clear instruction blocks and retry.
     const rotation = computeClassSpecialsRotation(classes, specials);
-    let gradeTime  = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
-    // If the schedule is full (populated before specials were configured), clear requirement
-    // blocks so specials can claim a slot; _populateGradeData will re-fill around them.
-    if (!Object.keys(gradeTime).length) {
+    let fixedTime  = findGradeFixedTime(grade, classes, rotation, specials, isFree);
+    if (!fixedTime) {
       _clearRequirementsForGrade(grade);
-      gradeTime = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
+      fixedTime = findGradeFixedTime(grade, classes, rotation, specials, isFree);
     }
-    // Don't give up if no grade-wide slot found — days with no grade-time fall back to
-    // per-class individual scheduling in the recovery pass below.
+    if (!fixedTime) { failedGrades.push(grade); return; }
 
+    // Initialise specialsSchedule with fixed time + rotation subject for every class/day.
     classes.forEach(cls => {
       SchedState.specialsSchedule[cls.id] = {};
       DAYS.forEach(day => {
-        const spId      = rotation[cls.id]?.[day];
-        const startTime = gradeTime[day];
-        if (!spId || !startTime) return;
-        const sp        = specials.find(s => s.id === spId);
-        const dur       = sp?.duration || 45;
-        const teacherId = leastBusyFree(sp?.teacherIds || [], day, startTime, dur);
-        if (teacherId) book(teacherId, day, startTime, dur);
-        SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, teacherId, startTime };
+        const spId = rotation[cls.id]?.[day];
+        if (!spId) return;
+        SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, startTime: fixedTime, teacherId: null };
       });
     });
 
-    // Recovery pass: for classes that didn't receive their full cpw allocation (either because
-    // the rotation ran out of capacity or the teacher was booked at the grade-level time),
-    // scan all days/times for a free teacher slot and a clear window in the grade's schedule.
-    // Recovery pass: place any sessions still short of cpw allocation.
-    // Two passes per day list: first try natural gaps, then clear instruction and retry.
-    // Rollback clears if no teacher found so _populateGradeData can re-fill correctly.
-    // Days are tried rotation-first (where the subject was already intended) before
-    // expanding to any eligible free day.
-    classes.forEach(cls => {
-      const ss = SchedState.specialsSchedule[cls.id]; // always set by the loop above
-      specials.forEach(sp => {
-        const needed  = Math.min(sp.classesPerWeek || 1, 5);
-        const placed  = DAYS.filter(d => ss[d]?.subjectId === sp.id && ss[d]?.teacherId).length;
-        if (placed >= needed) return;
-
-        const dur      = sp.duration || 45;
-        const numSl    = Math.ceil(dur / 5);
-        const teachers = sp.teacherIds || [];
-        const btId     = `bt_spec|${sp.id}`;
-        let   fill     = needed - placed;
-
-        // A day is eligible if it has no confirmed session and the rotation doesn't
-        // assign a different subject there (avoids overwriting e.g. Music with PE).
-        const eligible = day => {
-          const existing = ss[day];
-          const rotSpId  = rotation[cls.id]?.[day];
-          if (existing?.teacherId) return false;
-          if (existing?.subjectId && existing.subjectId !== sp.id) return false;
-          if (rotSpId && rotSpId !== sp.id) return false;
-          return true;
-        };
-
-        // Try to place sp for cls on day. If clearFirst, instruction blocks are
-        // removed to expose a slot; they are restored if no teacher is found.
-        const tryDay = (day, clearFirst) => {
-          if (fill <= 0 || !eligible(day)) return;
-          const daySlots  = _autoFillSlots(day);
-          const snapshot  = {};
-          if (clearFirst) {
-            const sched = SchedState.masterSchedule[day]?.[grade];
-            if (sched) {
-              Object.keys(sched).forEach(slot => {
-                const sv = sched[slot];
-                if (!sv || isFixedBlock(sv) || sv.startsWith('bt_spec')) return;
-                snapshot[slot] = sv;
-                delete sched[slot];
-              });
-            }
-          }
-          const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
-          for (let i = 0; i <= daySlots.length - numSl; i++) {
-            let ok = true;
-            for (let j = 0; j < numSl; j++) {
-              const sv = gradeSched[daySlots[i + j]];
-              // Only allow empty slots or an existing bt_spec for this same subject.
-              // Rejecting other subjects' bt_spec prevents overwriting their master-schedule label.
-              if (sv && sv !== btId) { ok = false; break; }
-            }
-            if (!ok) continue;
-            const tid = leastBusyFree(teachers, day, daySlots[i], dur);
-            if (!tid) continue;
-            ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
-            book(tid, day, daySlots[i], dur);
-            if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
-            if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
-            const gSched = SchedState.masterSchedule[day][grade];
-            for (let j = 0; j < numSl && i + j < daySlots.length; j++) {
-              gSched[daySlots[i + j]] = btId;
-            }
-            fill--;
-            return;
-          }
-          // No slot found — restore so we don't leave the day empty
-          if (clearFirst) {
-            const sched = SchedState.masterSchedule[day]?.[grade];
-            if (sched) Object.assign(sched, snapshot);
-          }
-        };
-
-        // Priority order: rotation days for this subject first, then any eligible day
-        const rotDays   = DAYS.filter(d => rotation[cls.id]?.[d] === sp.id);
-        const otherDays = DAYS.filter(d => rotation[cls.id]?.[d] !== sp.id);
-        const orderedDays = [...rotDays, ...otherDays];
-
-        for (const day of orderedDays) { if (fill <= 0) break; tryDay(day, false); }
-        for (const day of orderedDays) { if (fill <= 0) break; tryDay(day, true);  }
-      });
-    });
-
-    // If recovery placed nothing at all, the grade truly couldn't be scheduled.
-    const anyPlaced = classes.some(cls =>
-      DAYS.some(d => SchedState.specialsSchedule[cls.id]?.[d]?.teacherId)
-    );
-    if (!anyPlaced) failedGrades.push(grade);
-
-    // Write grade-level bt_spec to masterSchedule so auto-populate sees those slots as occupied.
+    // Assign teachers: for each day+special, least-busy-free from the pool.
+    // Multiple classes may share the same special simultaneously (carousel) — each
+    // gets its own teacher drawn from the pool in load-balanced order.
     DAYS.forEach(day => {
-      const startTime = gradeTime[day];
-      if (!startTime) return;
-      const firstCls = classes.find(cls => SchedState.specialsSchedule[cls.id]?.[day]);
-      if (!firstCls) return;
-      const repSpId  = SchedState.specialsSchedule[firstCls.id][day].subjectId;
-      const sp       = specials.find(s => s.id === repSpId);
-      const numSlots = Math.ceil((sp?.duration || 45) / 5);
-      const daySlots = _autoFillSlots(day);
-      const startIdx = daySlots.indexOf(startTime);
-      if (startIdx < 0) return;
+      specials.forEach(sp => {
+        const dur  = sp.duration || 45;
+        const pool = sp.teacherIds || [];
+        classes.filter(cls => rotation[cls.id]?.[day] === sp.id).forEach(cls => {
+          const tid = leastBusyFree(pool, day, fixedTime, dur);
+          if (tid) {
+            SchedState.specialsSchedule[cls.id][day].teacherId = tid;
+            book(tid, day, fixedTime, dur);
+          }
+        });
+      });
+    });
 
+    // Write generic bt_spec to masterSchedule at fixedTime on every day that has sessions,
+    // so auto-populate treats those slots as occupied. Generic 'bt_spec' (no subject suffix)
+    // is used because multiple subjects run simultaneously in the carousel.
+    const maxDur   = Math.max(...specials.map(sp => sp.duration || 45));
+    const numSlots = Math.ceil(maxDur / 5);
+    DAYS.forEach(day => {
+      if (!classes.some(cls => SchedState.specialsSchedule[cls.id]?.[day]?.subjectId)) return;
+      const daySlots = _autoFillSlots(day);
+      const startIdx = daySlots.indexOf(fixedTime);
+      if (startIdx < 0) return;
       if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
       if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
       const sched = SchedState.masterSchedule[day][grade];
-      const btId  = `bt_spec|${repSpId}`;
       for (let j = 0; j < numSlots && startIdx + j < daySlots.length; j++) {
-        sched[daySlots[startIdx + j]] = btId;
+        sched[daySlots[startIdx + j]] = 'bt_spec';
       }
     });
   });
@@ -1657,7 +1615,10 @@ function getSpecialsAtSlot(day, grade, slot) {
   return {
     all:          matching,
     isStart:      matching[0].isStart,
-    isUnified:    matching.length === classes.length,
+    // Unified only when every class is present AND all on the same subject.
+    // Carousel (all classes, different subjects) intentionally returns false.
+    isUnified:    matching.length === classes.length &&
+                  matching.every(e => e.subjectId === matching[0].subjectId),
     totalClasses: classes.length,
   };
 }
