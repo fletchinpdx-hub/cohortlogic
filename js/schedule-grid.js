@@ -1473,7 +1473,10 @@ function buildSpecialsSchedule() {
 
     // Recovery pass: for classes that didn't receive their full cpw allocation (either because
     // the rotation ran out of capacity or the teacher was booked at the grade-level time),
-    // scan all days/times for a free teacher slot and an empty window in the grade's schedule.
+    // scan all days/times for a free teacher slot and a clear window in the grade's schedule.
+    // Uses a two-pass approach per day: first try with existing instruction intact (looking for
+    // natural gaps), then clear that day's instruction and retry — _populateGradeData runs
+    // after buildSpecialsSchedule and will re-fill instruction around the new bt_spec blocks.
     classes.forEach(cls => {
       const ss = SchedState.specialsSchedule[cls.id] || {};
       specials.forEach(sp => {
@@ -1486,22 +1489,31 @@ function buildSpecialsSchedule() {
         const teachers = sp.teacherIds || [];
         let   fill     = needed - placed;
 
-        for (const day of DAYS) {
-          if (fill <= 0) break;
-          // Skip days where this class already has a confirmed session for any special
-          if (ss[day]?.teacherId) continue;
-          const daySlots   = _autoFillSlots(day);
+        const _tryPlaceOnDay = (day, clearFirst) => {
+          if (fill <= 0) return;
+          if (ss[day]?.teacherId) return; // already has a confirmed session
+          const daySlots = _autoFillSlots(day);
+          if (clearFirst) {
+            const sched = SchedState.masterSchedule[day]?.[grade];
+            if (sched) {
+              Object.keys(sched).forEach(slot => {
+                const sv = sched[slot];
+                if (!sv || isFixedBlock(sv) || sv.startsWith('bt_spec')) return;
+                delete sched[slot];
+              });
+            }
+          }
           const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
           for (let i = 0; i <= daySlots.length - numSl; i++) {
-            // The window must be completely clear in the grade's master schedule
             let ok = true;
             for (let j = 0; j < numSl; j++) {
-              if (gradeSched[daySlots[i + j]]) { ok = false; break; }
+              const sv = gradeSched[daySlots[i + j]];
+              // Allow empty slots and existing bt_spec; reject instruction/fixed blocks
+              if (sv && !sv.startsWith('bt_spec')) { ok = false; break; }
             }
             if (!ok) continue;
             const tid = teachers.find(t => isFree(t, day, daySlots[i], dur));
             if (!tid) continue;
-            // Place the recovered session
             ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
             book(tid, day, daySlots[i], dur);
             if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
@@ -1511,8 +1523,17 @@ function buildSpecialsSchedule() {
               gSched[daySlots[i + j]] = `bt_spec|${sp.id}`;
             }
             fill--;
-            break;
+            return;
           }
+        };
+
+        for (const day of DAYS) {
+          if (fill <= 0) break;
+          _tryPlaceOnDay(day, false); // first pass: natural gaps only
+        }
+        for (const day of DAYS) {
+          if (fill <= 0) break;
+          if (!ss[day]?.teacherId) _tryPlaceOnDay(day, true); // second pass: clear instruction
         }
       });
     });
@@ -1639,7 +1660,7 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   if (specInfo.isStart) {
     leftInner  = `<span class="split-label" style="color:${color}">${sp ? escHtml(sp.name) : 'Specials'}` +
       `${teacher ? `<span class="split-teacher">${escHtml(teacher.name.split(' ')[0])}</span>` : ''}</span>`;
-    rightInner = `<span class="split-label" style="color:#64748b">${specInfo.all.length} / ${specInfo.totalClasses} classes</span>`;
+    rightInner = `<span class="split-label" style="color:#64748b">${specInfo.all.length} of ${specInfo.totalClasses} classes</span>`;
   }
   return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
     `<div class="split-block-wrap">` +
