@@ -1245,10 +1245,13 @@ function computeClassSpecialsRotation(classes, specials) {
   }
 
   const S       = sessionSeq.length;
-  // Always spread across all 5 days so overflow sessions have room
-  const numDays = 5;
+  const numDays = 5; // always spread across all 5 days so overflow sessions have room
 
-  // Track per-day, per-subject assignment count so we never exceed teacher capacity
+  // Spread step: space sessions of the same subject across non-consecutive days.
+  // e.g. S=2, numDays=5 → step=2 → class 0 gets Mon+Wed instead of Mon+Tue.
+  const step = S > 0 ? Math.max(Math.floor(numDays / S), 1) : 1;
+
+  // Track per-day, per-subject count so we never exceed teacher capacity.
   const daySpCount = {};
   specials.forEach(sp => {
     daySpCount[sp.id] = {};
@@ -1262,9 +1265,6 @@ function computeClassSpecialsRotation(classes, specials) {
       const sp   = specials.find(p => p.id === spId);
       const cap  = Math.max((sp?.teacherIds || []).length, 1);
 
-      // Use a spread step so multiple sessions of the same subject don't land on
-      // consecutive days (e.g. PE Mon+Tue). step=2 with numDays=5, S=2 → Mon+Wed.
-      const step   = S > 0 ? Math.max(Math.floor(numDays / S), 1) : 1;
       let dayIdx = (s * step + c) % numDays;
       let tries  = 0;
       while (tries < numDays) {
@@ -1477,11 +1477,13 @@ function buildSpecialsSchedule() {
     // Recovery pass: for classes that didn't receive their full cpw allocation (either because
     // the rotation ran out of capacity or the teacher was booked at the grade-level time),
     // scan all days/times for a free teacher slot and a clear window in the grade's schedule.
-    // Uses a two-pass approach per day: first try with existing instruction intact (looking for
-    // natural gaps), then clear that day's instruction and retry — _populateGradeData runs
-    // after buildSpecialsSchedule and will re-fill instruction around the new bt_spec blocks.
+    // Recovery pass: place any sessions still short of cpw allocation.
+    // Two passes per day list: first try natural gaps, then clear instruction and retry.
+    // Rollback clears if no teacher found so _populateGradeData can re-fill correctly.
+    // Days are tried rotation-first (where the subject was already intended) before
+    // expanding to any eligible free day.
     classes.forEach(cls => {
-      const ss = SchedState.specialsSchedule[cls.id] || {};
+      const ss = SchedState.specialsSchedule[cls.id]; // always set by the loop above
       specials.forEach(sp => {
         const needed  = Math.min(sp.classesPerWeek || 1, 5);
         const placed  = DAYS.filter(d => ss[d]?.subjectId === sp.id && ss[d]?.teacherId).length;
@@ -1490,16 +1492,26 @@ function buildSpecialsSchedule() {
         const dur      = sp.duration || 45;
         const numSl    = Math.ceil(dur / 5);
         const teachers = sp.teacherIds || [];
+        const btId     = `bt_spec|${sp.id}`;
         let   fill     = needed - placed;
 
-        const _tryPlaceOnDay = (day, clearFirst) => {
-          if (fill <= 0) return;
-          if (ss[day]?.teacherId) return; // already has a confirmed session
-          const daySlots = _autoFillSlots(day);
-          // Save cleared instruction so we can roll back if no slot is found.
-          // Without rollback, failed clears leave the grade with empty days that
-          // _populateGradeData skips (it sees enough total slots and doesn't re-fill).
-          const snapshot = {};
+        // A day is eligible if it has no confirmed session and the rotation doesn't
+        // assign a different subject there (avoids overwriting e.g. Music with PE).
+        const eligible = day => {
+          const existing = ss[day];
+          const rotSpId  = rotation[cls.id]?.[day];
+          if (existing?.teacherId) return false;
+          if (existing?.subjectId && existing.subjectId !== sp.id) return false;
+          if (rotSpId && rotSpId !== sp.id) return false;
+          return true;
+        };
+
+        // Try to place sp for cls on day. If clearFirst, instruction blocks are
+        // removed to expose a slot; they are restored if no teacher is found.
+        const tryDay = (day, clearFirst) => {
+          if (fill <= 0 || !eligible(day)) return;
+          const daySlots  = _autoFillSlots(day);
+          const snapshot  = {};
           if (clearFirst) {
             const sched = SchedState.masterSchedule[day]?.[grade];
             if (sched) {
@@ -1516,66 +1528,38 @@ function buildSpecialsSchedule() {
             let ok = true;
             for (let j = 0; j < numSl; j++) {
               const sv = gradeSched[daySlots[i + j]];
-              // Allow empty slots and existing bt_spec; reject instruction/fixed blocks
-              if (sv && !sv.startsWith('bt_spec')) { ok = false; break; }
+              // Only allow empty slots or an existing bt_spec for this same subject.
+              // Rejecting other subjects' bt_spec prevents overwriting their master-schedule label.
+              if (sv && sv !== btId) { ok = false; break; }
             }
             if (!ok) continue;
             const tid = teachers.find(t => isFree(t, day, daySlots[i], dur));
             if (!tid) continue;
-            // Found a valid slot — commit (snapshot is abandoned, overwritten by bt_spec)
             ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
             book(tid, day, daySlots[i], dur);
             if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
             if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
             const gSched = SchedState.masterSchedule[day][grade];
             for (let j = 0; j < numSl && i + j < daySlots.length; j++) {
-              gSched[daySlots[i + j]] = `bt_spec|${sp.id}`;
+              gSched[daySlots[i + j]] = btId;
             }
             fill--;
             return;
           }
-          // No slot found — restore instruction so we don't leave the day empty
+          // No slot found — restore so we don't leave the day empty
           if (clearFirst) {
             const sched = SchedState.masterSchedule[day]?.[grade];
             if (sched) Object.assign(sched, snapshot);
           }
         };
 
-        // Helper: is this day eligible for placing sp on this class?
-        // Never overwrite a day that the rotation assigned to a DIFFERENT subject.
-        const eligible = (day) => {
-          const existing  = ss[day];
-          const rotSpId   = rotation[cls.id]?.[day];
-          if (existing?.teacherId) return false;          // confirmed session → locked
-          if (existing?.subjectId && existing.subjectId !== sp.id) return false; // different subject pending
-          if (rotSpId && rotSpId !== sp.id) return false; // rotation says different subject here
-          return true;
-        };
+        // Priority order: rotation days for this subject first, then any eligible day
+        const rotDays   = DAYS.filter(d => rotation[cls.id]?.[d] === sp.id);
+        const otherDays = DAYS.filter(d => rotation[cls.id]?.[d] !== sp.id);
+        const orderedDays = [...rotDays, ...otherDays];
 
-        // Pass 1a: rotation days for this subject — natural gaps
-        for (const day of DAYS) {
-          if (fill <= 0) break;
-          if (rotation[cls.id]?.[day] !== sp.id) continue;
-          if (eligible(day)) _tryPlaceOnDay(day, false);
-        }
-        // Pass 1b: rotation days — clear instruction and retry
-        for (const day of DAYS) {
-          if (fill <= 0) break;
-          if (rotation[cls.id]?.[day] !== sp.id) continue;
-          if (eligible(day)) _tryPlaceOnDay(day, true);
-        }
-        // Pass 2a: any free day (no rotation assignment conflicts) — natural gaps
-        for (const day of DAYS) {
-          if (fill <= 0) break;
-          if (!eligible(day)) continue;
-          _tryPlaceOnDay(day, false);
-        }
-        // Pass 2b: any free day — clear instruction and retry
-        for (const day of DAYS) {
-          if (fill <= 0) break;
-          if (!eligible(day)) continue;
-          _tryPlaceOnDay(day, true);
-        }
+        for (const day of orderedDays) { if (fill <= 0) break; tryDay(day, false); }
+        for (const day of orderedDays) { if (fill <= 0) break; tryDay(day, true);  }
       });
     });
 
