@@ -1558,6 +1558,74 @@ function buildSpecialsSchedule() {
         sched[daySlots[startIdx + j]] = 'bt_spec';
       }
     });
+
+    // Recovery pass: some classes may still be short of cpw if teacher capacity was
+    // exceeded during the main booking. Try the carousel fixed time first on any
+    // unscheduled day, then fall back to any open slot in the grade's schedule.
+    classes.forEach(cls => {
+      const ss = SchedState.specialsSchedule[cls.id];
+      specials.forEach(sp => {
+        const needed = Math.min(sp.classesPerWeek || 1, 5);
+        const placed = DAYS.filter(d => ss[d]?.subjectId === sp.id && ss[d]?.teacherId).length;
+        if (placed >= needed) return;
+
+        const dur   = sp.duration || 45;
+        const numSl = Math.ceil(dur / 5);
+        const pool  = sp.teacherIds || [];
+        let fill    = needed - placed;
+
+        // Pass 1: try to place at the carousel fixed time on an unscheduled day.
+        for (const day of DAYS) {
+          if (fill <= 0) break;
+          if (ss[day]?.teacherId) continue;
+          if (ss[day]?.subjectId && ss[day].subjectId !== sp.id) continue;
+          const daySlots   = _autoFillSlots(day);
+          const si         = daySlots.indexOf(fixedTime);
+          if (si < 0) continue;
+          const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
+          let ok = true;
+          for (let j = 0; j < numSl; j++) {
+            const sv = gradeSched[daySlots[si + j]];
+            if (sv && sv !== 'bt_spec') { ok = false; break; }
+          }
+          if (!ok) continue;
+          const tid = leastBusyFree(pool, day, fixedTime, dur);
+          if (!tid) continue;
+          ss[day] = { subjectId: sp.id, teacherId: tid, startTime: fixedTime };
+          book(tid, day, fixedTime, dur);
+          fill--;
+        }
+
+        // Pass 2: if still short, find any open slot in the grade schedule (off-carousel).
+        for (const day of DAYS) {
+          if (fill <= 0) break;
+          if (ss[day]?.teacherId) continue;
+          if (ss[day]?.subjectId && ss[day].subjectId !== sp.id) continue;
+          const daySlots   = _autoFillSlots(day);
+          const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
+          for (let i = 0; i <= daySlots.length - numSl; i++) {
+            let ok = true;
+            for (let j = 0; j < numSl; j++) {
+              const sv = gradeSched[daySlots[i + j]];
+              if (sv) { ok = false; break; }
+            }
+            if (!ok) continue;
+            const tid = leastBusyFree(pool, day, daySlots[i], dur);
+            if (!tid) continue;
+            ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
+            book(tid, day, daySlots[i], dur);
+            if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
+            if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+            const gSched = SchedState.masterSchedule[day][grade];
+            for (let j = 0; j < numSl && i + j < daySlots.length; j++) {
+              gSched[daySlots[i + j]] = `bt_spec|${sp.id}`;
+            }
+            fill--;
+            break;
+          }
+        }
+      });
+    });
   });
 
   showSpecialsMissingWarning(failedGrades);
@@ -2546,7 +2614,7 @@ function exportXLSX() {
 
 // ── Specials coverage validation ──────────────────────────────────────────────
 
-// Returns per-class coverage info: expected days from rotation vs. actual scheduled days.
+// Returns per-class coverage info: actual placed sessions vs. required cpw per special.
 function getSpecialsCoverageReport() {
   const specials = SchedState.school.specials || [];
   if (!specials.length) return { classes: [], hasIssues: false };
@@ -2556,26 +2624,35 @@ function getSpecialsCoverageReport() {
 
   gradesSorted().forEach(grade => {
     const classes = getClassesForGrade(grade);
-    if (!classes.length) return; // synthetic grades not tracked at class level
+    if (!classes.length) return;
 
-    const rotation = computeClassSpecialsRotation(classes, specials);
     classes.forEach(cls => {
-      const expected = rotation[cls.id] || {};
-      const actual   = ss[cls.id]    || {};
-      const missing  = Object.entries(expected)
-        .filter(([day, spId]) => {
-          const entry = actual[day];
-          return !entry || entry.subjectId !== spId;
-        })
-        .map(([day, spId]) => {
-          const sp = specials.find(s => s.id === spId);
-          return { day, subjectName: sp?.name || 'Specials', color: sp?.color || '#f97316' };
-        });
+      const actual  = ss[cls.id] || {};
+      const missing = [];
+      let expectedTotal = 0;
+      let actualTotal   = 0;
+
+      specials.forEach(sp => {
+        const needed = Math.min(sp.classesPerWeek || 1, 5);
+        const placed = DAYS.filter(d => actual[d]?.subjectId === sp.id && actual[d]?.teacherId).length;
+        expectedTotal += needed;
+        actualTotal   += placed;
+        if (placed < needed) {
+          missing.push({
+            subjectId: sp.id,
+            subjectName: sp.name,
+            color: sp.color || '#f97316',
+            needed, placed,
+            short: needed - placed,
+          });
+        }
+      });
+
       classReports.push({
         grade, gradeLabel: GRADE_LABELS[grade] || grade,
         classId: cls.id, className: cls.name,
-        expectedCount: Object.keys(expected).length,
-        actualCount:   Object.keys(actual).length,
+        expectedCount: expectedTotal,
+        actualCount:   actualTotal,
         missing,
         complete: missing.length === 0,
       });
@@ -2601,7 +2678,9 @@ function showSpecialsCoverageBanner() {
 
   const list = Object.values(byGrade).map(g => {
     const items = g.classes.map(c => {
-      const missing = c.missing.map(m => `${m.subjectName} (${m.day.slice(0,3)})`).join(', ');
+      const missing = c.missing.map(m =>
+        `${m.subjectName} (${m.placed}/${m.needed})`
+      ).join(', ');
       return `${escHtml(c.className)} — missing ${escHtml(missing)}`;
     }).join('; ');
     return `<li><strong>${escHtml(g.gradeLabel)}:</strong> ${items}</li>`;
@@ -2677,7 +2756,7 @@ function renderSpecialsScheduleView() {
               ${c.complete
                 ? '<span class="cov-ok">✓</span>'
                 : `<span class="cov-warn">⚠ Missing: ${c.missing.map(m =>
-                    `<span style="color:${m.color}">${escHtml(m.subjectName)}</span> (${m.day.slice(0,3)})`
+                    `<span style="color:${m.color}">${escHtml(m.subjectName)}</span> ${m.placed}/${m.needed}`
                   ).join(', ')}</span>`}
             </td>
           </tr>`).join('');
