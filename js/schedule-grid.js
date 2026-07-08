@@ -1496,12 +1496,17 @@ function buildSpecialsSchedule() {
           if (fill <= 0) return;
           if (ss[day]?.teacherId) return; // already has a confirmed session
           const daySlots = _autoFillSlots(day);
+          // Save cleared instruction so we can roll back if no slot is found.
+          // Without rollback, failed clears leave the grade with empty days that
+          // _populateGradeData skips (it sees enough total slots and doesn't re-fill).
+          const snapshot = {};
           if (clearFirst) {
             const sched = SchedState.masterSchedule[day]?.[grade];
             if (sched) {
               Object.keys(sched).forEach(slot => {
                 const sv = sched[slot];
                 if (!sv || isFixedBlock(sv) || sv.startsWith('bt_spec')) return;
+                snapshot[slot] = sv;
                 delete sched[slot];
               });
             }
@@ -1517,6 +1522,7 @@ function buildSpecialsSchedule() {
             if (!ok) continue;
             const tid = teachers.find(t => isFree(t, day, daySlots[i], dur));
             if (!tid) continue;
+            // Found a valid slot — commit (snapshot is abandoned, overwritten by bt_spec)
             ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
             book(tid, day, daySlots[i], dur);
             if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
@@ -1527,6 +1533,11 @@ function buildSpecialsSchedule() {
             }
             fill--;
             return;
+          }
+          // No slot found — restore instruction so we don't leave the day empty
+          if (clearFirst) {
+            const sched = SchedState.masterSchedule[day]?.[grade];
+            if (sched) Object.assign(sched, snapshot);
           }
         };
 
