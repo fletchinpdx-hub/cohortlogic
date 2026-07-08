@@ -1262,7 +1262,10 @@ function computeClassSpecialsRotation(classes, specials) {
       const sp   = specials.find(p => p.id === spId);
       const cap  = Math.max((sp?.teacherIds || []).length, 1);
 
-      let dayIdx = (s + c) % numDays;
+      // Use a spread step so multiple sessions of the same subject don't land on
+      // consecutive days (e.g. PE Mon+Tue). step=2 with numDays=5, S=2 → Mon+Wed.
+      const step   = S > 0 ? Math.max(Math.floor(numDays / S), 1) : 1;
+      let dayIdx = (s * step + c) % numDays;
       let tries  = 0;
       while (tries < numDays) {
         const d = DAYS[dayIdx];
@@ -1527,13 +1530,40 @@ function buildSpecialsSchedule() {
           }
         };
 
+        // Helper: is this day eligible for placing sp on this class?
+        // Never overwrite a day that the rotation assigned to a DIFFERENT subject.
+        const eligible = (day) => {
+          const existing  = ss[day];
+          const rotSpId   = rotation[cls.id]?.[day];
+          if (existing?.teacherId) return false;          // confirmed session → locked
+          if (existing?.subjectId && existing.subjectId !== sp.id) return false; // different subject pending
+          if (rotSpId && rotSpId !== sp.id) return false; // rotation says different subject here
+          return true;
+        };
+
+        // Pass 1a: rotation days for this subject — natural gaps
         for (const day of DAYS) {
           if (fill <= 0) break;
-          _tryPlaceOnDay(day, false); // first pass: natural gaps only
+          if (rotation[cls.id]?.[day] !== sp.id) continue;
+          if (eligible(day)) _tryPlaceOnDay(day, false);
         }
+        // Pass 1b: rotation days — clear instruction and retry
         for (const day of DAYS) {
           if (fill <= 0) break;
-          if (!ss[day]?.teacherId) _tryPlaceOnDay(day, true); // second pass: clear instruction
+          if (rotation[cls.id]?.[day] !== sp.id) continue;
+          if (eligible(day)) _tryPlaceOnDay(day, true);
+        }
+        // Pass 2a: any free day (no rotation assignment conflicts) — natural gaps
+        for (const day of DAYS) {
+          if (fill <= 0) break;
+          if (!eligible(day)) continue;
+          _tryPlaceOnDay(day, false);
+        }
+        // Pass 2b: any free day — clear instruction and retry
+        for (const day of DAYS) {
+          if (fill <= 0) break;
+          if (!eligible(day)) continue;
+          _tryPlaceOnDay(day, true);
         }
       });
     });
@@ -2857,7 +2887,7 @@ function buildSpecialsTeacherGrid(teacherId) {
 
   const rows = slots.map((slot, i) => {
     const [, m] = slot.split(':').map(Number);
-    const showLabel = m % 15 === 0;
+    const showLabel = m % 10 === 0;
     const isMajor   = m === 0;
 
     const cells = DAYS.map(day => {
