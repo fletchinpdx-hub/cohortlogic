@@ -1512,7 +1512,55 @@ function buildSpecialsSchedule() {
       _clearRequirementsForGrade(grade);
       fixedTime = findGradeFixedTime(grade, classes, rotation, specials, isFree);
     }
-    if (!fixedTime) { failedGrades.push(grade); return; }
+    if (!fixedTime) {
+      // No carousel slot available — schedule each class/session individually instead.
+      // Each class finds its own best open slot per day without requiring a common time.
+      classes.forEach(cls => { SchedState.specialsSchedule[cls.id] = {}; });
+      let anyFallbackPlaced = false;
+      const fbRotation = computeClassSpecialsRotation(classes, specials);
+
+      classes.forEach(cls => {
+        specials.forEach(sp => {
+          const needed    = Math.min(sp.classesPerWeek || 1, 5);
+          const dur       = sp.duration || 45;
+          const numSl     = Math.ceil(dur / 5);
+          const pool      = sp.teacherIds || [];
+          let fill        = needed;
+          const rotDays   = DAYS.filter(d => fbRotation[cls.id]?.[d] === sp.id);
+          const otherDays = DAYS.filter(d => !rotDays.includes(d));
+
+          for (const day of [...rotDays, ...otherDays]) {
+            if (fill <= 0) break;
+            if (SchedState.specialsSchedule[cls.id][day]?.teacherId) continue;
+            const daySlots   = _autoFillSlots(day);
+            const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
+            for (let i = 0; i <= daySlots.length - numSl; i++) {
+              let ok = true;
+              for (let j = 0; j < numSl; j++) {
+                if (gradeSched[daySlots[i + j]]) { ok = false; break; }
+              }
+              if (!ok) continue;
+              const tid = leastBusyFree(pool, day, daySlots[i], dur);
+              if (!tid) continue;
+              SchedState.specialsSchedule[cls.id][day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
+              book(tid, day, daySlots[i], dur);
+              if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
+              if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+              const gSched = SchedState.masterSchedule[day][grade];
+              for (let j = 0; j < numSl && i + j < daySlots.length; j++) {
+                gSched[daySlots[i + j]] = `bt_spec|${sp.id}`;
+              }
+              anyFallbackPlaced = true;
+              fill--;
+              break;
+            }
+          }
+        });
+      });
+
+      if (!anyFallbackPlaced) failedGrades.push(grade);
+      return;
+    }
 
     // Initialise specialsSchedule with fixed time + rotation subject for every class/day.
     classes.forEach(cls => {
