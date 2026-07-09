@@ -3738,7 +3738,7 @@ function openIABlockPanel(grade, slot) {
   const panelBody = document.getElementById('ia-panel-body');
   if (!panelBody) return;
   panelBody.innerHTML = buildIABlockPanelHtml(day, grade, startSlot, endSlot, btId, slots);
-  wireIABlockPanel(day, grade, startSlot, endSlot, slots);
+  wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots);
 }
 
 // Build the HTML for the IA assignment panel for a specific block.
@@ -3795,6 +3795,17 @@ function buildIABlockPanelHtml(day, grade, startSlot, endSlot, btId, slots) {
     return `<option value="${s}"${sel}>${fmtTime12(minsToTime(timeToMins(s) + 5))}</option>`;
   }).join('');
 
+  // Days of week — which days have the same block type at the same start time for this grade
+  const baseBtId  = btId.split('|')[0];
+  const DAY_SHORT = { Mon: 'M', Tue: 'T', Wed: 'W', Thu: 'Th', Fri: 'F' };
+  const availDays = DAYS.filter(d => {
+    const slotBt = ((SchedState.masterSchedule[d] || {})[grade] || {})[startSlot];
+    return slotBt && slotBt.split('|')[0] === baseBtId;
+  });
+  const dayChips = availDays.map(d =>
+    `<button class="ia-day-chip active${d === day ? ' ia-day-today' : ''}" data-day-chip="${d}">${DAY_SHORT[d] || d.slice(0,2)}</button>`
+  ).join('');
+
   return `
     <div class="ia-panel-block-hdr" style="border-left:3px solid ${color}">
       <div class="ia-panel-block-name" style="color:${color}">${escHtml(btName)}</div>
@@ -3824,6 +3835,9 @@ function buildIABlockPanelHtml(day, grade, startSlot, endSlot, btId, slots) {
         <select id="ia-custom-end" class="ia-time-select">${endOpts}</select>
       </div>
 
+      <div class="ia-panel-field-lbl">Days</div>
+      <div class="ia-day-chips-row" id="ia-day-chips-row">${dayChips}</div>
+
       <button class="btn btn-primary btn-sm ia-confirm-btn" id="ia-confirm-assign-btn" disabled>Assign</button>
     </div>`;
 }
@@ -3842,7 +3856,7 @@ function _getIAPartialTime(day, iaId, startSlot, slots) {
 }
 
 // Wire events for the IA block assignment panel.
-function wireIABlockPanel(day, grade, startSlot, endSlot, slots) {
+function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
   let selectedIAId    = null;
   let selectedAllocId = null;
   const confirmBtn    = document.getElementById('ia-confirm-assign-btn');
@@ -3879,6 +3893,23 @@ function wireIABlockPanel(day, grade, startSlot, endSlot, slots) {
     });
   });
 
+  // Day chips — track selection, all pre-selected
+  const baseBtId    = btId.split('|')[0];
+  const selectedDays = new Set(
+    DAYS.filter(d => {
+      const slotBt = ((SchedState.masterSchedule[d] || {})[grade] || {})[startSlot];
+      return slotBt && slotBt.split('|')[0] === baseBtId;
+    })
+  );
+  document.querySelectorAll('[data-day-chip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = btn.dataset.dayChip;
+      if (selectedDays.has(d)) selectedDays.delete(d);
+      else selectedDays.add(d);
+      btn.classList.toggle('active', selectedDays.has(d));
+    });
+  });
+
   // Remove assignment
   document.querySelectorAll('[data-remove-ia]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -3891,17 +3922,21 @@ function wireIABlockPanel(day, grade, startSlot, endSlot, slots) {
   if (confirmBtn) {
     confirmBtn.addEventListener('click', () => {
       if (!selectedIAId || !selectedAllocId) return;
-      let assignSlots = slots;
       const timeMode = document.querySelector('input[name="ia-time-mode"]:checked')?.value;
-      if (timeMode === 'custom') {
-        const cs = document.getElementById('ia-custom-start')?.value;
-        const ce = document.getElementById('ia-custom-end')?.value;
-        if (cs && ce) {
-          const si = slots.indexOf(cs), ei = slots.indexOf(ce);
-          if (si >= 0 && ei >= si) assignSlots = slots.slice(si, ei + 1);
+      const cs = document.getElementById('ia-custom-start')?.value;
+      const ce = document.getElementById('ia-custom-end')?.value;
+
+      Array.from(selectedDays).forEach(assignDay => {
+        const daySlots = getAllBlockSlots(assignDay, grade, startSlot);
+        if (!daySlots.length) return;
+        let assignSlots = daySlots;
+        if (timeMode === 'custom' && cs && ce) {
+          const si = daySlots.indexOf(cs), ei = daySlots.indexOf(ce);
+          if (si >= 0 && ei >= si) assignSlots = daySlots.slice(si, ei + 1);
         }
-      }
-      commitIAAssignment(day, grade, selectedIAId, selectedAllocId, assignSlots);
+        commitIAAssignment(assignDay, grade, selectedIAId, selectedAllocId, assignSlots);
+      });
+
       openIABlockPanel(grade, startSlot);
     });
   }

@@ -2855,6 +2855,31 @@
 .ia-custom-time-row.ia-custom-hidden { display: none; }
 .ia-time-select { font-size: 11.5px; padding: 4px 6px; border: 1px solid var(--gray-200); border-radius: 4px; flex: 1; }
 .ia-time-to { font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
+
+.ia-day-chips-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.ia-day-chip {
+  min-width: 30px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  border-radius: 20px;
+  background: var(--gray-50);
+  color: var(--gray-400);
+  cursor: pointer;
+  transition: all .1s;
+  text-align: center;
+}
+.ia-day-chip.active {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0369a1;
+}
+.ia-day-chip.ia-day-today {
+  font-weight: 700;
+}
+.ia-day-chip:hover:not(.active) { border-color: var(--gray-300); color: var(--gray-600); }
+
 .ia-confirm-btn { width: 100%; }
 
 /* IA mode toggle button active state */
