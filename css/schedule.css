@@ -2559,6 +2559,7 @@
   margin-bottom: 3px;
 }
 .ia-target-empty { font-size: 11px; color: var(--gray-400); font-style: italic; }
+.ia-target-hint { font-size: 10px; color: var(--gray-400); padding: 0 12px 6px; font-style: italic; }
 
 /* This IA mini-summary */
 .ia-mini-summary-section { padding-bottom: 12px; }

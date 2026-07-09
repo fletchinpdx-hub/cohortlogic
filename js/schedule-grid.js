@@ -2209,9 +2209,10 @@ function renderIAScheduleView() {
         <div class="ia-panel-section">
           <div class="ia-section-label">Assign to</div>
           <div class="ia-target-type-toggle">
-            <button class="ia-target-type-btn${iaSchedUI.targetType === 'grade' ? ' active' : ''}" data-target-type="grade">Grade</button>
-            <button class="ia-target-type-btn${iaSchedUI.targetType === 'class' ? ' active' : ''}" data-target-type="class">Class</button>
+            <button class="ia-target-type-btn${iaSchedUI.targetType === 'grade' ? ' active' : ''}" data-target-type="grade">Whole Grade</button>
+            <button class="ia-target-type-btn${iaSchedUI.targetType === 'class' ? ' active' : ''}" data-target-type="class">One Class</button>
           </div>
+          <div class="ia-target-hint">${iaSchedUI.targetType === 'grade' ? 'IA supports the entire grade.' : 'IA supports one teacher\'s class.'}</div>
           <div class="ia-target-picker" id="ia-target-picker">
             ${buildIATargetPickerHtml()}
           </div>
@@ -2280,10 +2281,11 @@ function buildIATargetPickerHtml() {
       }).join('') + '</div>';
   }
 
-  if (!classes.length) return '<div class="ia-target-empty">No teachers set up yet.</div>';
+  if (!classes.length) return '<div class="ia-target-empty">No teachers in Staff Roster yet.</div>';
   const byGrade = {};
   classes.forEach(t => { (byGrade[t.grade || '_'] = byGrade[t.grade || '_'] || []).push(t); });
-  return grades.map(grade => {
+
+  const gradeGroups = grades.map(grade => {
     const tList = byGrade[grade];
     if (!tList?.length) return '';
     const pills = tList.map(t => {
@@ -2296,6 +2298,18 @@ function buildIATargetPickerHtml() {
       <div class="ia-target-pills-row">${pills}</div>
     </div>`;
   }).join('');
+
+  const ungroupedList = byGrade['_'] || [];
+  const ungrouped = ungroupedList.map(t => {
+    const active = iaSchedUI.targetId === t.id;
+    const last   = t.name ? t.name.split(' ').slice(-1)[0] : t.name;
+    return `<button class="ia-target-pill${active ? ' active' : ''}" data-target-id="${t.id}">${escHtml(last)}</button>`;
+  }).join('');
+
+  return gradeGroups + (ungrouped ? `<div class="ia-target-grade-group">
+    <div class="ia-target-grade-label">Unassigned grade</div>
+    <div class="ia-target-pills-row">${ungrouped}</div>
+  </div>` : '');
 }
 
 function _iaTargetLabel(entry) {
@@ -2537,6 +2551,8 @@ function wireIAScheduleEvents(container, ias) {
       iaSchedUI.targetId   = null;
       container.querySelectorAll('.ia-target-type-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.targetType === iaSchedUI.targetType));
+      const hintEl = container.querySelector('.ia-target-hint');
+      if (hintEl) hintEl.textContent = iaSchedUI.targetType === 'grade' ? 'IA supports the entire grade.' : 'IA supports one teacher\'s class.';
       const pickerEl = container.querySelector('#ia-target-picker');
       if (pickerEl) { pickerEl.innerHTML = buildIATargetPickerHtml(); _wireTargetPicker(container); }
     });
