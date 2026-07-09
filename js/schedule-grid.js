@@ -2207,7 +2207,7 @@ function renderIAScheduleView() {
   const allocBar = `
     <div class="ia-budget-bar">
       <span class="ia-budget-bar-lbl">Budget:</span>
-      ${allocs.map(a => `<span class="ia-budget-chip" style="background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}">${escHtml(a.name)}</span>`).join('')}
+      ${allocs.map(a => `<span class="ia-budget-chip" style="background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}">${escHtml(a.name)}${(a.hoursPerDay || 0) > 0 ? ' · ' + a.hoursPerDay + 'h/day' : ''}</span>`).join('')}
       <button class="ia-budget-manage-btn" id="ia-budget-manage-btn">${allocs.length ? '+ Manage' : '+ Add categories'}</button>
     </div>
     <div class="ia-budget-manage-panel hidden" id="ia-budget-manage-panel">
@@ -2220,6 +2220,10 @@ function renderIAScheduleView() {
         <div class="ia-alloc-color-row">
           <label class="ia-alloc-color-label">Color</label>
           <input type="color" id="ia-new-alloc-color" value="#6366f1" class="ia-alloc-color-input" />
+        </div>
+        <div class="ia-alloc-color-row">
+          <label class="ia-alloc-color-label">Hours / day</label>
+          <input type="number" id="ia-new-alloc-hpd" class="ia-alloc-hpd-input" value="0" min="0" max="12" step="0.25" />
         </div>
         <div class="ia-alloc-form-btns">
           <button class="btn btn-primary btn-sm" id="ia-save-alloc-btn">Add</button>
@@ -2241,11 +2245,20 @@ function renderIAScheduleView() {
     const iaPicker = ias.map(ia =>
       `<button class="ia-view-picker-chip${ia.id === iaSchedUI.focusedIAId ? ' active' : ''}" data-ia-pick="${ia.id}">${escHtml(ia.name)}</button>`
     ).join('');
+    const focusedIASummary = getIASummaryForIA(iaSchedUI.focusedIAId);
+    const iaGridOrEmpty = focusedIASummary.total > 0
+      ? buildIndividualIAGrid(iaSchedUI.focusedIAId)
+      : `<div class="ia-empty-state">
+           <div class="ia-empty-icon">📋</div>
+           <p>No assignments yet for this IA.</p>
+           <p class="ia-empty-sub">Go to the Master Schedule, click <strong>Assign IAs</strong>, then click any block to assign this IA to it.</p>
+           <button class="btn btn-primary btn-sm ia-empty-go-btn" id="ia-empty-go-btn">← Go to Master Schedule</button>
+         </div>`;
     contentHtml = `
       <div class="ia-view-picker-row">${iaPicker}</div>
       <div class="ia-ind-grid-summary" id="ia-ind-summary"></div>
       <div class="grid-scroll-wrap ia-ind-grid-wrap" id="ia-ind-grid-wrap">
-        ${buildIndividualIAGrid(iaSchedUI.focusedIAId)}
+        ${iaGridOrEmpty}
       </div>`;
   } else {
     const dayTabsHtml = DAYS.map(day =>
@@ -2263,9 +2276,10 @@ function renderIAScheduleView() {
       <div class="ia-view-top-bar">
         <div>
           <h1 class="grid-title">IA Schedules</h1>
-          <p class="grid-subtitle">Assign IAs by clicking blocks in the <strong>Master Schedule</strong>. View and manage schedules here.</p>
+          <p class="grid-subtitle">View IA schedules here. To assign IAs, go to the Master Schedule and click a block.</p>
         </div>
         <div class="ia-view-top-actions">
+          <button class="btn btn-primary btn-sm" id="ia-go-master-btn">← Assign in Master Schedule</button>
           <button class="btn btn-outline btn-sm" id="ia-summary-csv-btn">Download CSV</button>
           <button class="btn btn-outline btn-sm" id="ia-print-btn">Print</button>
         </div>
@@ -2285,15 +2299,32 @@ function renderIAScheduleView() {
 }
 
 function buildIAPaletteHtml(allocs) {
+  if (!allocs.length) return '<p class="ia-alloc-empty-msg">No budget categories yet.</p>';
   return allocs.map(alloc => {
-    const active = alloc.id === iaSchedUI.activeAllocId;
-    const border = active ? `border-left:3px solid ${alloc.color};background:${alloc.color}12` : 'border-left:3px solid transparent';
+    const hpd = alloc.hoursPerDay != null ? alloc.hoursPerDay : 0;
     return `
-      <div class="ia-alloc-item${active ? ' active' : ''}" data-alloc-id="${alloc.id}" style="${border}">
+      <div class="ia-alloc-item" data-alloc-id="${alloc.id}">
         <div class="ia-alloc-header">
           <span class="palette-dot" style="background:${alloc.color}"></span>
           <span class="ia-alloc-name">${escHtml(alloc.name)}</span>
+          <span class="ia-alloc-hpd-badge">${hpd > 0 ? hpd + 'h/day' : '—'}</span>
+          <button class="ia-alloc-edit-btn" data-edit-alloc="${alloc.id}" title="Edit">✏</button>
           <button class="ia-alloc-delete" data-delete-alloc="${alloc.id}" title="Remove">×</button>
+        </div>
+        <div class="ia-alloc-edit-form hidden" id="ia-edit-form-${alloc.id}">
+          <input class="ia-alloc-input ia-edit-name-input" value="${escHtml(alloc.name)}" maxlength="30" placeholder="Name" data-alloc-id="${alloc.id}" />
+          <div class="ia-alloc-color-row">
+            <label class="ia-alloc-color-label">Color</label>
+            <input type="color" class="ia-alloc-color-input ia-edit-color-input" value="${alloc.color}" data-alloc-id="${alloc.id}" />
+          </div>
+          <div class="ia-alloc-color-row">
+            <label class="ia-alloc-color-label">Hours / day</label>
+            <input type="number" class="ia-alloc-hpd-input ia-edit-hpd-input" value="${hpd}" min="0" max="12" step="0.25" data-alloc-id="${alloc.id}" />
+          </div>
+          <div class="ia-alloc-form-btns">
+            <button class="btn btn-primary btn-sm ia-save-edit-btn" data-alloc-id="${alloc.id}">Save</button>
+            <button class="btn btn-outline btn-sm ia-cancel-edit-btn" data-alloc-id="${alloc.id}">Cancel</button>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -4028,10 +4059,11 @@ function wireIAViewEvents(container, ias) {
   document.getElementById('ia-save-alloc-btn')?.addEventListener('click', () => {
     const name  = document.getElementById('ia-new-alloc-name')?.value.trim();
     const color = document.getElementById('ia-new-alloc-color')?.value || '#6366f1';
+    const hpd   = parseFloat(document.getElementById('ia-new-alloc-hpd')?.value) || 0;
     if (!name) return;
     const id = 'ia_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
     if (!SchedState.iaAllocations) SchedState.iaAllocations = [];
-    SchedState.iaAllocations.push({ id, name, color, hoursPerWeek: 0 });
+    SchedState.iaAllocations.push({ id, name, color, hoursPerDay: hpd });
     saveToLocal();
     renderIAScheduleView();
   });
@@ -4045,13 +4077,47 @@ function wireIAViewEvents(container, ias) {
     });
   });
 
-  // Hours-per-week input
-  container.querySelectorAll('.ia-alloc-hrs-input').forEach(input => {
-    input.addEventListener('change', e => {
-      const alloc = (SchedState.iaAllocations || []).find(a => a.id === e.target.dataset.allocId);
-      if (alloc) { alloc.hoursPerWeek = parseFloat(e.target.value) || 0; saveToLocal(); }
+  // Edit category — toggle inline form
+  container.querySelectorAll('[data-edit-alloc]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const form = document.getElementById('ia-edit-form-' + btn.dataset.editAlloc);
+      if (form) form.classList.toggle('hidden');
     });
   });
+
+  // Save inline edit
+  container.querySelectorAll('.ia-save-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const aid  = btn.dataset.allocId;
+      const form = document.getElementById('ia-edit-form-' + aid);
+      if (!form) return;
+      const name  = form.querySelector('.ia-edit-name-input')?.value.trim();
+      const color = form.querySelector('.ia-edit-color-input')?.value || '#6366f1';
+      const hpd   = parseFloat(form.querySelector('.ia-edit-hpd-input')?.value) || 0;
+      if (!name) return;
+      const alloc = (SchedState.iaAllocations || []).find(a => a.id === aid);
+      if (alloc) { alloc.name = name; alloc.color = color; alloc.hoursPerDay = hpd; }
+      saveToLocal();
+      renderIAScheduleView();
+    });
+  });
+
+  // Cancel inline edit
+  container.querySelectorAll('.ia-cancel-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const form = document.getElementById('ia-edit-form-' + btn.dataset.allocId);
+      if (form) form.classList.add('hidden');
+    });
+  });
+
+  // Navigate to master schedule and activate IA mode
+  function goToMasterWithIA() {
+    navigateTo('master');
+    renderMasterSchedule();
+    if (!iaMasterState.active) toggleIAMasterMode();
+  }
+  document.getElementById('ia-go-master-btn')?.addEventListener('click', goToMasterWithIA);
+  document.getElementById('ia-empty-go-btn')?.addEventListener('click', goToMasterWithIA);
 
   // Back button
   document.getElementById('ia-back-btn')?.addEventListener('click', () => {
