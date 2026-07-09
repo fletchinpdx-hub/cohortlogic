@@ -2478,6 +2478,7 @@ function buildIAGrid(day, ias) {
 
   const rows = slots.map((slot, idx) => {
     const prevSlot = idx > 0 ? slots[idx - 1] : null;
+    const nextSlot = idx < slots.length - 1 ? slots[idx + 1] : null;
     const mm       = parseInt(slot.split(':')[1]);
     const isMajor  = mm === 0;
     const showLbl  = isMajor || mm === 30;
@@ -2486,6 +2487,7 @@ function buildIAGrid(day, ias) {
       const iaSlots   = dayMap[ia.id] || {};
       const entry     = iaSlots[slot];
       const prevEntry = prevSlot ? (iaSlots[prevSlot] || null) : null;
+      const nextEntry = nextSlot ? (iaSlots[nextSlot] || null) : null;
 
       if (!entry) {
         return `<td class="ia-cell empty" data-ia="${ia.id}" data-slot="${slot}"></td>`;
@@ -2497,15 +2499,34 @@ function buildIAGrid(day, ias) {
         prevEntry.allocId    === entry.allocId &&
         prevEntry.targetType === entry.targetType &&
         prevEntry.targetId   === entry.targetId;
+      const isEnd = !nextEntry ||
+        nextEntry.allocId    !== entry.allocId ||
+        nextEntry.targetType !== entry.targetType ||
+        nextEntry.targetId   !== entry.targetId;
+
+      const grade   = entry.targetType === 'grade' ? entry.targetId : null;
+      const btId    = grade ? getBlock(day, grade, slot) : null;
+      const btName  = btId ? getBtName(btId) : null;
       const targetLabel = _iaTargetLabel(entry);
+      const note    = entry.note || '';
+
       const inner = isCont ? '' : `
         <div class="ia-cell-label">${escHtml(alloc?.name || '')}</div>
-        ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}`;
-      const title = [alloc?.name, targetLabel].filter(Boolean).join(' • ');
+        ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}
+        ${btName ? `<div class="ia-cell-block">${escHtml(btName)}</div>` : ''}
+        ${note ? `<div class="ia-cell-note">${escHtml(note)}</div>` : ''}`;
+      const title = [alloc?.name, targetLabel, btName, note].filter(Boolean).join(' · ');
+
+      const styleStr = [
+        `background:${color}22`,
+        `border-left:3px solid ${color}`,
+        `border-right:1px solid ${color}40`,
+        isCont ? 'border-top:1px solid transparent' : `border-top:2px solid ${color}80`,
+        isEnd  ? `border-bottom:2px solid ${color}80` : '',
+      ].filter(Boolean).join(';');
 
       return `<td class="ia-cell filled${isCont ? ' cont' : ''}" data-ia="${ia.id}" data-slot="${slot}"
-               style="background:${color}22;border-left:3px solid ${color};border-right:1px solid ${color}40"
-               title="${escHtml(title)}">${inner}</td>`;
+               style="${styleStr}" title="${escHtml(title)}">${inner}</td>`;
     }).join('');
 
     return `<tr class="sched-row${isMajor ? ' row-hour' : ''}" data-slot="${slot}">
@@ -3838,6 +3859,9 @@ function buildIABlockPanelHtml(day, grade, startSlot, endSlot, btId, slots) {
       <div class="ia-panel-field-lbl">Days</div>
       <div class="ia-day-chips-row" id="ia-day-chips-row">${dayChips}</div>
 
+      <div class="ia-panel-field-lbl">Note <span class="ia-optional-lbl">(optional)</span></div>
+      <textarea class="ia-assign-note-input" id="ia-assign-note" rows="2" placeholder="e.g. Push-in support, reading group"></textarea>
+
       <button class="btn btn-primary btn-sm ia-confirm-btn" id="ia-confirm-assign-btn" disabled>Assign</button>
     </div>`;
 }
@@ -3857,20 +3881,21 @@ function _getIAPartialTime(day, iaId, startSlot, slots) {
 
 // Wire events for the IA block assignment panel.
 function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
-  let selectedIAId    = null;
+  const selectedIAIds = new Set();
   let selectedAllocId = null;
   const confirmBtn    = document.getElementById('ia-confirm-assign-btn');
 
   function updateConfirm() {
-    if (confirmBtn) confirmBtn.disabled = !(selectedIAId && selectedAllocId);
+    if (confirmBtn) confirmBtn.disabled = !(selectedIAIds.size > 0 && selectedAllocId);
   }
 
-  // IA picker
+  // IA picker — multi-select toggle
   document.querySelectorAll('[data-pick-ia]').forEach(btn => {
     btn.addEventListener('click', () => {
-      selectedIAId = btn.dataset.pickIa;
-      document.querySelectorAll('[data-pick-ia]').forEach(b =>
-        b.classList.toggle('active', b.dataset.pickIa === selectedIAId));
+      const id = btn.dataset.pickIa;
+      if (selectedIAIds.has(id)) selectedIAIds.delete(id);
+      else selectedIAIds.add(id);
+      btn.classList.toggle('active', selectedIAIds.has(id));
       updateConfirm();
     });
   });
@@ -3921,20 +3946,23 @@ function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
   // Confirm assignment
   if (confirmBtn) {
     confirmBtn.addEventListener('click', () => {
-      if (!selectedIAId || !selectedAllocId) return;
+      if (!selectedIAIds.size || !selectedAllocId) return;
       const timeMode = document.querySelector('input[name="ia-time-mode"]:checked')?.value;
-      const cs = document.getElementById('ia-custom-start')?.value;
-      const ce = document.getElementById('ia-custom-end')?.value;
+      const cs   = document.getElementById('ia-custom-start')?.value;
+      const ce   = document.getElementById('ia-custom-end')?.value;
+      const note = document.getElementById('ia-assign-note')?.value.trim() || '';
 
-      Array.from(selectedDays).forEach(assignDay => {
-        const daySlots = getAllBlockSlots(assignDay, grade, startSlot);
-        if (!daySlots.length) return;
-        let assignSlots = daySlots;
-        if (timeMode === 'custom' && cs && ce) {
-          const si = daySlots.indexOf(cs), ei = daySlots.indexOf(ce);
-          if (si >= 0 && ei >= si) assignSlots = daySlots.slice(si, ei + 1);
-        }
-        commitIAAssignment(assignDay, grade, selectedIAId, selectedAllocId, assignSlots);
+      Array.from(selectedIAIds).forEach(iaId => {
+        Array.from(selectedDays).forEach(assignDay => {
+          const daySlots = getAllBlockSlots(assignDay, grade, startSlot);
+          if (!daySlots.length) return;
+          let assignSlots = daySlots;
+          if (timeMode === 'custom' && cs && ce) {
+            const si = daySlots.indexOf(cs), ei = daySlots.indexOf(ce);
+            if (si >= 0 && ei >= si) assignSlots = daySlots.slice(si, ei + 1);
+          }
+          commitIAAssignment(assignDay, grade, iaId, selectedAllocId, assignSlots, note);
+        });
       });
 
       openIABlockPanel(grade, startSlot);
@@ -3943,11 +3971,11 @@ function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
 }
 
 // Write IA assignment to state and refresh the cell indicator.
-function commitIAAssignment(day, grade, iaId, allocId, assignSlots) {
+function commitIAAssignment(day, grade, iaId, allocId, assignSlots, note) {
   if (!SchedState.iaSchedule[day])       SchedState.iaSchedule[day] = {};
   if (!SchedState.iaSchedule[day][iaId]) SchedState.iaSchedule[day][iaId] = {};
   assignSlots.forEach(slot => {
-    SchedState.iaSchedule[day][iaId][slot] = { allocId, targetType: 'grade', targetId: grade };
+    SchedState.iaSchedule[day][iaId][slot] = { allocId, targetType: 'grade', targetId: grade, note: note || '' };
   });
   refreshIAIndicator(day, grade, iaMasterState.startSlot);
   saveToLocal();
@@ -3994,13 +4022,17 @@ function buildIndividualIAGrid(iaId) {
 
   const rows = allSlots.map((slot, idx) => {
     const prevSlot  = idx > 0 ? allSlots[idx - 1] : null;
+    const nextSlot  = idx < allSlots.length - 1 ? allSlots[idx + 1] : null;
     const mm        = parseInt(slot.split(':')[1]);
     const isMajor   = mm === 0;
     const showLbl   = mm % 15 === 0;
 
     const cells = DAYS.map(day => {
-      const entry = ((SchedState.iaSchedule[day] || {})[iaId] || {})[slot];
+      const iaDay  = (SchedState.iaSchedule[day] || {})[iaId] || {};
+      const entry  = iaDay[slot];
       if (!entry) return `<td class="ia-ind-cell empty"></td>`;
+
+      const nextEntry = nextSlot ? (((SchedState.iaSchedule[day] || {})[iaId] || {})[nextSlot] || null) : null;
 
       const grade = entry.targetType === 'grade' ? entry.targetId : null;
       const btId  = grade ? getBlock(day, grade, slot) : null;
@@ -4010,21 +4042,31 @@ function buildIndividualIAGrid(iaId) {
         : null;
       const color = bt?.color || getBtColor(btId) || '#94a3b8';
 
-      const prevEntry = prevSlot ? ((SchedState.iaSchedule[day] || {})[iaId] || {})[prevSlot] : null;
+      const prevEntry = prevSlot ? (((SchedState.iaSchedule[day] || {})[iaId] || {})[prevSlot] || null) : null;
       const isCont = prevEntry &&
         prevEntry.allocId  === entry.allocId &&
         prevEntry.targetId === entry.targetId;
+      const isEnd = !nextEntry ||
+        nextEntry.allocId  !== entry.allocId ||
+        nextEntry.targetId !== entry.targetId;
 
       const alloc      = (SchedState.iaAllocations || []).find(a => a.id === entry.allocId);
       const gradeLabel = grade ? (GRADE_LABELS[grade] || grade) : '';
+      const note       = entry.note || '';
       const inner      = isCont ? '' : `
         <div class="ia-ind-cell-grade">${escHtml(gradeLabel)}</div>
         ${bt ? `<div class="ia-ind-cell-block">${escHtml(bt.name)}</div>` : ''}
-        ${alloc ? `<span class="ia-ind-alloc-dot" style="background:${alloc.color}" title="${escHtml(alloc.name)}"></span>` : ''}`;
+        ${alloc ? `<span class="ia-ind-alloc-dot" style="background:${alloc.color}" title="${escHtml(alloc.name)}"></span>` : ''}
+        ${note ? `<div class="ia-ind-cell-note">${escHtml(note)}</div>` : ''}`;
 
-      const contStyle = isCont ? 'border-top:1px solid transparent;' : '';
-      return `<td class="ia-ind-cell filled${isCont ? ' cont' : ''}"
-        style="background:${color}18;border-left:3px solid ${color};${contStyle}">${inner}</td>`;
+      const styleStr = [
+        `background:${color}18`,
+        `border-left:3px solid ${color}`,
+        `border-right:1px solid ${color}40`,
+        isCont ? 'border-top:1px solid transparent' : `border-top:2px solid ${color}80`,
+        isEnd  ? `border-bottom:2px solid ${color}80` : '',
+      ].filter(Boolean).join(';');
+      return `<td class="ia-ind-cell filled${isCont ? ' cont' : ''}" style="${styleStr}">${inner}</td>`;
     }).join('');
 
     return `<tr class="sched-row${isMajor ? ' row-hour' : ''}">
