@@ -112,6 +112,10 @@ const SchedState = {
 
   // iaSchedule[day][iaId][slot] = { allocId, grade, activity } | undefined
   iaSchedule: {},
+
+  // ── Unified file passthrough ──
+  _tools:   [],    // tools that have contributed to this file (e.g. ['schedule_builder','class_builder'])
+  _clsData: null,  // Class Builder data — preserved on load, written back on save
 };
 
 // ── Palette for auto-assigning staff colors ──────────────────────────────────
@@ -177,6 +181,12 @@ function updateSidebarStatus() {
   if (specialsSchedNav) {
     const hasSpecials = (SchedState.school.specials || []).length > 0;
     specialsSchedNav.classList.toggle('nav-item-locked', !hasSpecials);
+  }
+
+  const classSchedNav = document.getElementById('nav-class-sched');
+  if (classSchedNav) {
+    const hasMaster = Object.keys(SchedState.masterSchedule || {}).length > 0;
+    classSchedNav.classList.toggle('nav-item-locked', !hasMaster);
   }
 
   const iaNav = document.getElementById('nav-ia') || document.querySelector('[data-view="ia"]');
@@ -265,12 +275,16 @@ function migrateSubBlockMinutes() {
 // ── Persistence: localStorage (immediate) ───────────────────────────────────
 function saveToLocal() {
   const payload = {
-    school:          SchedState.school,
-    staff:           SchedState.staff,
-    blockTypes:      SchedState.blockTypes,
-    masterSchedule:  SchedState.masterSchedule,
-    iaAllocations:   SchedState.iaAllocations,
-    iaSchedule:      SchedState.iaSchedule,
+    school:           SchedState.school,
+    staff:            SchedState.staff,
+    blockTypes:       SchedState.blockTypes,
+    masterSchedule:   SchedState.masterSchedule,
+    conflicts:        SchedState.conflicts,
+    specialsSchedule: SchedState.specialsSchedule,
+    iaAllocations:    SchedState.iaAllocations,
+    iaSchedule:       SchedState.iaSchedule,
+    _tools:           SchedState._tools,
+    _clsData:         SchedState._clsData,
   };
   localStorage.setItem('cl_schedule_data', JSON.stringify(payload));
   if (SchedState.school.name) {
@@ -321,9 +335,13 @@ function loadFromLocal() {
       migrateBandIds();
       migrateSubBlockMinutes();
     }
-    if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
-    if (data.iaAllocations)  SchedState.iaAllocations  = data.iaAllocations;
-    if (data.iaSchedule)     SchedState.iaSchedule     = data.iaSchedule;
+    if (data.masterSchedule)   SchedState.masterSchedule   = data.masterSchedule;
+    if (data.conflicts)        SchedState.conflicts        = data.conflicts;
+    if (data.specialsSchedule) SchedState.specialsSchedule = data.specialsSchedule;
+    if (data.iaAllocations)    SchedState.iaAllocations    = data.iaAllocations;
+    if (data.iaSchedule)       SchedState.iaSchedule       = data.iaSchedule;
+    if (data._tools)           SchedState._tools           = data._tools;
+    if (data._clsData)         SchedState._clsData         = data._clsData;
     // Defaults for fields added after initial release
     if (!SchedState.school.specialsRotationMode) SchedState.school.specialsRotationMode = 'intermittent';
     // Migrate legacy morningMeetings → bt_mm.uniformStart/End (one-time, lazy)
@@ -377,17 +395,87 @@ function applySchoolProfile(sp) {
   }
 }
 
+function _migrateToCohortLogic(raw) {
+  if (raw._product === 'cohort_logic') return raw;
+
+  if (raw._product === 'schedule_builder' || (!raw._product && raw.masterSchedule !== undefined)) {
+    // Old .clsched → unified
+    return {
+      _version: 1,
+      _product: 'cohort_logic',
+      _tools:   ['schedule_builder'],
+      school:     raw.school     || {},
+      staff:      raw.staff      || [],
+      blockTypes: raw.blockTypes || [],
+      schedule: {
+        masterSchedule:   raw.masterSchedule   || {},
+        conflicts:        raw.conflicts        || {},
+        specialsSchedule: raw.specialsSchedule || {},
+        iaAllocations:    raw.iaAllocations    || [],
+        iaSchedule:       raw.iaSchedule       || {},
+      },
+      classes: null,
+    };
+  }
+
+  if (raw._product === 'class_builder') {
+    // Old .cohort → unified (school profile + classes data)
+    const sp = raw.schoolProfile || {};
+    const staff = (sp.staff || []).map(s => Object.assign({ startTime: '', endTime: '', color: '' }, s));
+    const gradeConfig = {};
+    Object.entries(raw.gradeConfig || {}).forEach(([g, cfg]) => {
+      gradeConfig[g] = { classCount: cfg.classCount || (cfg.teachers || []).length || 1 };
+    });
+    return {
+      _version: 1,
+      _product: 'cohort_logic',
+      _tools:   ['class_builder'],
+      school: {
+        name:     sp.schoolName || raw.schoolName || '',
+        district: sp.district   || raw.district   || '',
+        grades:   sp.grades     || Object.keys(raw.gradeConfig || {}),
+      },
+      staff,
+      blockTypes: [],
+      schedule: { masterSchedule: {}, conflicts: {}, specialsSchedule: {}, iaAllocations: [], iaSchedule: {} },
+      classes: {
+        rawHeaders:      raw.rawHeaders      || [],
+        rawRows:         raw.rawRows         || [],
+        columnMap:       raw.columnMap       || {},
+        competencies:    raw.competencies    || [],
+        students:        raw.students        || [],
+        gradeConfig,
+        splitClasses:    raw.splitClasses    || [],
+        separations:     raw.separations     || [],
+        togethers:       raw.togethers       || [],
+        keepWithTeacher: raw.keepWithTeacher || [],
+        displayMode:     raw.displayMode     || 'name',
+        results:         raw.results         || {},
+        splitResults:    raw.splitResults    || [],
+      },
+    };
+  }
+
+  throw new Error('Unrecognized file format. Please use a .cohortlogic, .clsched, or .cohort file.');
+}
+
 function downloadScheduleFile() {
+  const tools = Array.from(new Set(['schedule_builder', ...(SchedState._tools || [])]));
   const payload = {
-    _version: 3,
-    _product: 'schedule_builder',
-    schoolProfile:    buildSchoolProfile(),
-    school:           SchedState.school,
-    staff:            SchedState.staff,
-    blockTypes:       SchedState.blockTypes,
-    masterSchedule:   SchedState.masterSchedule,
-    conflicts:        SchedState.conflicts,
-    specialsSchedule: SchedState.specialsSchedule,
+    _version: 1,
+    _product: 'cohort_logic',
+    _tools:   tools,
+    school:     SchedState.school,
+    staff:      SchedState.staff,
+    blockTypes: SchedState.blockTypes,
+    schedule: {
+      masterSchedule:   SchedState.masterSchedule,
+      conflicts:        SchedState.conflicts,
+      specialsSchedule: SchedState.specialsSchedule,
+      iaAllocations:    SchedState.iaAllocations,
+      iaSchedule:       SchedState.iaSchedule,
+    },
+    classes: SchedState._clsData || null,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -395,7 +483,7 @@ function downloadScheduleFile() {
   const name = (SchedState.school.name || 'schedule').replace(/[^a-z0-9]/gi, '-').toLowerCase();
   const year = (SchedState.school.year || '').replace(/[^a-z0-9]/gi, '-');
   a.href     = url;
-  a.download = `${name}${year ? '-' + year : ''}.clsched`;
+  a.download = `${name}${year ? '-' + year : ''}.cohortlogic`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -409,35 +497,44 @@ function loadScheduleFromFile(file) {
     const reader = new FileReader();
     reader.onload = e => {
       try {
-        const data = JSON.parse(e.target.result);
+        const raw  = JSON.parse(e.target.result);
+        const data = _migrateToCohortLogic(raw);
 
-        // Cross-product import: Class Builder .cohort file
-        if (data._product === 'class_builder') {
-          if (!data.schoolProfile) throw new Error('No school profile found in this Class Builder file.');
-          applySchoolProfile(data.schoolProfile);
-          saveToLocal();
-          resolve({ crossProduct: true, schoolName: data.schoolProfile.schoolName || '' });
-          return;
+        // When the file has no SB data (e.g. saved from CB only) treat as cross-product import:
+        // apply school + staff but leave existing SB blockTypes and schedule intact.
+        const hasSBData    = (data._tools || []).includes('schedule_builder');
+        const crossProduct = !hasSBData;
+
+        // Always apply shared fields
+        if (data.school) Object.assign(SchedState.school, data.school);
+        if (data.staff)  SchedState.staff = data.staff;
+
+        // Apply SB-specific data only when the file actually has SB content
+        if (!crossProduct) {
+          if (data.blockTypes && data.blockTypes.length > 0) {
+            const hasNewSchema = data.blockTypes.some(bt => 'required' in bt);
+            SchedState.blockTypes = hasNewSchema
+              ? data.blockTypes
+              : DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
+                  { subBlocks: (bt.subBlocks||[]).map(s=>Object.assign({},s)), bandMinutes:{}, subBandMinutes:{} }));
+            ensureFixedBlockTypes();
+            migrateBandIds();
+            migrateSubBlockMinutes();
+          }
+          if (data.schedule) {
+            if (data.schedule.masterSchedule)   SchedState.masterSchedule   = data.schedule.masterSchedule;
+            if (data.schedule.conflicts)        SchedState.conflicts        = data.schedule.conflicts;
+            if (data.schedule.specialsSchedule) SchedState.specialsSchedule = data.schedule.specialsSchedule;
+            if (data.schedule.iaAllocations)    SchedState.iaAllocations    = data.schedule.iaAllocations;
+            if (data.schedule.iaSchedule)       SchedState.iaSchedule       = data.schedule.iaSchedule;
+          }
         }
 
-        // Native .clsched file (v1 or v2)
-        if (data.schoolProfile) applySchoolProfile(data.schoolProfile);
-        if (data.school)         Object.assign(SchedState.school, data.school);
-        if (data.staff)          SchedState.staff = data.staff;
-        if (data.conflicts)      SchedState.conflicts = data.conflicts;
-        if (data.masterSchedule) SchedState.masterSchedule = data.masterSchedule;
-        if (data.blockTypes) {
-          const hasNewSchema = data.blockTypes.some(bt => 'required' in bt);
-          SchedState.blockTypes = hasNewSchema
-            ? data.blockTypes
-            : DEFAULT_BLOCK_TYPES.map(bt => Object.assign({}, bt,
-                { subBlocks: (bt.subBlocks||[]).map(s=>Object.assign({},s)), bandMinutes:{}, subBandMinutes:{} }));
-          ensureFixedBlockTypes();
-          migrateBandIds();
-          migrateSubBlockMinutes();
-        }
-        if (data.specialsSchedule) SchedState.specialsSchedule = data.specialsSchedule;
-        // Ensure required arrays/fields exist
+        // Preserve CB data and merge tool list
+        SchedState._clsData = data.classes || SchedState._clsData || null;
+        SchedState._tools   = Array.from(new Set([...(data._tools || []), ...(SchedState._tools || [])]));
+
+        // Ensure required fields exist
         if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
         if (!SchedState.school.gradeRecesses)   SchedState.school.gradeRecesses   = {};
         if (!SchedState.school.gradeBands)      SchedState.school.gradeBands      = [];
@@ -445,9 +542,10 @@ function loadScheduleFromFile(file) {
         if (!SchedState.school.altDays)         SchedState.school.altDays         = [];
         if (!SchedState.school.district)        SchedState.school.district        = '';
         if (!SchedState.specialsSchedule)       SchedState.specialsSchedule       = {};
+
         saveToLocal();
         localStorage.setItem('cl_schedule_downloaded', '1');
-        resolve({ crossProduct: false });
+        resolve({ crossProduct, schoolName: SchedState.school.name || '' });
       } catch (err) {
         reject(new Error(err.message || 'Could not read file.'));
       }

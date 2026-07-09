@@ -8,6 +8,7 @@ const VIEW_RENDERERS = {
   master:          () => { navigateTo('master');          renderMasterSchedule(); },
   specials:        () => { navigateTo('specials');        renderSpecialsView(); },
   'specials-sched':() => { navigateTo('specials-sched'); renderSpecialsScheduleView(); },
+  'class-sched':   () => { navigateTo('class-sched');   renderClassSchedulesView(); },
   ia:              () => { navigateTo('ia');              renderIAScheduleView(); },
   export:          () => { navigateTo('export');          renderExportPlaceholder(); },
 };
@@ -137,7 +138,7 @@ function renderLanding() {
             Load an Existing File
           </label>
         </div>
-        <p class="landing-hint">Files are saved as <code>.clsched</code> — load one from your computer or school drive to continue where you left off.</p>
+        <p class="landing-hint">Files are saved as <code>.cohortlogic</code> — load one from your computer or school drive to continue where you left off.</p>
       </div>
     </div>
   `;

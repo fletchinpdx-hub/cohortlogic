@@ -40,6 +40,11 @@ const AppState = {
   splitClasses: [],    // [{ id, grades: ['3','4'], teacher: '' }]
   results: {},         // { 'K': [ [students], [students], ... ], ... }
   splitResults: [],    // [{ id, grades, teacher, students: [] }]
+
+  // Unified file passthrough — SB data preserved across CB save/load
+  _schedTools:      [],    // _tools from loaded unified file
+  _schedBlockTypes: [],    // blockTypes from the file (SB data)
+  _schedData:       null,  // schedule namespace from the file (SB data)
 };
 
 // Navigation
@@ -198,55 +203,32 @@ document.addEventListener('DOMContentLoaded', () => {
   schedInput.addEventListener('change', () => {
     const file = schedInput.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (data._product !== 'schedule_builder' || !data.schoolProfile) {
-          alert('This doesn\'t look like a Schedule Builder file (.clsched).');
-          return;
-        }
-        applySchoolProfileToCB(data.schoolProfile);
-        syncSchoolProfileInputs();
-        alert(`School profile imported!\nSchool: ${data.schoolProfile.schoolName || '(unnamed)'}\n\nTeachers and grades from the Schedule Builder file have been applied to Class Setup.`);
-      } catch (e) {
-        alert('Could not read the file. Make sure it\'s a valid .clsched file.');
-      }
-    };
-    reader.readAsText(file);
     schedInput.value = '';
+    loadCohortFile(file);
   });
 });
 
-function applySchoolProfileToCB(sp) {
-  if (!sp) return;
-  if (sp.schoolName) AppState.schoolName = sp.schoolName;
-  if (sp.district)   AppState.district   = sp.district;
-
-  // Apply grades to gradeConfig
-  if (sp.grades && sp.grades.length) {
-    sp.grades.forEach(g => {
-      if (!AppState.gradeConfig[g]) AppState.gradeConfig[g] = { classCount: 1, teachers: [] };
-    });
-  }
-
-  // Convert classroom teachers into gradeConfig entries
-  (sp.staff || [])
+// Primary helper: build CB's gradeConfig + splitClasses from a staff[] array.
+// staff[] is the unified file's source of truth for classroom teachers.
+function applyStaffToCB(staff, grades) {
+  (grades || []).forEach(g => {
+    if (!AppState.gradeConfig[g]) AppState.gradeConfig[g] = { classCount: 1, teachers: [] };
+  });
+  (staff || [])
     .filter(s => s.role === 'classroom_teacher' && s.gradeAssignment && !s.splitGrade)
     .forEach(s => {
       const g = s.gradeAssignment;
       if (!AppState.gradeConfig[g]) AppState.gradeConfig[g] = { classCount: 0, teachers: [] };
+      if (!AppState.gradeConfig[g].teachers) AppState.gradeConfig[g].teachers = [];
       if (s.name && !AppState.gradeConfig[g].teachers.includes(s.name)) {
         AppState.gradeConfig[g].teachers.push(s.name);
         AppState.gradeConfig[g].classCount = AppState.gradeConfig[g].teachers.length;
       }
     });
-
-  // Convert split class staff into AppState.splitClasses
-  (sp.staff || [])
+  (staff || [])
     .filter(s => s.role === 'classroom_teacher' && s.gradeAssignment && s.splitGrade)
     .forEach(s => {
-      const exists = AppState.splitClasses.some(sc => sc.teacher === s.name);
+      const exists = AppState.splitClasses.some(sc => sc.id === s.id || sc.teacher === s.name);
       if (!exists) {
         AppState.splitClasses.push({
           id:      s.id || ('split_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
@@ -255,6 +237,13 @@ function applySchoolProfileToCB(sp) {
         });
       }
     });
+}
 
+// Legacy wrapper — used by old .clsched import flow; delegates to applyStaffToCB.
+function applySchoolProfileToCB(sp) {
+  if (!sp) return;
+  if (sp.schoolName) AppState.schoolName = sp.schoolName;
+  if (sp.district)   AppState.district   = sp.district;
+  applyStaffToCB(sp.staff || [], sp.grades || []);
   updateSidebarStatus();
 }
