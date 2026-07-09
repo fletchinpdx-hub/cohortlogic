@@ -2203,11 +2203,28 @@ function renderIAScheduleView() {
 
   const allocs = SchedState.iaAllocations || [];
 
+  // Precompute weekly hours per alloc across all IAs → convert to per-day average
+  const _allocWeeklyHrs = {};
+  allocs.forEach(a => {
+    _allocWeeklyHrs[a.id] = ias.reduce((acc, ia) => acc + (getIASummaryForIA(ia.id).byAlloc[a.id] || 0), 0);
+  });
+
   // ── Budget category management bar ─────────────────────────────────────────
   const allocBar = `
     <div class="ia-budget-bar">
       <span class="ia-budget-bar-lbl">Budget:</span>
-      ${allocs.map(a => `<span class="ia-budget-chip" style="background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}">${escHtml(a.name)}${(a.hoursPerDay || 0) > 0 ? ' · ' + a.hoursPerDay + 'h/day' : ''}</span>`).join('')}
+      ${allocs.map(a => {
+        const usedPerDay = _allocWeeklyHrs[a.id] / 5;
+        const target     = a.hoursPerDay || 0;
+        const over       = target > 0 && usedPerDay > target;
+        const usageTxt   = target > 0
+          ? ` · ${usedPerDay.toFixed(1)}/${target}h/day`
+          : (usedPerDay > 0 ? ` · ${usedPerDay.toFixed(1)}h/day` : '');
+        const chipStyle  = over
+          ? `background:#fee2e2;border:1px solid #fca5a5;color:#dc2626`
+          : `background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}`;
+        return `<span class="ia-budget-chip" style="${chipStyle}">${escHtml(a.name)}${usageTxt}</span>`;
+      }).join('')}
       <button class="ia-budget-manage-btn" id="ia-budget-manage-btn">${allocs.length ? '+ Manage' : '+ Add categories'}</button>
     </div>
     <div class="ia-budget-manage-panel hidden" id="ia-budget-manage-panel">
@@ -4090,9 +4107,21 @@ function _renderIAIndSummary(iaId) {
   if (!summary.total) { el.innerHTML = ''; return; }
   const chips = allocs
     .filter(a => (summary.byAlloc[a.id] || 0) > 0)
-    .map(a => `<span class="ia-sum-chip-sm" style="background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}">${escHtml(a.name)}: ${summary.byAlloc[a.id].toFixed(1)}h</span>`)
+    .map(a => {
+      const usedPerDay = summary.byAlloc[a.id] / 5;
+      const target     = a.hoursPerDay || 0;
+      const over       = target > 0 && usedPerDay > target;
+      const label      = target > 0
+        ? `${escHtml(a.name)}: ${usedPerDay.toFixed(1)}/${target}h/day`
+        : `${escHtml(a.name)}: ${usedPerDay.toFixed(1)}h/day`;
+      const style = over
+        ? `background:#fee2e2;border:1px solid #fca5a5;color:#dc2626`
+        : `background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}`;
+      return `<span class="ia-sum-chip-sm" style="${style}">${label}</span>`;
+    })
     .join('');
-  el.innerHTML = `<div class="ia-ind-sum-row">${chips}<span class="ia-ind-sum-total">${summary.total.toFixed(1)}h / week</span></div>`;
+  const totalPerDay = summary.total / 5;
+  el.innerHTML = `<div class="ia-ind-sum-row">${chips}<span class="ia-ind-sum-total">${totalPerDay.toFixed(1)}h / day</span></div>`;
 }
 
 // Wire events for the redesigned IA Schedules view.
