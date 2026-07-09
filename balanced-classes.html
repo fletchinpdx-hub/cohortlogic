@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>What "balanced classes" actually means — and how to measure it | Cohort Logic</title>
+  <meta name="description" content="A framework for thinking about what balanced class lists actually include: academic balance, population balance, and constraint satisfaction — and how to verify each one." />
+  <link rel="canonical" href="https://cohortlogic.com/balanced-classes.html" />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="What "balanced classes" actually means — and how to measure it | Cohort Logic" />
+  <meta property="og:description" content="A framework for thinking about what balanced class lists actually include, and how to verify it." />
+  <meta property="og:url" content="https://cohortlogic.com/balanced-classes.html" />
+  <meta property="og:site_name" content="Cohort Logic" />
+  <meta property="og:image" content="https://cohortlogic.com/images/og-card.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="What "balanced classes" actually means | Cohort Logic" />
+  <meta name="twitter:description" content="A framework for thinking about what balanced class lists actually include, and how to verify it." />
+  <link rel="stylesheet" href="css/marketing.css" />
+</head>
+<body class="page-enter">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<div class="nav-wrap">
+  <div class="container nav">
+    <a href="index.html" class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+        <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+        <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+        <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+        <circle cx="32" cy="18" r="6.5" fill="#1E3A5F"/>
+        <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#1E3A5F"/>
+      </svg>
+      <span class="wordmark">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="products.html">Products</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="resources.html" class="is-active">Resources</a>
+      <a href="security.html">Security</a>
+    </div>
+    <div class="nav-actions">
+      <a href="login.html" style="font-size:14px;color:var(--text-2);padding:8px 12px;">Sign in</a>
+      <a href="contact.html" class="btn btn-primary btn-sm">Start free trial <span class="arrow">→</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Article Header ─────────────────────────────────────────────────────── -->
+<section style="border-bottom:1px solid var(--hairline);position:relative;overflow:hidden;">
+  <div class="hairline-grid" style="position:absolute;inset:0;opacity:.5;mask-image:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 80%);-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 80%);pointer-events:none;"></div>
+  <div class="container" style="position:relative;padding:48px 28px 56px;max-width:800px;">
+    <a href="resources.html" class="btn btn-link" style="padding:0;margin-bottom:28px;font-size:13px;display:inline-flex;">← All resources</a>
+    <div style="display:grid;gap:20px;">
+      <span style="justify-self:start;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);background:#EAF0F8;padding:4px 10px;border-radius:99px;">Field guide</span>
+      <h1 style="font-size:clamp(32px,4vw,50px);max-width:720px;">What &#8220;balanced classes&#8221; actually means &#8212; and how to measure it</h1>
+      <p class="lede" style="font-size:20px;">&#8220;Balanced&#8221; means different things to different people. Here&#8217;s how to be precise about it.</p>
+      <div style="display:flex;gap:16px;align-items:center;padding-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--text-3);letter-spacing:.06em;flex-wrap:wrap;">
+        <span>Cohort Logic team</span>
+        <span style="opacity:.5;">·</span>
+        <span>July 2026</span>
+        <span style="opacity:.5;">·</span>
+        <span>5 min read</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Article Body ───────────────────────────────────────────────────────── -->
+<section style="padding:56px 0 40px;">
+  <div class="container" style="max-width:800px;">
+    <div style="display:grid;gap:40px;">
+      <div class="prose">
+
+        <p>Ask three principals what a balanced class list looks like and you'll get three different answers. One thinks about academic scores. One thinks about IEP distribution. One thinks about a specific student who can't be near three of her classmates.</p>
+        <p>All of them are right. The problem is that most placement processes try to optimize for all of these things simultaneously, by hand, in a spreadsheet. That's why the process takes days and still produces results someone will push back on.</p>
+        <p>Here's a framework for thinking about what "balanced" actually includes, and how to verify it.</p>
+
+        <h2>The three types of balance</h2>
+
+        <h2 style="font-size:18px;margin-top:1.4em;margin-bottom:.4em;">1. Academic balance</h2>
+        <p>Each class should have roughly the same average academic level, and roughly the same spread. You don't want one class of all high performers and one of all students who need support.</p>
+        <p><strong>How to measure it:</strong> Calculate the mean and standard deviation of your academic score for each class. If the means are within 0.2&ndash;0.3 points of each other on a 1&ndash;5 scale, you're in reasonable range. Look at the spread too. A class with a tight cluster at the middle is different from one with high variance.</p>
+
+        <h2 style="font-size:18px;margin-top:1.4em;margin-bottom:.4em;">2. Population balance</h2>
+        <p>Students with IEPs, 504s, ELL designation, or other flags should be distributed proportionally, not concentrated in one classroom because it's convenient.</p>
+        <p><strong>How to measure it:</strong> Count the number of students with each flag in each class. Divide by class size. If one class has 15% IEP students and another has 3%, that's a problem, both for the students and for the teacher.</p>
+
+        <h2 style="font-size:18px;margin-top:1.4em;margin-bottom:.4em;">3. Constraint satisfaction</h2>
+        <p>Every keep-apart and keep-together rule your team set should be honored. This is binary: either a constraint is satisfied or it isn't.</p>
+        <p><strong>How to measure it:</strong> Go through your constraint list and verify each one. In a tool like Class Builder, violations are flagged automatically. In a spreadsheet, you have to check manually.</p>
+
+        <h2>What balance doesn't mean</h2>
+        <p>Balanced doesn't mean identical. You're not trying to produce three classes where every metric is pixel-perfect. You're trying to avoid the situations that cause real problems: a class where the teacher has an overwhelming number of students with intensive needs, or a class where students who should be separated end up together.</p>
+
+        <h2>A note on demographic balance</h2>
+        <p>Some schools also try to balance by race, ethnicity, or gender. Whether and how to do this depends on your district's guidance and your community's expectations. If you are doing it, be explicit about the criteria and apply them consistently, not as an afterthought after everything else is decided.</p>
+
+        <h2>When to stop optimizing</h2>
+        <p>At some point, you have to ship the list. Perfect balance isn't achievable, and chasing it past a reasonable threshold means trading precision for time you don't have.</p>
+        <p>A useful rule: if your academic means are close, your flags are distributed, and your constraints are satisfied, the list is good enough to bring to your team.</p>
+        <p>The team meeting is where the final human judgment happens, and should happen. No algorithm replaces the institutional knowledge that comes out of a good placement conversation.</p>
+
+      </div>
+
+      <!-- Takeaways -->
+      <aside style="margin-top:8px;padding:24px;border:1px solid var(--hairline);border-radius:16px;background:var(--light-gray);">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-deep);margin-bottom:14px;">The short version</div>
+        <ul style="list-style:none;margin:0;padding:0;display:grid;gap:10px;">
+          <li style="display:flex;gap:10px;font-size:15px;color:var(--text-2);line-height:1.5;"><span style="color:var(--teal-deep);margin-top:1px;">✓</span>Balance has three components: academic averages, flag distribution, and constraint satisfaction.</li>
+          <li style="display:flex;gap:10px;font-size:15px;color:var(--text-2);line-height:1.5;"><span style="color:var(--teal-deep);margin-top:1px;">✓</span>Means within 0.2&ndash;0.3 points and proportional flags are good enough targets.</li>
+          <li style="display:flex;gap:10px;font-size:15px;color:var(--text-2);line-height:1.5;"><span style="color:var(--teal-deep);margin-top:1px;">✓</span>Constraints are binary. Check every one.</li>
+          <li style="display:flex;gap:10px;font-size:15px;color:var(--text-2);line-height:1.5;"><span style="color:var(--teal-deep);margin-top:1px;">✓</span>Once your metrics clear the threshold, bring the list to your team. Don't optimize past that.</li>
+        </ul>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ───────────────────────────────────────────────────────────────── -->
+<section style="padding:0 0 96px;">
+  <div class="container" style="max-width:800px;">
+    <div style="padding:32px;border-radius:18px;background:linear-gradient(135deg,#F8FAFC 0%,var(--teal-soft) 100%);border:1px solid var(--hairline);display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;">
+      <div style="display:grid;gap:8px;">
+        <h3 style="font-size:22px;">Ready to build balanced class lists?</h3>
+        <p style="color:var(--text-2);font-size:15px;">Class Builder handles academic balance, flag distribution, and constraint checking automatically. Free for any school through September 2026.</p>
+      </div>
+      <div style="display:flex;gap:10px;white-space:nowrap;">
+        <a href="contact.html" class="btn btn-primary">Sign up free <span class="arrow">→</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid grid-4" style="gap:40px;align-items:start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="16" cy="22" r="5" fill="#2A9D8F"/>
+            <path d="M9 32 Q9 28 16 28 Q23 28 23 32 L21 50 L11 50 Z" fill="#2A9D8F"/>
+            <circle cx="48" cy="22" r="5" fill="#E9B949"/>
+            <path d="M41 32 Q41 28 48 28 Q55 28 55 32 L53 50 L43 50 Z" fill="#4FA8E0"/>
+            <circle cx="32" cy="18" r="6.5" fill="#fff"/>
+            <path d="M23 28 Q23 24 32 24 Q41 24 41 28 L44 56 L20 56 Z" fill="#fff"/>
+          </svg>
+          <span style="color:#fff;font-weight:600;font-size:17px;">Cohort<span style="font-weight:400;opacity:.85"> Logic</span></span>
+        </div>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;max-width:280px;">Operational logic for K-12. Built with school leaders, for school leaders.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="class-builder.html">Class Builder</a></li>
+          <li><a href="products.html">Schedule Builder <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+          <li><a href="products.html">IEP Workbench <span style="opacity:.5;font-family:var(--font-mono);font-size:11px;">· soon</span></a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="resources.html">Resources</a></li>
+          <li><a href="security.html">Security &amp; privacy</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Get started</h4>
+        <p style="color:rgba(248,250,252,.6);font-size:14px;margin-top:14px;margin-bottom:14px;">Free for any school through September 2026. No credit card.</p>
+        <a href="contact.html" class="btn btn-accent btn-sm">Start free trial <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      <span class="mono">© <span class="footer-year">2026</span> Cohort Logic, PBC · Built for schools</span>
+      <div class="footer-copy-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">DPA</a>
+        <a href="security.html">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/marketing-chrome.js"></script>
+</body>
+</html>
