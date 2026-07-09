@@ -2662,3 +2662,256 @@
   font-variant-numeric: tabular-nums;
 }
 .ia-sum-grand { color: var(--gray-800); }
+
+/* ── IA assignment panel in master schedule ──────────────────────────────────── */
+.ia-block-panel {
+  width: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid transparent;
+}
+.ia-block-panel:not(.ia-panel-hidden) {
+  width: 300px;
+  border-left-color: var(--gray-200);
+}
+
+.ia-panel-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--gray-100);
+  flex-shrink: 0;
+}
+.ia-panel-hdr-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+.ia-panel-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--gray-400);
+  cursor: pointer;
+  padding: 0 2px;
+}
+.ia-panel-close:hover { color: var(--gray-700); }
+
+.ia-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+}
+.ia-panel-hint {
+  font-size: 12px;
+  color: var(--gray-400);
+  line-height: 1.6;
+  margin: 24px 0;
+  text-align: center;
+}
+
+/* Block header inside panel */
+.ia-panel-block-hdr {
+  background: var(--gray-50);
+  border-radius: 6px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+.ia-panel-block-name { font-size: 13px; font-weight: 700; line-height: 1.2; }
+.ia-panel-block-grade { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+.ia-panel-block-time { font-size: 10.5px; color: var(--gray-500); font-variant-numeric: tabular-nums; }
+
+.ia-panel-section-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  margin: 14px 0 7px;
+}
+.ia-panel-section-lbl:first-of-type { margin-top: 0; }
+
+/* Current assignment chips */
+.ia-assign-chips { display: flex; flex-direction: column; gap: 5px; margin-bottom: 2px; }
+.ia-assign-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+.ia-assign-chip-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.ia-assign-chip-info { flex: 1; min-width: 0; }
+.ia-assign-chip-name { display: block; font-size: 12px; font-weight: 600; color: var(--gray-700); }
+.ia-assign-chip-meta { display: block; font-size: 10.5px; color: var(--gray-500); }
+.ia-assign-chip-remove {
+  background: none; border: none; color: var(--gray-400);
+  cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; flex-shrink: 0;
+}
+.ia-assign-chip-remove:hover { color: #ef4444; }
+.ia-panel-no-assign { font-size: 11px; color: var(--gray-400); font-style: italic; margin: 0 0 4px; }
+
+/* Add IA form */
+.ia-panel-add-form { display: flex; flex-direction: column; gap: 9px; }
+.ia-panel-field-lbl { font-size: 10.5px; font-weight: 600; color: var(--gray-500); }
+
+.ia-picker-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.ia-picker-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 20px;
+  background: none;
+  font-size: 11.5px;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all .1s;
+}
+.ia-picker-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
+.ia-picker-btn.active { background: var(--gray-900); color: #fff; border-color: var(--gray-900); }
+.ia-panel-no-staff { font-size: 11px; color: var(--gray-400); font-style: italic; margin: 0; }
+
+.ia-alloc-pick-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.ia-alloc-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 7px;
+  border: 1px solid;
+  border-radius: 20px;
+  background: none;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity .1s;
+}
+.ia-alloc-pick-btn:hover { opacity: .75; }
+.ia-alloc-pick-btn.active { font-weight: 700; box-shadow: 0 0 0 2px currentColor; }
+.ia-alloc-pick-dot { width: 7px; height: 7px; border-radius: 50%; }
+.ia-panel-no-alloc { font-size: 11px; color: var(--gray-400); font-style: italic; margin: 0; }
+
+.ia-time-mode-row { display: flex; gap: 14px; }
+.ia-time-radio-lbl { font-size: 11.5px; color: var(--gray-600); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.ia-custom-time-row { display: flex; align-items: center; gap: 6px; }
+.ia-custom-time-row.ia-custom-hidden { display: none; }
+.ia-time-select { font-size: 11.5px; padding: 4px 6px; border: 1px solid var(--gray-200); border-radius: 4px; flex: 1; }
+.ia-time-to { font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
+.ia-confirm-btn { width: 100%; }
+
+/* IA mode toggle button active state */
+.btn-active-ia { background: #0f172a !important; color: #fff !important; border-color: #0f172a !important; }
+
+/* IA indicator dots on master schedule block cells */
+.ia-block-ind {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.ia-ind-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+/* Selected block highlight in IA mode */
+.grid-cell.ia-selected {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+/* ── IA Schedules redesigned view ────────────────────────────────────────────── */
+.ia-view-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 20px 20px;
+  overflow: hidden;
+}
+.ia-view-top-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 0 10px;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.ia-view-top-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+.ia-budget-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--gray-100);
+  flex-shrink: 0;
+}
+.ia-budget-bar-lbl { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .06em; }
+.ia-budget-chip { padding: 2px 8px; border-radius: 20px; border: 1px solid; font-size: 11px; font-weight: 600; }
+.ia-budget-manage-btn {
+  font-size: 11px; color: var(--gray-500); background: none;
+  border: 1px dashed var(--gray-300); border-radius: 4px; padding: 2px 8px; cursor: pointer;
+}
+.ia-budget-manage-btn:hover { border-color: var(--gray-400); color: var(--gray-700); }
+.ia-budget-manage-panel {
+  background: var(--gray-50); border: 1px solid var(--gray-100); border-radius: 6px;
+  padding: 10px 12px; margin-bottom: 6px; flex-shrink: 0;
+}
+.ia-budget-manage-panel.hidden { display: none; }
+
+.ia-view-sub-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--gray-200);
+  flex-shrink: 0;
+}
+.ia-view-sub-tab {
+  padding: 8px 18px;
+  border: none; background: none;
+  font-size: 13px; font-weight: 500; color: var(--gray-500);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .1s, border-color .1s;
+}
+.ia-view-sub-tab:hover { color: var(--gray-800); }
+.ia-view-sub-tab.active { color: var(--gray-900); border-bottom-color: var(--gray-900); }
+
+.ia-view-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+
+.ia-view-picker-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; flex-shrink: 0; }
+.ia-view-picker-chip {
+  padding: 5px 14px; border: 1px solid var(--gray-200); border-radius: 20px;
+  background: none; font-size: 12px; color: var(--gray-600); cursor: pointer; transition: all .1s;
+}
+.ia-view-picker-chip:hover { background: var(--gray-50); border-color: var(--gray-300); }
+.ia-view-picker-chip.active { background: var(--gray-900); color: #fff; border-color: var(--gray-900); }
+
+.ia-ind-grid-summary { flex-shrink: 0; }
+.ia-ind-sum-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 4px 0 8px; }
+.ia-sum-chip-sm {
+  padding: 2px 8px; border-radius: 20px; border: 1px solid;
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.ia-ind-sum-total { font-size: 11px; font-weight: 600; color: var(--gray-500); margin-left: 2px; }
+
+.ia-ind-grid-wrap { flex: 1; overflow-y: auto; }
+.ia-all-grid-wrap { flex: 1; overflow-y: auto; }
+.ia-all-day-tabs { display: flex; gap: 4px; padding: 6px 0; flex-shrink: 0; }
+
+/* Individual IA week grid */
+.ia-ind-table { table-layout: auto; }
+.th-ia-day { font-size: 11.5px; font-weight: 600; text-align: left; background: var(--gray-50); padding: 6px 8px; min-width: 110px; }
+.ia-ind-cell { height: 14px; border: 1px solid var(--gray-100); padding: 0 4px; vertical-align: top; font-size: 10px; overflow: hidden; }
+.ia-ind-cell-grade { font-size: 9.5px; font-weight: 700; color: var(--gray-700); line-height: 1.3; padding-top: 1px; }
+.ia-ind-cell-block { font-size: 9px; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ia-ind-alloc-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-top: 2px; }
