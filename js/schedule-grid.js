@@ -406,6 +406,7 @@ function renderMasterSchedule() {
 
         <div class="grid-footer">
           <button class="btn btn-outline" id="master-back-btn">← Back to Block Types</button>
+          <button class="btn btn-outline" id="master-print-btn">Print</button>
           <button class="btn btn-primary btn-lg" id="master-next-btn">Continue to Staff Roster →</button>
         </div>
       </div>
@@ -421,6 +422,10 @@ function renderMasterSchedule() {
   document.getElementById('master-save-btn').addEventListener('click', saveMaster);
   document.getElementById('master-next-btn').addEventListener('click', saveMasterAndNext);
   document.getElementById('master-back-btn').addEventListener('click', () => { navigateTo('blocks'); renderBlocks(); });
+  document.getElementById('master-print-btn').addEventListener('click', () => {
+    const table = document.getElementById('sched-table');
+    if (table) printScheduleGrid(`Master Schedule — ${gridUI.activeDay}`, SchedState.school.name || '', table);
+  });
 
   // Auto-populate all grades on first entry if no instructional blocks are placed yet
   autoPopulateIfEmpty();
@@ -1229,7 +1234,7 @@ function _buildIntermittentSeq(specials) {
   return result;
 }
 
-function computeClassSpecialsRotation(classes, specials) {
+function computeClassSpecialsRotation(classes, specials, gradeOffset = 0) {
   const result = {};
   if (!classes.length || !specials.length) return result;
 
@@ -1265,7 +1270,7 @@ function computeClassSpecialsRotation(classes, specials) {
       const sp   = specials.find(p => p.id === spId);
       const cap  = Math.max((sp?.teacherIds || []).length, 1);
 
-      let dayIdx = (s * step + c) % numDays;
+      let dayIdx = (s * step + c + gradeOffset) % numDays;
       let tries  = 0;
       while (tries < numDays) {
         const d = DAYS[dayIdx];
@@ -1362,7 +1367,7 @@ function findGradeFixedTime(grade, classes, rotation, specials, isFreeTeacher) {
   if (!classes.length || !specials.length) return null;
   const maxDur   = Math.max(...specials.map(sp => sp.duration || 45));
   const numSl    = Math.ceil(maxDur / 5);
-  const refSlots = _autoFillSlots('Mon');
+  const refSlots = _autoFillSlots('Monday');
 
   for (let i = 0; i <= refSlots.length - numSl; i++) {
     const candidateStart = refSlots[i];
@@ -1456,7 +1461,8 @@ function buildSpecialsSchedule() {
             .sort((a, b) => busyCount(a) - busyCount(b))[0] || null;
 
   const failedGrades = [];
-  gradesSorted().forEach(grade => {
+  const allGrades = gradesSorted();
+  allGrades.forEach(grade => {
     const classes = getClassesForGrade(grade);
 
     if (!classes.length) {
@@ -1506,7 +1512,8 @@ function buildSpecialsSchedule() {
 
     // Carousel model: find ONE fixed time valid across all 5 days where all specials
     // teachers are free simultaneously. If not found, clear instruction blocks and retry.
-    const rotation = computeClassSpecialsRotation(classes, specials);
+    const gradeIdx = allGrades.indexOf(grade);
+    const rotation = computeClassSpecialsRotation(classes, specials, gradeIdx);
     let fixedTime  = findGradeFixedTime(grade, classes, rotation, specials, isFree);
     if (!fixedTime) {
       _clearRequirementsForGrade(grade);
@@ -1517,7 +1524,7 @@ function buildSpecialsSchedule() {
       // Each class finds its own best open slot per day without requiring a common time.
       classes.forEach(cls => { SchedState.specialsSchedule[cls.id] = {}; });
       let anyFallbackPlaced = false;
-      const fbRotation = computeClassSpecialsRotation(classes, specials);
+      const fbRotation = computeClassSpecialsRotation(classes, specials, gradeIdx);
 
       classes.forEach(cls => {
         specials.forEach(sp => {
@@ -1933,6 +1940,7 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
 // within the day's slot range, so this is safe to run on every render.
 function autoPopulateIfEmpty() {
   buildSpecialsSchedule();
+  preFillFixedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
   saveToLocal();
   rebuildTbody();
@@ -1943,6 +1951,7 @@ function autoPopulateIfEmpty() {
 // placed yet without touching blocks that already exist.
 function fillMissingRequirements() {
   buildSpecialsSchedule();
+  preFillFixedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
   saveToLocal();
   rebuildTbody();
@@ -2053,8 +2062,15 @@ function renderSpecialsPlaceholder() {
 
 // ── IA Schedule ───────────────────────────────────────────────────────────────
 
-const iaSchedUI = { activeAllocId: null, activeDay: 'Monday' };
-const iaDrag    = { active: false, allocId: null };
+const iaSchedUI = {
+  activeAllocId: null,
+  activeDay:     'Monday',
+  targetType:    'grade',   // 'grade' | 'class'
+  targetId:      null,      // grade key or classId
+  viewMode:      'grid',    // 'grid' | 'all'
+  focusedIAId:   null,
+};
+const iaDrag = { active: false, allocId: null, targetType: null, targetId: null };
 
 function getIAHoursUsed(allocId) {
   let count = 0;
@@ -2070,12 +2086,41 @@ function getIAHoursUsed(allocId) {
   return count * 5 / 60;
 }
 
+function getIASummaryForIA(iaId) {
+  const byAlloc = {};
+  let total = 0;
+  DAYS.forEach(day => {
+    const iaSlots = (SchedState.iaSchedule[day] || {})[iaId] || {};
+    Object.values(iaSlots).forEach(entry => {
+      if (!entry?.allocId) return;
+      byAlloc[entry.allocId] = (byAlloc[entry.allocId] || 0) + 5 / 60;
+      total += 5 / 60;
+    });
+  });
+  return { byAlloc, total };
+}
+
+function _migrateIASchedule() {
+  DAYS.forEach(day => {
+    Object.values(SchedState.iaSchedule[day] || {}).forEach(iaSlots => {
+      Object.keys(iaSlots).forEach(slot => {
+        const entry = iaSlots[slot];
+        if (entry && entry.grade !== undefined && entry.targetType === undefined) {
+          entry.targetType = 'grade';
+          entry.targetId   = entry.grade || '';
+          delete entry.grade;
+          delete entry.activity;
+        }
+      });
+    });
+  });
+}
+
 function renderIAScheduleView() {
   const container = document.getElementById('view-ia');
   if (!container) return;
 
   const ias = SchedState.staff.filter(s => s.role === 'ia');
-  const allocs = SchedState.iaAllocations || [];
 
   if (!ias.length) {
     container.innerHTML = `
@@ -2089,7 +2134,6 @@ function renderIAScheduleView() {
     return;
   }
 
-  // Ensure iaSchedule is initialised for all days / IAs
   if (!SchedState.iaSchedule) SchedState.iaSchedule = {};
   DAYS.forEach(day => {
     if (!SchedState.iaSchedule[day]) SchedState.iaSchedule[day] = {};
@@ -2097,49 +2141,100 @@ function renderIAScheduleView() {
       if (!SchedState.iaSchedule[day][ia.id]) SchedState.iaSchedule[day][ia.id] = {};
     });
   });
+  _migrateIASchedule();
 
+  if (!iaSchedUI.focusedIAId || !ias.find(ia => ia.id === iaSchedUI.focusedIAId)) {
+    iaSchedUI.focusedIAId = ias[0]?.id || null;
+  }
+
+  const allocs = SchedState.iaAllocations || [];
+
+  // ── Summary (All IAs) mode ──────────────────────────────────────────────────
+  if (iaSchedUI.viewMode === 'all') {
+    container.innerHTML = `
+      <div class="ia-summary-shell">
+        <div class="ia-summary-top-bar">
+          <div>
+            <h1 class="grid-title">All IAs — Weekly Summary</h1>
+            <p class="grid-subtitle">Hours by budget category for each instructional assistant.</p>
+          </div>
+          <div class="ia-summary-actions">
+            <button class="btn btn-outline btn-sm" id="ia-summary-csv-btn">Download CSV</button>
+            <button class="btn btn-outline btn-sm" id="ia-summary-print-btn">Print</button>
+            <button class="btn btn-outline btn-sm" id="ia-back-to-grid-btn">← Back to Grid</button>
+          </div>
+        </div>
+        <div class="grid-scroll-wrap" id="ia-summary-wrap">
+          ${buildIASummaryTableHtml(ias)}
+        </div>
+      </div>`;
+    wireIAScheduleEvents(container, ias);
+    return;
+  }
+
+  // ── Grid mode ───────────────────────────────────────────────────────────────
   const dayTabsHtml = DAYS.map(day =>
     `<button class="ia-day-tab${day === iaSchedUI.activeDay ? ' active' : ''}" data-day="${day}">${day.slice(0,3)}</button>`
   ).join('');
 
+  const focusedIA = ias.find(ia => ia.id === iaSchedUI.focusedIAId);
+
   container.innerHTML = `
     <div class="master-shell">
       <div class="palette-panel ia-palette-panel" id="ia-palette-panel">
-        <div class="palette-header">FTE Allocations</div>
-        <div class="palette-hint">Select a type, then paint on the grid. Hours update as you assign.</div>
 
-        <div class="palette-item palette-eraser${iaSchedUI.activeAllocId === null ? ' active' : ''}" id="ia-eraser">
-          <span class="palette-dot" style="background:#d1d5db;border:1px solid #9ca3af"></span>
-          <span class="palette-name">Eraser</span>
-        </div>
-
-        <div id="ia-alloc-list">
-          ${buildIAPaletteHtml(allocs)}
-        </div>
-
-        <div class="ia-add-alloc-section">
-          <button class="ia-add-alloc-btn" id="ia-add-alloc-btn">+ Add allocation type</button>
-        </div>
-        <div id="ia-add-alloc-form" class="ia-add-alloc-form hidden">
-          <input class="ia-alloc-input" id="ia-new-alloc-name" placeholder="Name (e.g. SPED)" maxlength="30" />
-          <div class="ia-alloc-color-row">
-            <label class="ia-alloc-color-label">Color</label>
-            <input type="color" id="ia-new-alloc-color" value="#6366f1" class="ia-alloc-color-input" />
+        <div class="ia-panel-section">
+          <div class="ia-section-label">Budget Category</div>
+          <div class="palette-item palette-eraser${iaSchedUI.activeAllocId === null ? ' active' : ''}" id="ia-eraser">
+            <span class="palette-dot" style="background:#d1d5db;border:1px solid #9ca3af"></span>
+            <span class="palette-name">Eraser</span>
           </div>
-          <div class="ia-alloc-form-btns">
-            <button class="btn btn-primary btn-sm" id="ia-save-alloc-btn">Add</button>
-            <button class="btn btn-outline btn-sm" id="ia-cancel-alloc-btn">Cancel</button>
+          <div id="ia-alloc-list">${buildIAPaletteHtml(allocs)}</div>
+          <div class="ia-add-alloc-section">
+            <button class="ia-add-alloc-btn" id="ia-add-alloc-btn">+ Add category</button>
+          </div>
+          <div id="ia-add-alloc-form" class="ia-add-alloc-form hidden">
+            <input class="ia-alloc-input" id="ia-new-alloc-name" placeholder="e.g. ELD, SPED, HDT" maxlength="30" />
+            <div class="ia-alloc-color-row">
+              <label class="ia-alloc-color-label">Color</label>
+              <input type="color" id="ia-new-alloc-color" value="#6366f1" class="ia-alloc-color-input" />
+            </div>
+            <div class="ia-alloc-form-btns">
+              <button class="btn btn-primary btn-sm" id="ia-save-alloc-btn">Add</button>
+              <button class="btn btn-outline btn-sm" id="ia-cancel-alloc-btn">Cancel</button>
+            </div>
           </div>
         </div>
+
+        <div class="ia-panel-section">
+          <div class="ia-section-label">Assign to</div>
+          <div class="ia-target-type-toggle">
+            <button class="ia-target-type-btn${iaSchedUI.targetType === 'grade' ? ' active' : ''}" data-target-type="grade">Grade</button>
+            <button class="ia-target-type-btn${iaSchedUI.targetType === 'class' ? ' active' : ''}" data-target-type="class">Class</button>
+          </div>
+          <div class="ia-target-picker" id="ia-target-picker">
+            ${buildIATargetPickerHtml()}
+          </div>
+        </div>
+
+        <div class="ia-panel-section ia-mini-summary-section">
+          <div class="ia-section-label">This IA — <span id="ia-mini-name">${escHtml(focusedIA?.name || '')}</span></div>
+          <div id="ia-mini-summary-content"></div>
+          <div id="ia-mini-total" class="ia-mini-total-row"></div>
+        </div>
+
       </div>
 
       <div class="grid-side">
         <div class="grid-top-bar">
           <div>
             <h1 class="grid-title">IA Schedule</h1>
-            <p class="grid-subtitle">Assign instructional assistants by service type. Track hours per allocation.</p>
+            <p class="grid-subtitle">Select a budget category and assign to a grade or class, then paint.</p>
           </div>
-          <div class="ia-day-tabs">${dayTabsHtml}</div>
+          <div class="ia-top-bar-right">
+            <div class="ia-day-tabs">${dayTabsHtml}</div>
+            <button class="btn btn-outline btn-sm ia-all-btn" id="ia-view-all-btn">All IAs →</button>
+          </div>
         </div>
 
         <div class="grid-scroll-wrap" id="ia-grid-wrap">
@@ -2148,22 +2243,19 @@ function renderIAScheduleView() {
 
         <div class="grid-footer">
           <button class="btn btn-outline" id="ia-back-btn">← Back to Specials Schedule</button>
+          <button class="btn btn-outline" id="ia-print-btn">Print</button>
         </div>
       </div>
     </div>`;
 
+  _refreshIAPanel();
   wireIAScheduleEvents(container, ias);
 }
 
 function buildIAPaletteHtml(allocs) {
   return allocs.map(alloc => {
-    const used      = getIAHoursUsed(alloc.id);
-    const allocated = alloc.hoursPerWeek || 0;
-    const pct       = allocated > 0 ? Math.min(100, (used / allocated) * 100) : 0;
-    const over      = allocated > 0 && used > allocated;
-    const active    = alloc.id === iaSchedUI.activeAllocId;
-    const border    = active ? `border-left:3px solid ${alloc.color};background:${alloc.color}12` : 'border-left:3px solid transparent';
-
+    const active = alloc.id === iaSchedUI.activeAllocId;
+    const border = active ? `border-left:3px solid ${alloc.color};background:${alloc.color}12` : 'border-left:3px solid transparent';
     return `
       <div class="ia-alloc-item${active ? ' active' : ''}" data-alloc-id="${alloc.id}" style="${border}">
         <div class="ia-alloc-header">
@@ -2171,26 +2263,138 @@ function buildIAPaletteHtml(allocs) {
           <span class="ia-alloc-name">${escHtml(alloc.name)}</span>
           <button class="ia-alloc-delete" data-delete-alloc="${alloc.id}" title="Remove">×</button>
         </div>
-        <div class="ia-alloc-hours-row">
-          <input type="number" class="ia-alloc-hrs-input" data-alloc-id="${alloc.id}"
-                 value="${allocated}" min="0" max="400" step="0.5" />
-          <span class="ia-alloc-hrs-label">hrs/wk</span>
-        </div>
-        <div class="ia-alloc-usage">
-          <div class="ia-alloc-progress${over ? ' over' : ''}">
-            <div class="ia-alloc-progress-fill" style="width:${pct}%;background:${alloc.color}"></div>
-          </div>
-          <span class="ia-alloc-usage-text${over ? ' over' : ''}">${used.toFixed(1)} used${allocated > 0 ? ` / ${allocated} alloc'd` : ''}</span>
-        </div>
       </div>`;
   }).join('');
 }
 
+function buildIATargetPickerHtml() {
+  const grades  = gradesSorted();
+  const classes = SchedState.staff.filter(s => s.role === 'teacher');
+
+  if (iaSchedUI.targetType === 'grade') {
+    if (!grades.length) return '<div class="ia-target-empty">No grades set up yet.</div>';
+    return '<div class="ia-target-pills-row">' +
+      grades.map(grade => {
+        const active = iaSchedUI.targetId === grade;
+        return `<button class="ia-target-pill${active ? ' active' : ''}" data-target-id="${grade}">${GRADE_LABELS[grade] || grade}</button>`;
+      }).join('') + '</div>';
+  }
+
+  if (!classes.length) return '<div class="ia-target-empty">No teachers set up yet.</div>';
+  const byGrade = {};
+  classes.forEach(t => { (byGrade[t.grade || '_'] = byGrade[t.grade || '_'] || []).push(t); });
+  return grades.map(grade => {
+    const tList = byGrade[grade];
+    if (!tList?.length) return '';
+    const pills = tList.map(t => {
+      const active = iaSchedUI.targetId === t.id;
+      const last   = t.name ? t.name.split(' ').slice(-1)[0] : t.name;
+      return `<button class="ia-target-pill${active ? ' active' : ''}" data-target-id="${t.id}">${escHtml(last)}</button>`;
+    }).join('');
+    return `<div class="ia-target-grade-group">
+      <div class="ia-target-grade-label">${GRADE_LABELS[grade] || grade}</div>
+      <div class="ia-target-pills-row">${pills}</div>
+    </div>`;
+  }).join('');
+}
+
+function _iaTargetLabel(entry) {
+  if (!entry) return '';
+  if (entry.targetType === 'grade') return GRADE_LABELS[entry.targetId] || entry.targetId || '';
+  if (entry.targetType === 'class') {
+    const t = SchedState.staff.find(s => s.id === entry.targetId);
+    return t ? t.name.split(' ').slice(-1)[0] : '';
+  }
+  return '';
+}
+
+function buildIASummaryTableHtml(ias) {
+  const allocs = SchedState.iaAllocations || [];
+  if (!allocs.length) {
+    return `<div class="ia-summary-empty">
+      <p>No budget categories defined yet.</p>
+      <p>Go back to the grid view and add categories in the left panel.</p>
+    </div>`;
+  }
+
+  const summaries = ias.map(ia => ({ ia, s: getIASummaryForIA(ia.id) }));
+
+  const headerCols = allocs.map(a =>
+    `<th class="ia-sum-th" style="border-bottom:3px solid ${a.color}">${escHtml(a.name)}</th>`
+  ).join('');
+
+  const dataRows = summaries.map(({ ia, s }) => {
+    const cells = allocs.map(alloc => {
+      const hrs = s.byAlloc[alloc.id] || 0;
+      if (!hrs) return '<td class="ia-sum-cell ia-sum-zero">—</td>';
+      return `<td class="ia-sum-cell">
+        <div class="ia-sum-badge" style="background:${alloc.color}18;border:1px solid ${alloc.color}50;color:${alloc.color}">
+          ${hrs.toFixed(1)}h
+        </div>
+      </td>`;
+    }).join('');
+    return `<tr class="ia-sum-row">
+      <td class="ia-sum-name">${escHtml(ia.name)}</td>
+      ${cells}
+      <td class="ia-sum-total">${s.total > 0 ? s.total.toFixed(1) + 'h' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const totalCells = allocs.map(alloc => {
+    const t = summaries.reduce((acc, { s }) => acc + (s.byAlloc[alloc.id] || 0), 0);
+    return `<td class="ia-sum-cell ia-sum-grand-cell">${t > 0 ? t.toFixed(1) + 'h' : '—'}</td>`;
+  }).join('');
+  const grandTotal = summaries.reduce((acc, { s }) => acc + s.total, 0);
+
+  return `<table class="sched-table ia-summary-table" cellspacing="0" id="ia-summary-table">
+    <thead>
+      <tr class="sched-head-row">
+        <th class="ia-sum-th ia-sum-th-name">IA Name</th>
+        ${headerCols}
+        <th class="ia-sum-th ia-sum-th-total">Weekly Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${dataRows}
+      <tr class="ia-sum-grand-row">
+        <td class="ia-sum-name ia-sum-grand-label">All IAs</td>
+        ${totalCells}
+        <td class="ia-sum-total ia-sum-grand">${grandTotal > 0 ? grandTotal.toFixed(1) + 'h' : '—'}</td>
+      </tr>
+    </tbody>
+  </table>`;
+}
+
+function exportIASummaryCSV() {
+  const ias    = SchedState.staff.filter(s => s.role === 'ia');
+  const allocs = SchedState.iaAllocations || [];
+  const school = SchedState.school.name || 'School';
+  const q      = v => `"${String(v).replace(/"/g, '""')}"`;
+
+  const headers = ['IA Name', ...allocs.map(a => a.name), 'Weekly Total'];
+  const rows    = ias.map(ia => {
+    const s = getIASummaryForIA(ia.id);
+    return [ia.name, ...allocs.map(a => (s.byAlloc[a.id] || 0).toFixed(1)), s.total.toFixed(1)];
+  });
+  const totRow = ['All IAs',
+    ...allocs.map(a => ias.reduce((acc, ia) => acc + (getIASummaryForIA(ia.id).byAlloc[a.id] || 0), 0).toFixed(1)),
+    ias.reduce((acc, ia) => acc + getIASummaryForIA(ia.id).total, 0).toFixed(1)];
+  rows.push(totRow);
+
+  const csv  = [headers, ...rows].map(r => r.map(q).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${school.replace(/\s+/g, '-')}-IA-Schedule.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function buildIAGrid(day, ias) {
-  const slots   = _autoFillSlots(day);
-  const dayMap  = (SchedState.iaSchedule || {})[day] || {};
-  const allocs  = SchedState.iaAllocations || [];
-  const grades  = SchedState.school.grades || [];
+  const slots  = _autoFillSlots(day);
+  const dayMap = (SchedState.iaSchedule || {})[day] || {};
+  const allocs = SchedState.iaAllocations || [];
 
   const headCols = ias.map(ia =>
     `<th class="th-ia-name" title="${escHtml(ia.name)}">${escHtml(ia.name)}</th>`
@@ -2211,16 +2415,17 @@ function buildIAGrid(day, ias) {
         return `<td class="ia-cell empty" data-ia="${ia.id}" data-slot="${slot}"></td>`;
       }
 
-      const alloc   = allocs.find(a => a.id === entry.allocId);
-      const color   = alloc?.color || '#6b7280';
-      const isCont  = prevEntry && prevEntry.allocId === entry.allocId;
-      const inner   = isCont ? '' : `
+      const alloc  = allocs.find(a => a.id === entry.allocId);
+      const color  = alloc?.color || '#6b7280';
+      const isCont = prevEntry &&
+        prevEntry.allocId    === entry.allocId &&
+        prevEntry.targetType === entry.targetType &&
+        prevEntry.targetId   === entry.targetId;
+      const targetLabel = _iaTargetLabel(entry);
+      const inner = isCont ? '' : `
         <div class="ia-cell-label">${escHtml(alloc?.name || '')}</div>
-        ${entry.grade    ? `<div class="ia-cell-grade">${escHtml(GRADE_LABELS[entry.grade] || entry.grade)}</div>` : ''}
-        ${entry.activity ? `<div class="ia-cell-activity">${escHtml(entry.activity)}</div>` : ''}`;
-
-      const title = [alloc?.name, entry.grade ? (GRADE_LABELS[entry.grade] || entry.grade) : '', entry.activity]
-        .filter(Boolean).join(' • ');
+        ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}`;
+      const title = [alloc?.name, targetLabel].filter(Boolean).join(' • ');
 
       return `<td class="ia-cell filled${isCont ? ' cont' : ''}" data-ia="${ia.id}" data-slot="${slot}"
                style="background:${color}22;border-left:3px solid ${color};border-right:1px solid ${color}40"
@@ -2242,38 +2447,54 @@ function buildIAGrid(day, ias) {
 }
 
 function wireIAScheduleEvents(container, ias) {
+  // Summary mode handlers
+  container.querySelector('#ia-back-to-grid-btn')?.addEventListener('click', () => {
+    iaSchedUI.viewMode = 'grid';
+    renderIAScheduleView();
+  });
+  container.querySelector('#ia-summary-csv-btn')?.addEventListener('click', exportIASummaryCSV);
+  container.querySelector('#ia-summary-print-btn')?.addEventListener('click', () => {
+    const table = container.querySelector('#ia-summary-table');
+    if (table) printScheduleGrid('IA Schedule — All IAs Summary', SchedState.school.name || '', table);
+  });
+
+  if (iaSchedUI.viewMode === 'all') return;
+
+  // Grid mode handlers
   container.querySelector('#ia-back-btn').addEventListener('click', () => {
     navigateTo('specials-sched'); renderSpecialsScheduleView();
   });
-
-  container.querySelector('#ia-eraser').addEventListener('click', () => {
-    iaSchedUI.activeAllocId = null;
+  container.querySelector('#ia-print-btn').addEventListener('click', () => {
+    const table = container.querySelector('#ia-grid-wrap .sched-table');
+    if (table) printScheduleGrid(`IA Schedule — ${iaSchedUI.activeDay}`, SchedState.school.name || '', table);
+  });
+  container.querySelector('#ia-view-all-btn').addEventListener('click', () => {
+    iaSchedUI.viewMode = 'all';
     renderIAScheduleView();
   });
 
+  // Budget eraser
+  container.querySelector('#ia-eraser').addEventListener('click', () => {
+    iaSchedUI.activeAllocId = null;
+    _refreshBudgetSelection(container);
+  });
+
+  // Budget selection
   container.querySelectorAll('.ia-alloc-item').forEach(item => {
     item.addEventListener('click', e => {
-      if (e.target.closest('.ia-alloc-hrs-input') || e.target.closest('.ia-alloc-delete')) return;
+      if (e.target.closest('.ia-alloc-delete')) return;
       const id = item.dataset.allocId;
       iaSchedUI.activeAllocId = (iaSchedUI.activeAllocId === id) ? null : id;
-      renderIAScheduleView();
+      _refreshBudgetSelection(container);
     });
   });
 
-  container.querySelectorAll('.ia-alloc-hrs-input').forEach(input => {
-    input.addEventListener('change', () => {
-      const id    = input.dataset.allocId;
-      const val   = parseFloat(input.value) || 0;
-      const alloc = (SchedState.iaAllocations || []).find(a => a.id === id);
-      if (alloc) { alloc.hoursPerWeek = val; saveToLocal(); _refreshIAPaletteHours(); }
-    });
-  });
-
+  // Delete budget category
   container.querySelectorAll('[data-delete-alloc]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const id = btn.dataset.deleteAlloc;
-      if (!confirm('Remove this allocation type? Cells painted with it will be cleared.')) return;
+      if (!confirm('Remove this budget category? Cells painted with it will be cleared.')) return;
       SchedState.iaAllocations = (SchedState.iaAllocations || []).filter(a => a.id !== id);
       DAYS.forEach(day => {
         Object.values(SchedState.iaSchedule[day] || {}).forEach(iaSlots => {
@@ -2288,27 +2509,41 @@ function wireIAScheduleEvents(container, ias) {
     });
   });
 
+  // Add budget form
   container.querySelector('#ia-add-alloc-btn').addEventListener('click', () => {
     container.querySelector('#ia-add-alloc-form').classList.remove('hidden');
     container.querySelector('#ia-new-alloc-name').focus();
   });
-
   container.querySelector('#ia-cancel-alloc-btn').addEventListener('click', () => {
     container.querySelector('#ia-add-alloc-form').classList.add('hidden');
     container.querySelector('#ia-new-alloc-name').value = '';
   });
-
   container.querySelector('#ia-save-alloc-btn').addEventListener('click', () => {
     const nameEl = container.querySelector('#ia-new-alloc-name');
     const name   = nameEl.value.trim();
     const color  = container.querySelector('#ia-new-alloc-color').value;
     if (!name) { nameEl.focus(); return; }
     if (!SchedState.iaAllocations) SchedState.iaAllocations = [];
-    SchedState.iaAllocations.push({ id: uid(), name, color, hoursPerWeek: 0 });
+    SchedState.iaAllocations.push({ id: uid(), name, color });
     saveToLocal();
     renderIAScheduleView();
   });
 
+  // Target type toggle (Grade / Class)
+  container.querySelectorAll('.ia-target-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (iaSchedUI.targetType === btn.dataset.targetType) return;
+      iaSchedUI.targetType = btn.dataset.targetType;
+      iaSchedUI.targetId   = null;
+      container.querySelectorAll('.ia-target-type-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.targetType === iaSchedUI.targetType));
+      const pickerEl = container.querySelector('#ia-target-picker');
+      if (pickerEl) { pickerEl.innerHTML = buildIATargetPickerHtml(); _wireTargetPicker(container); }
+    });
+  });
+  _wireTargetPicker(container);
+
+  // Day tabs
   container.querySelectorAll('.ia-day-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       iaSchedUI.activeDay = tab.dataset.day;
@@ -2316,7 +2551,7 @@ function wireIAScheduleEvents(container, ias) {
     });
   });
 
-  // Paint interactions
+  // Paint
   const table = container.querySelector('#ia-sched-table');
   if (!table) return;
 
@@ -2324,8 +2559,10 @@ function wireIAScheduleEvents(container, ias) {
     const cell = e.target.closest('.ia-cell');
     if (!cell) return;
     e.preventDefault();
-    iaDrag.active  = true;
-    iaDrag.allocId = iaSchedUI.activeAllocId;
+    iaDrag.active     = true;
+    iaDrag.allocId    = iaSchedUI.activeAllocId;
+    iaDrag.targetType = iaSchedUI.targetType;
+    iaDrag.targetId   = iaSchedUI.targetId;
     _applyIACell(cell);
   });
 
@@ -2335,44 +2572,73 @@ function wireIAScheduleEvents(container, ias) {
     if (cell) _applyIACell(cell);
   });
 
+  table.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.ia-cell[data-ia]');
+    if (cell && cell.dataset.ia !== iaSchedUI.focusedIAId) {
+      iaSchedUI.focusedIAId = cell.dataset.ia;
+      _refreshIAPanel();
+    }
+  });
+
   const stopIADrag = () => { iaDrag.active = false; };
   document.addEventListener('mouseup', stopIADrag);
-  // Clean up listener if the view is re-rendered
   container.addEventListener('ia-view-destroyed', () => document.removeEventListener('mouseup', stopIADrag));
+}
 
-  // Click on a filled cell to open grade/activity popup
-  table.addEventListener('click', e => {
-    if (iaDrag.active) return;
-    const cell = e.target.closest('.ia-cell.filled');
-    if (!cell) return;
-    _showIACellPopup(cell, container);
+function _wireTargetPicker(container) {
+  container.querySelectorAll('.ia-target-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      iaSchedUI.targetId = pill.dataset.targetId;
+      container.querySelectorAll('.ia-target-pill').forEach(p =>
+        p.classList.toggle('active', p.dataset.targetId === iaSchedUI.targetId));
+    });
+  });
+}
+
+function _refreshBudgetSelection(container) {
+  const allocs = SchedState.iaAllocations || [];
+  container.querySelector('#ia-eraser')?.classList.toggle('active', iaSchedUI.activeAllocId === null);
+  container.querySelectorAll('.ia-alloc-item').forEach(item => {
+    const id    = item.dataset.allocId;
+    const alloc = allocs.find(a => a.id === id);
+    const active = id === iaSchedUI.activeAllocId;
+    item.classList.toggle('active', active);
+    item.style.borderLeft = alloc && active ? `3px solid ${alloc.color}` : '3px solid transparent';
+    item.style.background = alloc && active ? `${alloc.color}12` : '';
   });
 }
 
 function _applyIACell(cell) {
-  const iaId  = cell.dataset.ia;
-  const slot  = cell.dataset.slot;
-  const day   = iaSchedUI.activeDay;
+  const iaId = cell.dataset.ia;
+  const slot = cell.dataset.slot;
+  const day  = iaSchedUI.activeDay;
 
-  if (!SchedState.iaSchedule[day])          SchedState.iaSchedule[day] = {};
-  if (!SchedState.iaSchedule[day][iaId])    SchedState.iaSchedule[day][iaId] = {};
+  if (!SchedState.iaSchedule[day])       SchedState.iaSchedule[day] = {};
+  if (!SchedState.iaSchedule[day][iaId]) SchedState.iaSchedule[day][iaId] = {};
 
   const current = SchedState.iaSchedule[day][iaId][slot];
 
   if (iaDrag.allocId === null) {
     delete SchedState.iaSchedule[day][iaId][slot];
-  } else if (current && current.allocId === iaDrag.allocId) {
-    // same alloc already — no-op during drag (toggle is click-only)
+  } else if (!iaDrag.targetId) {
+    return; // incomplete brush — no target selected
+  } else if (current && (
+    current.allocId    !== iaDrag.allocId ||
+    current.targetType !== iaDrag.targetType ||
+    current.targetId   !== iaDrag.targetId
+  )) {
+    return; // hard block — different brush
   } else {
     SchedState.iaSchedule[day][iaId][slot] = {
-      allocId:  iaDrag.allocId,
-      grade:    current?.grade    || '',
-      activity: current?.activity || '',
+      allocId:    iaDrag.allocId,
+      targetType: iaDrag.targetType,
+      targetId:   iaDrag.targetId,
     };
   }
 
+  iaSchedUI.focusedIAId = iaId;
   _updateIACellDOM(cell, day, iaId, slot, 0);
-  _refreshIAPaletteHours();
+  _refreshIAPanel();
   saveToLocal();
 }
 
@@ -2387,116 +2653,60 @@ function _updateIACellDOM(cell, day, iaId, slot, depth) {
   const prevEntry = prevCell ? (SchedState.iaSchedule[day]?.[iaId]?.[prevCell.dataset.slot] || null) : null;
 
   if (!entry) {
-    cell.className   = 'ia-cell empty';
+    cell.className     = 'ia-cell empty';
     cell.style.cssText = '';
-    cell.innerHTML   = '';
-    cell.title       = '';
+    cell.innerHTML     = '';
+    cell.title         = '';
   } else {
     const alloc  = allocs.find(a => a.id === entry.allocId);
     const color  = alloc?.color || '#6b7280';
-    const isCont = prevEntry && prevEntry.allocId === entry.allocId;
-    cell.className   = `ia-cell filled${isCont ? ' cont' : ''}`;
+    const isCont = prevEntry &&
+      prevEntry.allocId    === entry.allocId &&
+      prevEntry.targetType === entry.targetType &&
+      prevEntry.targetId   === entry.targetId;
+    const targetLabel = _iaTargetLabel(entry);
+    cell.className     = `ia-cell filled${isCont ? ' cont' : ''}`;
     cell.style.cssText = `background:${color}22;border-left:3px solid ${color};border-right:1px solid ${color}40`;
-    cell.title       = [alloc?.name, entry.grade ? (GRADE_LABELS[entry.grade] || entry.grade) : '', entry.activity].filter(Boolean).join(' • ');
-    cell.innerHTML   = isCont ? '' : `
+    cell.title         = [alloc?.name, targetLabel].filter(Boolean).join(' • ');
+    cell.innerHTML     = isCont ? '' : `
       <div class="ia-cell-label">${escHtml(alloc?.name || '')}</div>
-      ${entry.grade    ? `<div class="ia-cell-grade">${escHtml(GRADE_LABELS[entry.grade] || entry.grade)}</div>` : ''}
-      ${entry.activity ? `<div class="ia-cell-activity">${escHtml(entry.activity)}</div>` : ''}`;
+      ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}`;
   }
 
-  // Update next cell — its continuation state may have changed
   const nextCell = slotIdx >= 0 && slotIdx < allCells.length - 1 ? allCells[slotIdx + 1] : null;
   if (nextCell && SchedState.iaSchedule[day]?.[iaId]?.[nextCell.dataset.slot]) {
     _updateIACellDOM(nextCell, day, iaId, nextCell.dataset.slot, depth + 1);
   }
 }
 
-function _refreshIAPaletteHours() {
-  (SchedState.iaAllocations || []).forEach(alloc => {
-    const item = document.querySelector(`.ia-alloc-item[data-alloc-id="${alloc.id}"]`);
-    if (!item) return;
-    const used      = getIAHoursUsed(alloc.id);
-    const allocated = alloc.hoursPerWeek || 0;
-    const pct       = allocated > 0 ? Math.min(100, (used / allocated) * 100) : 0;
-    const over      = allocated > 0 && used > allocated;
-    const fill = item.querySelector('.ia-alloc-progress-fill');
-    if (fill) fill.style.width = pct + '%';
-    const text = item.querySelector('.ia-alloc-usage-text');
-    if (text) {
-      text.textContent = `${used.toFixed(1)} used${allocated > 0 ? ` / ${allocated} alloc'd` : ''}`;
-      text.classList.toggle('over', over);
-    }
-    const bar = item.querySelector('.ia-alloc-progress');
-    if (bar) bar.classList.toggle('over', over);
-  });
-}
+function _refreshIAPanel() {
+  const ias = SchedState.staff.filter(s => s.role === 'ia');
+  if (!iaSchedUI.focusedIAId || !ias.find(ia => ia.id === iaSchedUI.focusedIAId)) {
+    iaSchedUI.focusedIAId = ias[0]?.id || null;
+  }
+  const ia = ias.find(s => s.id === iaSchedUI.focusedIAId);
 
-function _showIACellPopup(cell, container) {
-  // Remove any existing popup
-  container.querySelector('.ia-cell-popup')?.remove();
+  const nameEl    = document.getElementById('ia-mini-name');
+  const contentEl = document.getElementById('ia-mini-summary-content');
+  const totalEl   = document.getElementById('ia-mini-total');
+  if (!contentEl) return;
 
-  const iaId  = cell.dataset.ia;
-  const slot  = cell.dataset.slot;
-  const day   = iaSchedUI.activeDay;
-  const entry = SchedState.iaSchedule[day]?.[iaId]?.[slot];
-  if (!entry) return;
+  if (!ia) { contentEl.innerHTML = ''; return; }
+  if (nameEl) nameEl.textContent = ia.name;
 
-  const grades = SchedState.school.grades || [];
-  const gradeOptions = ['', ...grades].map(g =>
-    `<option value="${g}"${entry.grade === g ? ' selected' : ''}>${g === '' ? '— No grade —' : (GRADE_LABELS[g] || g)}</option>`
-  ).join('');
+  const summary = getIASummaryForIA(ia.id);
+  const allocs  = SchedState.iaAllocations || [];
+  const rows    = allocs
+    .filter(a => (summary.byAlloc[a.id] || 0) > 0)
+    .map(a => `
+      <div class="ia-mini-row">
+        <span class="ia-mini-dot" style="background:${a.color}"></span>
+        <span class="ia-mini-label">${escHtml(a.name)}</span>
+        <span class="ia-mini-hours">${summary.byAlloc[a.id].toFixed(1)}h</span>
+      </div>`).join('');
 
-  const popup = document.createElement('div');
-  popup.className = 'ia-cell-popup';
-  popup.innerHTML = `
-    <div class="ia-popup-title">Assign Details</div>
-    <div class="ia-popup-field">
-      <label class="ia-popup-label">Grade / Class</label>
-      <select class="ia-popup-select" id="ia-popup-grade">${gradeOptions}</select>
-    </div>
-    <div class="ia-popup-field">
-      <label class="ia-popup-label">Activity / Support Type</label>
-      <input class="ia-popup-input" id="ia-popup-activity" value="${escHtml(entry.activity || '')}" placeholder="e.g. Small group reading" />
-    </div>
-    <div class="ia-popup-actions">
-      <button class="btn btn-primary btn-sm" id="ia-popup-save">Save</button>
-      <button class="btn btn-outline btn-sm" id="ia-popup-cancel">Cancel</button>
-      <button class="ia-popup-clear" id="ia-popup-clear">Clear cell</button>
-    </div>`;
-
-  // Position near cell
-  const cellRect = cell.getBoundingClientRect();
-  const wrapRect = container.getBoundingClientRect();
-  popup.style.cssText = `position:absolute;top:${cellRect.bottom - wrapRect.top + 4}px;left:${Math.min(cellRect.left - wrapRect.left, wrapRect.width - 240)}px`;
-  container.style.position = 'relative';
-  container.appendChild(popup);
-
-  popup.querySelector('#ia-popup-save').addEventListener('click', () => {
-    const grade    = popup.querySelector('#ia-popup-grade').value;
-    const activity = popup.querySelector('#ia-popup-activity').value.trim();
-    SchedState.iaSchedule[day][iaId][slot] = { ...entry, grade, activity };
-    saveToLocal();
-    popup.remove();
-    _updateIACellDOM(cell, day, iaId, slot, 0);
-  });
-
-  popup.querySelector('#ia-popup-cancel').addEventListener('click', () => popup.remove());
-
-  popup.querySelector('#ia-popup-clear').addEventListener('click', () => {
-    delete SchedState.iaSchedule[day][iaId][slot];
-    saveToLocal();
-    popup.remove();
-    _updateIACellDOM(cell, day, iaId, slot, 0);
-    _refreshIAPaletteHours();
-  });
-
-  const closeOnOutside = e => {
-    if (!popup.contains(e.target) && e.target !== cell) {
-      popup.remove();
-      document.removeEventListener('click', closeOnOutside);
-    }
-  };
-  setTimeout(() => document.addEventListener('click', closeOnOutside), 10);
+  contentEl.innerHTML = rows || '<div class="ia-mini-empty">No assignments yet.</div>';
+  if (totalEl) totalEl.textContent = summary.total > 0 ? `${summary.total.toFixed(1)}h / week` : '';
 }
 
 function renderExportPlaceholder() {
@@ -2753,6 +2963,13 @@ function showSpecialsCoverageBanner() {
 
 const specialsSchedUI = { selectedTeacherId: null };
 
+const classSchedUI = {
+  selectedGrade:   null,
+  selectedClassId: null,
+  viewMode:        'single',   // 'single' | 'compare'
+  compareDay:      'Monday',
+};
+
 function renderSpecialsScheduleView() {
   const container = document.getElementById('view-specials-sched');
   if (!container) return;
@@ -2867,6 +3084,7 @@ function renderSpecialsScheduleView() {
 
         <div class="grid-footer">
           <button class="btn btn-outline" id="specials-sched-back-btn">← Back to Master Schedule</button>
+          <button class="btn btn-outline" id="specials-sched-print-btn">Print</button>
         </div>
       </div>
     </div>`;
@@ -2874,10 +3092,184 @@ function renderSpecialsScheduleView() {
   container.querySelector('#specials-sched-back-btn').addEventListener('click', () => {
     navigateTo('master'); renderMasterSchedule();
   });
+  container.querySelector('#specials-sched-print-btn').addEventListener('click', () => {
+    const teacher = SchedState.staff.find(t => t.id === specialsSchedUI.selectedTeacherId);
+    const table   = container.querySelector('.grid-scroll-wrap .sched-table');
+    if (table) printScheduleGrid(
+      `${teacher?.name || 'Specials'} — Weekly Schedule`,
+      SchedState.school.name || '',
+      table
+    );
+  });
   container.querySelectorAll('.teacher-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       specialsSchedUI.selectedTeacherId = chip.dataset.teacherId;
       renderSpecialsScheduleView();
+    });
+  });
+}
+
+function printScheduleGrid(title, subtitle, tableEl) {
+  const cssHref     = document.querySelector('link[href*="schedule.css"]')?.href || '/css/schedule.css';
+  const baseHref    = document.querySelector('link[href*="styles.css"]')?.href   || '/css/styles.css';
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <link rel="stylesheet" href="${baseHref}">
+    <link rel="stylesheet" href="${cssHref}">
+    <style>
+      @page { size: landscape; margin: 0.5in; }
+      body { margin: 0; padding: 16px 20px; background: #fff; }
+      .print-header { margin-bottom: 10px; }
+      .print-title { font-size: 16px; font-weight: 700; color: #1e293b; }
+      .print-subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
+      .sched-table { width: 100%; font-size: 10px; }
+      .sched-table .th-time, .sched-table .td-time { font-size: 9px; }
+    </style>
+  </head><body>
+    <div class="print-header">
+      <div class="print-title">${title}</div>
+      ${subtitle ? `<div class="print-subtitle">${subtitle}</div>` : ''}
+    </div>
+    ${tableEl.outerHTML}
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 600);
+}
+
+function renderClassSchedulesView() {
+  const container = document.getElementById('view-class-sched');
+  if (!container) return;
+
+  const grades = gradesSorted();
+  if (!grades.length || !Object.keys(SchedState.masterSchedule || {}).length) {
+    container.innerHTML = `
+      <div class="view-header"><h1>Class Schedules</h1></div>
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <p>Build the master schedule first, then return here to view individual class schedules.</p>
+        <button class="btn btn-primary mt-16" data-nav="master">Go to Master Schedule →</button>
+      </div>`;
+    container.querySelector('[data-nav]')?.addEventListener('click', () => { navigateTo('master'); renderMasterSchedule(); });
+    return;
+  }
+
+  if (!classSchedUI.selectedGrade || !grades.includes(classSchedUI.selectedGrade)) {
+    classSchedUI.selectedGrade = grades[0];
+  }
+  const grade   = classSchedUI.selectedGrade;
+  const classes = getClassesForGrade(grade);
+
+  if (classes.length && (!classSchedUI.selectedClassId || !classes.find(c => c.id === classSchedUI.selectedClassId))) {
+    classSchedUI.selectedClassId = classes[0]?.id || null;
+  }
+
+  const gradePills = grades.map(g => {
+    const label  = GRADE_LABELS[g] || g;
+    const active = g === grade;
+    return `<button class="cls-grade-pill${active ? ' active' : ''}" data-grade="${escHtml(g)}">${escHtml(label)}</button>`;
+  }).join('');
+
+  const modeToggle = `
+    <div class="cls-mode-toggle">
+      <button class="cls-mode-btn${classSchedUI.viewMode === 'single'  ? ' active' : ''}" data-mode="single">Single Class</button>
+      <button class="cls-mode-btn${classSchedUI.viewMode === 'compare' ? ' active' : ''}" data-mode="compare">Compare Grade</button>
+    </div>`;
+
+  let contentHtml = '';
+  if (classSchedUI.viewMode === 'single') {
+    const classPills = classes.length
+      ? classes.map(cls => {
+          const active = cls.id === classSchedUI.selectedClassId;
+          return `<button class="cls-class-pill${active ? ' active' : ''}" data-class-id="${escHtml(cls.id)}">${escHtml(cls.name)}</button>`;
+        }).join('')
+      : `<span class="cls-no-classes">No classroom teachers for this grade</span>`;
+
+    const gridHtml = classes.length && classSchedUI.selectedClassId
+      ? buildClassWeekGrid(classSchedUI.selectedClassId, grade)
+      : `<div style="padding:32px 24px;color:var(--gray-400)">No classroom teachers assigned to this grade.</div>`;
+
+    contentHtml = `
+      <div class="cls-class-bar">${classPills}</div>
+      <div class="grid-scroll-wrap">${gridHtml}</div>`;
+  } else {
+    const dayTabs = DAYS.map(d => {
+      const active = d === classSchedUI.compareDay;
+      return `<button class="cls-day-tab${active ? ' active' : ''}" data-day="${d}">${d.slice(0, 3)}</button>`;
+    }).join('');
+
+    const compareHtml = classes.length
+      ? buildGradeCompareGrid(grade, classSchedUI.compareDay)
+      : `<div style="padding:32px 24px;color:var(--gray-400)">No classroom teachers assigned to this grade.</div>`;
+
+    contentHtml = `
+      <div class="cls-day-bar">${dayTabs}</div>
+      <div class="grid-scroll-wrap">${compareHtml}</div>`;
+  }
+
+  container.innerHTML = `
+    <div class="master-shell">
+      <div class="grid-side">
+        <div class="grid-top-bar">
+          <div>
+            <h1 class="grid-title">Class Schedules</h1>
+            <p class="grid-subtitle">Full weekly schedule by class</p>
+          </div>
+        </div>
+        <div class="cls-controls">
+          <div class="cls-grade-bar">${gradePills}</div>
+          ${modeToggle}
+        </div>
+        ${contentHtml}
+        <div class="grid-footer">
+          <button class="btn btn-outline" id="class-sched-back-btn">← Back to Master Schedule</button>
+          <button class="btn btn-outline" id="class-sched-print-btn">Print</button>
+        </div>
+      </div>
+    </div>`;
+
+  container.querySelector('#class-sched-back-btn').addEventListener('click', () => {
+    navigateTo('master'); renderMasterSchedule();
+  });
+  container.querySelector('#class-sched-print-btn').addEventListener('click', () => {
+    const table = container.querySelector('.grid-scroll-wrap .sched-table');
+    if (!table) return;
+    const gradeLabel = GRADE_LABELS[classSchedUI.selectedGrade] || classSchedUI.selectedGrade || '';
+    let title;
+    if (classSchedUI.viewMode === 'compare') {
+      title = `${gradeLabel} — ${classSchedUI.compareDay} — Class Comparison`;
+    } else {
+      const cls = SchedState.staff.find(s => s.id === classSchedUI.selectedClassId);
+      title = `${gradeLabel}${cls ? ` — ${cls.name}` : ''} — Class Schedule`;
+    }
+    printScheduleGrid(title, SchedState.school.name || '', table);
+  });
+  container.querySelectorAll('.cls-grade-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      classSchedUI.selectedGrade   = btn.dataset.grade;
+      classSchedUI.selectedClassId = null;
+      renderClassSchedulesView();
+    });
+  });
+  container.querySelectorAll('.cls-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      classSchedUI.viewMode = btn.dataset.mode;
+      renderClassSchedulesView();
+    });
+  });
+  container.querySelectorAll('.cls-class-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      classSchedUI.selectedClassId = btn.dataset.classId;
+      renderClassSchedulesView();
+    });
+  });
+  container.querySelectorAll('.cls-day-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      classSchedUI.compareDay = btn.dataset.day;
+      renderClassSchedulesView();
     });
   });
 }
@@ -2994,10 +3386,10 @@ function buildSpecialsTeacherGrid(teacherId) {
 
       const prevSlot  = i > 0 ? slots[i - 1] : null;
       const prevEntry = prevSlot ? slotMap[day][prevSlot] : null;
-      const isCont    = !!(prevEntry && prevEntry.subjectId === entry.subjectId && prevEntry.grade === entry.grade);
+      const isCont    = !!(prevEntry && prevEntry.subjectId === entry.subjectId && prevEntry.grade === entry.grade && prevEntry.startTime === entry.startTime);
       const nextSlot  = i < slots.length - 1 ? slots[i + 1] : null;
       const nextEntry = nextSlot ? slotMap[day][nextSlot] : null;
-      const isEnd     = !(nextEntry && nextEntry.subjectId === entry.subjectId && nextEntry.grade === entry.grade);
+      const isEnd     = !(nextEntry && nextEntry.subjectId === entry.subjectId && nextEntry.grade === entry.grade && nextEntry.startTime === entry.startTime);
       const c = entry.color;
       const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${c};`;
       const borderBottom = isEnd  ? `border-bottom:2px solid ${c};`     : '';
@@ -3031,4 +3423,166 @@ function buildSpecialsTeacherGrid(teacherId) {
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+// ── Class Schedules view helpers ──────────────────────────────────────────────
+
+// Returns display data for one slot in a class's schedule, or null if empty.
+function getClassSlotEntry(slot, grade, day, classId) {
+  const btId = SchedState.masterSchedule[day]?.[grade]?.[slot];
+  if (!btId) return null;
+
+  if (btId.startsWith('bt_spec')) {
+    const ss = SchedState.specialsSchedule?.[classId]?.[day];
+    if (!ss?.startTime) return null;
+    const specials = SchedState.school.specials || [];
+    const sp       = specials.find(s => s.id === ss.subjectId);
+    const teacher  = SchedState.staff.find(t => t.id === ss.teacherId);
+    const dur      = sp?.duration || 45;
+    const daySlots = _autoFillSlots(day);
+    const slotIdx  = daySlots.indexOf(slot);
+    const startIdx = daySlots.indexOf(ss.startTime);
+    if (startIdx < 0 || slotIdx < startIdx || slotIdx >= startIdx + Math.ceil(dur / 5)) return null;
+    return {
+      btId,
+      isSpecials:  true,
+      subjectName: sp?.name || 'Specials',
+      teacherName: teacher ? teacher.name.split(' ')[0] : '',
+      color:       sp?.color || '#f97316',
+      duration:    dur,
+      slotIdx,
+      startIdx,
+    };
+  }
+
+  const pid = btId.includes('|') ? btId.split('|')[0] : btId;
+  const sub = btId.includes('|') ? btId.split('|')[1] : null;
+  const bt  = SchedState.blockTypes.find(b => b.id === pid);
+  if (!bt) return null;
+
+  let displayName = bt.name;
+  if (sub) {
+    if (pid === 'bt_mm') {
+      const mm = (SchedState.school.morningMeetings || []).find(m => m.id === sub);
+      displayName = mm?.name || bt.name;
+    } else if (pid !== 'bt_lunch' && pid !== 'bt_recess') {
+      const sb = (bt.subBlocks || []).find(s => s.id === sub);
+      displayName = sb ? `${bt.name} – ${sb.name}` : bt.name;
+    }
+  }
+
+  return { btId, isSpecials: false, displayName, color: bt.color || '#6b7280' };
+}
+
+// Renders one td for the class schedule views.
+function buildClassScheduleCell(slot, grade, day, classId, prevSlot, nextSlot) {
+  const entry     = getClassSlotEntry(slot, grade, day, classId);
+  const prevEntry = prevSlot ? getClassSlotEntry(prevSlot, grade, day, classId) : null;
+  const nextEntry = nextSlot ? getClassSlotEntry(nextSlot, grade, day, classId) : null;
+
+  if (!entry) return `<td class="grid-cell cls-gap" data-time="${slot}"></td>`;
+
+  let isCont, isEnd;
+  if (entry.isSpecials) {
+    isCont = entry.slotIdx > entry.startIdx;
+    isEnd  = entry.slotIdx === entry.startIdx + Math.ceil(entry.duration / 5) - 1;
+  } else {
+    isCont = !!(prevEntry && !prevEntry.isSpecials && prevEntry.btId === entry.btId);
+    isEnd  = !(nextEntry && !nextEntry.isSpecials && nextEntry.btId === entry.btId);
+  }
+
+  const c            = entry.color;
+  const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${c};`;
+  const borderBottom = isEnd  ? `border-bottom:2px solid ${c};`     : '';
+  const style        = `background:${c}18;border-left:3px solid ${c};${borderTop}${borderBottom}`;
+
+  let inner = '';
+  if (!isCont) {
+    if (entry.isSpecials) {
+      const endSlot = minsToTime(timeToMins(slot) + entry.duration);
+      inner = `<span class="cell-label" style="color:${c}">${escHtml(entry.subjectName)}` +
+        `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${entry.duration} min</span>` +
+        `<span class="cell-specials-subject">${escHtml(entry.teacherName)}</span>` +
+        `<span class="cell-ia-name"></span>` +
+        `</span>`;
+    } else {
+      const daySlots = _autoFillSlots(day);
+      let dur = 5, j = daySlots.indexOf(slot) + 1;
+      while (j < daySlots.length) {
+        const ne = getClassSlotEntry(daySlots[j], grade, day, classId);
+        if (ne && !ne.isSpecials && ne.btId === entry.btId) { dur += 5; j++; } else break;
+      }
+      const endSlot = minsToTime(timeToMins(slot) + dur);
+      inner = `<span class="cell-label" style="color:${c}">${escHtml(entry.displayName)}` +
+        `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${dur} min</span>` +
+        `</span>`;
+    }
+  }
+
+  return `<td class="grid-cell filled${isCont ? ' cont' : ''}" data-time="${slot}" style="${style}">${inner}</td>`;
+}
+
+// Week-at-a-glance for a single class (all 5 days, all block types).
+function buildClassWeekGrid(classId, grade) {
+  const sc       = SchedState.school;
+  const cands    = [sc.firstBell, sc.studentCampusStart, sc.dayStart].filter(t => t && /^\d\d:\d\d/.test(t));
+  const dayStart = cands.length ? cands.reduce((a, b) => a < b ? a : b) : '07:30';
+  const dayEnd   = DAYS.reduce((mx, d) => { const dis = getDismissalForDay(d) || '14:30'; return dis > mx ? dis : mx; }, '14:30');
+  const slots    = generateTimeSlots(dayStart, dayEnd);
+  const headCols = DAYS.map(d => `<th class="th-grade">${d.slice(0, 3)}</th>`).join('');
+
+  const rows = slots.map((slot, i) => {
+    const [, m]    = slot.split(':').map(Number);
+    const showLabel = m % 10 === 0;
+    const isMajor   = m === 0;
+    const prevSlot  = i > 0 ? slots[i - 1] : null;
+    const nextSlot  = i < slots.length - 1 ? slots[i + 1] : null;
+    const cells = DAYS.map(day => buildClassScheduleCell(slot, grade, day, classId, prevSlot, nextSlot)).join('');
+    return `<tr class="sched-row${isMajor ? ' row-hour' : ''}" data-time="${slot}">
+      <td class="td-time${showLabel ? '' : ' td-time-minor'}">${showLabel ? fmtTime(slot) : ''}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const cls        = SchedState.staff.find(s => s.id === classId);
+  const gradeLabel = GRADE_LABELS[grade] || grade;
+  const clsName    = cls?.name || '';
+  return `<div class="cls-grid-heading">${escHtml(gradeLabel)}${clsName ? ` — ${escHtml(clsName)}` : ''}</div>
+    <table class="sched-table" cellspacing="0">
+      <thead><tr class="sched-head-row"><th class="th-time"></th>${headCols}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// Single-day comparison grid for all classes in a grade.
+function buildGradeCompareGrid(grade, day) {
+  const classes = getClassesForGrade(grade);
+  if (!classes.length) return `<div style="padding:32px 24px;color:var(--gray-400)">No classroom teachers assigned to this grade.</div>`;
+
+  const sc       = SchedState.school;
+  const cands    = [sc.firstBell, sc.studentCampusStart, sc.dayStart].filter(t => t && /^\d\d:\d\d/.test(t));
+  const dayStart = cands.length ? cands.reduce((a, b) => a < b ? a : b) : '07:30';
+  const dayEnd   = getDismissalForDay(day) || '14:30';
+  const slots    = generateTimeSlots(dayStart, dayEnd);
+  const headCols = classes.map(cls => `<th class="th-grade cls-compare-th">${escHtml(cls.name)}</th>`).join('');
+
+  const rows = slots.map((slot, i) => {
+    const [, m]    = slot.split(':').map(Number);
+    const showLabel = m % 10 === 0;
+    const isMajor   = m === 0;
+    const prevSlot  = i > 0 ? slots[i - 1] : null;
+    const nextSlot  = i < slots.length - 1 ? slots[i + 1] : null;
+    const cells = classes.map(cls => buildClassScheduleCell(slot, grade, day, cls.id, prevSlot, nextSlot)).join('');
+    return `<tr class="sched-row${isMajor ? ' row-hour' : ''}" data-time="${slot}">
+      <td class="td-time${showLabel ? '' : ' td-time-minor'}">${showLabel ? fmtTime(slot) : ''}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const gradeLabel = GRADE_LABELS[grade] || grade;
+  return `<div class="cls-grid-heading">${escHtml(gradeLabel)} — ${escHtml(day)}</div>
+    <table class="sched-table" cellspacing="0">
+      <thead><tr class="sched-head-row"><th class="th-time"></th>${headCols}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }

@@ -295,6 +295,11 @@
   display: block;
   line-height: 16px;
   pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 4px;
+  right: 4px;
+  z-index: 1;
 }
 .cell-time {
   display: block;
@@ -2342,3 +2347,317 @@
   padding: 2px 4px;
 }
 .ia-popup-clear:hover { text-decoration: underline; }
+
+/* ── Class Schedules view ────────────────────────────────────────────────── */
+.cls-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.cls-grade-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cls-grade-pill {
+  padding: 4px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.cls-grade-pill:hover { border-color: var(--gray-400); background: var(--gray-100); }
+.cls-grade-pill.active {
+  background: var(--blue-600, #2563eb);
+  border-color: var(--blue-600, #2563eb);
+  color: #fff;
+  font-weight: 600;
+}
+.cls-mode-toggle {
+  display: flex;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.cls-mode-btn {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.cls-mode-btn + .cls-mode-btn { border-left: 1px solid var(--gray-300); }
+.cls-mode-btn:hover { background: var(--gray-100); }
+.cls-mode-btn.active {
+  background: var(--gray-800, #1e293b);
+  color: #fff;
+  font-weight: 600;
+}
+.cls-class-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.cls-class-pill {
+  padding: 4px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.cls-class-pill:hover { border-color: var(--gray-400); background: var(--gray-100); }
+.cls-class-pill.active {
+  background: var(--gray-800, #1e293b);
+  border-color: var(--gray-800, #1e293b);
+  color: #fff;
+  font-weight: 600;
+}
+.cls-no-classes {
+  font-size: 12px;
+  color: var(--gray-400);
+  padding: 4px 0;
+}
+.cls-day-bar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+.cls-day-tab {
+  padding: 4px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.cls-day-tab:hover { border-color: var(--gray-400); background: var(--gray-100); }
+.cls-day-tab.active {
+  background: var(--gray-800, #1e293b);
+  border-color: var(--gray-800, #1e293b);
+  color: #fff;
+  font-weight: 600;
+}
+.cls-grid-heading {
+  padding: 10px 24px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  flex-shrink: 0;
+}
+.cls-gap {
+  background: transparent;
+}
+.cls-compare-th {
+  min-width: 120px;
+}
+.cell-ia-name {
+  display: none;
+}
+.cell-ia-name:not(:empty) {
+  display: block;
+  font-size: 9.5px;
+  margin-top: 1px;
+  opacity: 0.85;
+}
+
+/* ── IA Schedule redesign ─────────────────────────────────────────────────── */
+.ia-palette-panel { width: 230px; min-width: 230px; overflow-y: auto; }
+
+.ia-panel-section {
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--gray-100);
+}
+.ia-panel-section:first-child { border-top: none; padding-top: 4px; }
+
+.ia-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  padding: 0 12px 6px;
+}
+
+/* Target type toggle (Grade / Class) */
+.ia-target-type-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+}
+.ia-target-type-btn {
+  flex: 1;
+  padding: 4px 0;
+  border: 1px solid var(--gray-200);
+  border-radius: 5px;
+  background: none;
+  font-size: 11px;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: background .1s, color .1s, border-color .1s;
+}
+.ia-target-type-btn:hover { background: var(--gray-50); color: var(--gray-700); }
+.ia-target-type-btn.active {
+  background: var(--gray-900);
+  color: #fff;
+  border-color: var(--gray-900);
+}
+
+/* Target picker */
+.ia-target-picker { padding: 0 12px 4px; }
+.ia-target-pills-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.ia-target-pill {
+  padding: 3px 9px;
+  border: 1px solid var(--gray-200);
+  border-radius: 20px;
+  background: none;
+  font-size: 11px;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .1s, border-color .1s, color .1s;
+  white-space: nowrap;
+}
+.ia-target-pill:hover { background: var(--gray-50); border-color: var(--gray-300); }
+.ia-target-pill.active {
+  background: var(--gray-900);
+  color: #fff;
+  border-color: var(--gray-900);
+}
+.ia-target-grade-group { margin-bottom: 6px; }
+.ia-target-grade-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  margin-bottom: 3px;
+}
+.ia-target-empty { font-size: 11px; color: var(--gray-400); font-style: italic; }
+
+/* This IA mini-summary */
+.ia-mini-summary-section { padding-bottom: 12px; }
+.ia-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+}
+.ia-mini-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ia-mini-label { font-size: 11px; color: var(--gray-600); flex: 1; }
+.ia-mini-hours { font-size: 11px; font-weight: 600; color: var(--gray-700); font-variant-numeric: tabular-nums; }
+.ia-mini-total-row {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gray-500);
+  padding: 4px 12px 0;
+}
+.ia-mini-empty { font-size: 11px; color: var(--gray-400); font-style: italic; padding: 2px 12px; }
+
+/* Grid top-bar right cluster */
+.ia-top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ia-all-btn { white-space: nowrap; }
+
+/* All IAs summary mode */
+.ia-summary-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 20px 20px;
+}
+.ia-summary-top-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 0 14px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ia-summary-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.ia-summary-empty {
+  padding: 40px 24px;
+  color: var(--gray-500);
+  font-size: 13px;
+  text-align: center;
+}
+.ia-summary-empty p { margin: 4px 0; }
+
+/* Summary table */
+.ia-summary-table { table-layout: auto; min-width: 100%; }
+.ia-sum-th {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: left;
+}
+.ia-sum-th-name { min-width: 140px; }
+.ia-sum-th-total { border-bottom: 3px solid var(--gray-300) !important; }
+.ia-sum-row td { border-bottom: 1px solid var(--gray-100); }
+.ia-sum-grand-row td {
+  border-top: 2px solid var(--gray-200);
+  border-bottom: none;
+  background: var(--gray-50);
+  font-weight: 700;
+}
+.ia-sum-name {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+.ia-sum-grand-label { color: var(--gray-500); font-weight: 700; }
+.ia-sum-cell { padding: 6px 12px; text-align: center; }
+.ia-sum-zero { color: var(--gray-300); font-size: 12px; }
+.ia-sum-grand-cell { font-size: 12px; font-weight: 600; color: var(--gray-600); font-variant-numeric: tabular-nums; }
+.ia-sum-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ia-sum-total {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ia-sum-grand { color: var(--gray-800); }
