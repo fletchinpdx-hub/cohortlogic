@@ -51,16 +51,16 @@
 
       <div id="cico-sidebar-footer">
         <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
-        <button id="cico-feedback-btn" onclick="openCicoFeedbackModal()">💬 Send Feedback</button>
+        <button id="cico-feedback-btn" data-act="openCicoFeedbackModal">💬 Send Feedback</button>
       </div>
     </aside>
 
     <!-- Feedback modal -->
-    <div id="cico-feedback-overlay" class="feedback-overlay hidden" onclick="if(event.target===this)closeCicoFeedbackModal()">
+    <div id="cico-feedback-overlay" class="feedback-overlay hidden">
       <div class="feedback-modal">
         <div class="feedback-modal-header">
           <h2>Send Feedback</h2>
-          <button class="feedback-close-btn" onclick="closeCicoFeedbackModal()">✕</button>
+          <button class="feedback-close-btn" data-act="closeCicoFeedbackModal">✕</button>
         </div>
         <p class="feedback-intro">Help us improve Check-in / Check-out. All feedback is read by the Cohort Logic team.</p>
         <div id="cico-feedback-form">
@@ -71,7 +71,7 @@
           <label class="feedback-label">Feedback <span style="color:#ef4444">*</span></label>
           <textarea id="cico-fb-message" class="feedback-textarea" placeholder="Tell us what's working, what's not, or what you'd love to see…"></textarea>
           <div id="cico-fb-error" class="feedback-error hidden"></div>
-          <button class="feedback-submit-btn" onclick="submitCicoFeedback()">Submit Feedback</button>
+          <button class="feedback-submit-btn" data-act="submitCicoFeedback">Submit Feedback</button>
         </div>
         <div id="cico-feedback-thanks" class="feedback-thanks hidden">
           <div class="feedback-thanks-icon">✅</div>

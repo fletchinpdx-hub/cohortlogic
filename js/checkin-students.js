@@ -37,8 +37,8 @@ function renderStudentList() {
       <td style="font-family:monospace;font-size:12px;">${escHtml(s.student_ref || '—')}</td>
       <td class="col-actions">
         <div class="row-actions">
-          <button class="action-btn" onclick="openEditStudentModal('${s.id}')" title="Edit">✏️</button>
-          <button class="action-btn danger" onclick="deleteStudent('${s.id}')" title="Remove">🗑</button>
+          <button class="action-btn" data-act="openEditStudentModal" data-id="${s.id}" title="Edit">✏️</button>
+          <button class="action-btn danger" data-act="deleteStudent" data-id="${s.id}" title="Remove">🗑</button>
         </div>
       </td>
     </tr>
