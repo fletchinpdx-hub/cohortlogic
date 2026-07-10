@@ -16,6 +16,23 @@
   <meta name="twitter:title" content="What "balanced classes" actually means | Cohort Logic" />
   <meta name="twitter:description" content="A framework for thinking about what balanced class lists actually include, and how to verify it." />
   <link rel="stylesheet" href="css/marketing.css" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "What \"balanced classes\" actually means — and how to measure it",
+    "description": "A framework for thinking about what balanced class lists actually include: academic balance, population balance, and constraint satisfaction — and how to verify each one.",
+    "datePublished": "2026-07-09",
+    "author": { "@type": "Organization", "name": "Cohort Logic" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Cohort Logic",
+      "url": "https://cohortlogic.com"
+    },
+    "url": "https://cohortlogic.com/balanced-classes.html",
+    "mainEntityOfPage": "https://cohortlogic.com/balanced-classes.html"
+  }
+  </script>
 </head>
 <body class="page-enter">
 
@@ -72,21 +89,25 @@
     <div style="display:grid;gap:40px;">
       <div class="prose">
 
+        <div style="margin-bottom:1.6em;padding:18px 20px;border-left:3px solid var(--teal);background:var(--teal-soft);border-radius:0 10px 10px 0;">
+          <p style="margin:0;font-size:14.5px;color:var(--text-2);">Before you can measure balance, you need clean data going in. <a href="prepare-student-roster.html" style="color:var(--teal-deep);font-weight:500;">How to prepare your student roster for class placement &rarr;</a></p>
+        </div>
+
         <p>Ask three principals what a balanced class list looks like and you'll get three different answers. One thinks about academic scores. One thinks about IEP distribution. One thinks about a specific student who can't be near three of her classmates.</p>
         <p>All of them are right. The problem is that most placement processes try to optimize for all of these things simultaneously, by hand, in a spreadsheet. That's why the process takes days and still produces results someone will push back on.</p>
         <p>Here's a framework for thinking about what "balanced" actually includes, and how to verify it.</p>
 
         <h2>The three types of balance</h2>
 
-        <h2 style="font-size:18px;margin-top:1.4em;margin-bottom:.4em;">1. Academic balance</h2>
+        <h3>1. Academic balance</h3>
         <p>Each class should have roughly the same average academic level, and roughly the same spread. You don't want one class of all high performers and one of all students who need support.</p>
         <p><strong>How to measure it:</strong> Calculate the mean and standard deviation of your academic score for each class. If the means are within 0.2&ndash;0.3 points of each other on a 1&ndash;5 scale, you're in reasonable range. Look at the spread too. A class with a tight cluster at the middle is different from one with high variance.</p>
 
-        <h2 style="font-size:18px;margin-top:1.4em;margin-bottom:.4em;">2. Population balance</h2>
+        <h3>2. Population balance</h3>
         <p>Students with IEPs, 504s, ELL designation, or other flags should be distributed proportionally, not concentrated in one classroom because it's convenient.</p>
         <p><strong>How to measure it:</strong> Count the number of students with each flag in each class. Divide by class size. If one class has 15% IEP students and another has 3%, that's a problem, both for the students and for the teacher.</p>
 
-        <h2 style="font-size:18px;margin-top:1.4em;margin-bottom:.4em;">3. Constraint satisfaction</h2>
+        <h3>3. Constraint satisfaction</h3>
         <p>Every keep-apart and keep-together rule your team set should be honored. This is binary: either a constraint is satisfied or it isn't.</p>
         <p><strong>How to measure it:</strong> Go through your constraint list and verify each one. In a tool like Class Builder, violations are flagged automatically. In a spreadsheet, you have to check manually.</p>
 
