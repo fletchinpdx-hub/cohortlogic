@@ -408,7 +408,7 @@ function renderMasterSchedule() {
         <div class="grid-footer">
           <button class="btn btn-outline" id="master-back-btn">← Back to Block Types</button>
           <button class="btn btn-outline" id="master-print-btn">Print</button>
-          <button class="btn btn-primary btn-lg" id="master-next-btn">Continue to Staff Roster →</button>
+          <button class="btn btn-primary btn-lg" id="master-next-btn">Continue to Specials Schedule →</button>
         </div>
       </div>
 
@@ -2081,8 +2081,8 @@ function saveMaster() {
 
 function saveMasterAndNext() {
   saveToLocal();
-  navigateTo('staff');
-  renderStaff();
+  navigateTo('specials-sched');
+  renderSpecialsScheduleView();
 }
 
 // ── Placeholder views ─────────────────────────────────────────────────────────
@@ -2308,6 +2308,7 @@ function renderIAScheduleView() {
       </div>
       <div class="grid-footer">
         <button class="btn btn-outline" id="ia-back-btn">← Back to Class Schedules</button>
+        <button class="btn btn-primary btn-lg" id="ia-next-btn">Continue to Export →</button>
       </div>
     </div>`;
 
@@ -3201,12 +3202,16 @@ function renderSpecialsScheduleView() {
         <div class="grid-footer">
           <button class="btn btn-outline" id="specials-sched-back-btn">← Back to Master Schedule</button>
           <button class="btn btn-outline" id="specials-sched-print-btn">Print</button>
+          <button class="btn btn-primary btn-lg" id="specials-sched-next-btn">Continue to Class Schedules →</button>
         </div>
       </div>
     </div>`;
 
   container.querySelector('#specials-sched-back-btn').addEventListener('click', () => {
     navigateTo('master'); renderMasterSchedule();
+  });
+  container.querySelector('#specials-sched-next-btn').addEventListener('click', () => {
+    navigateTo('class-sched'); renderClassSchedulesView();
   });
   container.querySelector('#specials-sched-print-btn').addEventListener('click', () => {
     const teacher = SchedState.staff.find(t => t.id === specialsSchedUI.selectedTeacherId);
@@ -3343,12 +3348,16 @@ function renderClassSchedulesView() {
         <div class="grid-footer">
           <button class="btn btn-outline" id="class-sched-back-btn">← Back to Master Schedule</button>
           <button class="btn btn-outline" id="class-sched-print-btn">Print</button>
+          <button class="btn btn-primary btn-lg" id="class-sched-next-btn">Continue to IA Schedules →</button>
         </div>
       </div>
     </div>`;
 
   container.querySelector('#class-sched-back-btn').addEventListener('click', () => {
     navigateTo('master'); renderMasterSchedule();
+  });
+  container.querySelector('#class-sched-next-btn').addEventListener('click', () => {
+    navigateTo('ia'); renderIAScheduleView();
   });
   container.querySelector('#class-sched-print-btn').addEventListener('click', () => {
     const table = container.querySelector('.grid-scroll-wrap .sched-table');
@@ -4225,9 +4234,12 @@ function wireIAViewEvents(container, ias) {
   document.getElementById('ia-go-master-btn')?.addEventListener('click', goToMasterWithIA);
   document.getElementById('ia-empty-go-btn')?.addEventListener('click', goToMasterWithIA);
 
-  // Back button
+  // Back / forward buttons
   document.getElementById('ia-back-btn')?.addEventListener('click', () => {
     navigateTo('class-sched'); renderClassSchedulesView();
+  });
+  document.getElementById('ia-next-btn')?.addEventListener('click', () => {
+    navigateTo('export'); renderExportPlaceholder();
   });
 
   // CSV download (all IAs summary)

@@ -194,6 +194,12 @@ function updateSidebarStatus() {
     const hasIAs = SchedState.staff.some(s => s.role === 'ia');
     iaNav.classList.toggle('nav-item-locked', !hasIAs);
   }
+
+  const exportNav = document.getElementById('nav-export') || document.querySelector('[data-view="export"]');
+  if (exportNav) {
+    const hasMasterForExport = Object.keys(SchedState.masterSchedule || {}).length > 0;
+    exportNav.classList.toggle('nav-item-locked', !hasMasterForExport);
+  }
 }
 
 // Ensure bt_mm / bt_lunch / bt_recess are always in SchedState.blockTypes.

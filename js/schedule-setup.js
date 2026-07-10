@@ -224,7 +224,7 @@ function renderSchoolInfo() {
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-primary" id="school-next-btn">Save & Build Schedule →</button>
+      <button class="btn btn-primary" id="school-next-btn">Save & Continue →</button>
       <div class="save-status" id="school-save-status"></div>
     </div>
   `;

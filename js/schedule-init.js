@@ -20,6 +20,7 @@ document.getElementById('main').addEventListener('click', e => {
 
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
+    if (item.classList.contains('nav-item-locked')) return;
     const view = item.dataset.view;
     navigateTo(view);
     if (VIEW_RENDERERS[view]) VIEW_RENDERERS[view]();
