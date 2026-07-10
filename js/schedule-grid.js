@@ -1683,18 +1683,19 @@ function buildSpecialsSchedule() {
       return;
     }
 
-    // Carousel model: find ONE fixed time valid across all 5 days where all specials
-    // teachers are free simultaneously. If not found, clear instruction blocks and retry.
+    // Carousel model: find the best start time PER DAY (may differ across days)
+    // so that all classes in the grade share one time slot on each given day.
+    // Using per-day times (vs. one fixed time for all 5 days) avoids the gap where
+    // a teacher claimed by an earlier grade on one day blocks the entire week.
     const gradeIdx = allGrades.indexOf(grade);
     const rotation = computeClassSpecialsRotation(classes, specials, gradeIdx);
-    let fixedTime  = findGradeFixedTime(grade, classes, rotation, specials, isFree);
-    if (!fixedTime) {
+    let gradeTimesPerDay = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
+    if (!Object.keys(gradeTimesPerDay).length) {
       _clearRequirementsForGrade(grade);
-      fixedTime = findGradeFixedTime(grade, classes, rotation, specials, isFree);
+      gradeTimesPerDay = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     }
-    if (!fixedTime) {
-      // No carousel slot available — schedule each class/session individually instead.
-      // Each class finds its own best open slot per day without requiring a common time.
+    if (!Object.keys(gradeTimesPerDay).length) {
+      // No carousel slot available on any day — schedule each class/session individually.
       classes.forEach(cls => { SchedState.specialsSchedule[cls.id] = {}; });
       let anyFallbackPlaced = false;
       const fbRotation = computeClassSpecialsRotation(classes, specials, gradeIdx);
@@ -1742,42 +1743,43 @@ function buildSpecialsSchedule() {
       return;
     }
 
-    // Initialise specialsSchedule with fixed time + rotation subject for every class/day.
+    // Initialise specialsSchedule with per-day time + rotation subject for every class/day.
     classes.forEach(cls => {
       SchedState.specialsSchedule[cls.id] = {};
       DAYS.forEach(day => {
-        const spId = rotation[cls.id]?.[day];
-        if (!spId) return;
-        SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, startTime: fixedTime, teacherId: null };
+        const spId    = rotation[cls.id]?.[day];
+        const dayTime = gradeTimesPerDay[day];
+        if (!spId || !dayTime) return;
+        SchedState.specialsSchedule[cls.id][day] = { subjectId: spId, startTime: dayTime, teacherId: null };
       });
     });
 
     // Assign teachers: for each day+special, least-busy-free from the pool.
-    // Multiple classes may share the same special simultaneously (carousel) — each
-    // gets its own teacher drawn from the pool in load-balanced order.
     DAYS.forEach(day => {
+      const dayTime = gradeTimesPerDay[day];
+      if (!dayTime) return;
       specials.forEach(sp => {
         const dur  = sp.duration || 45;
         const pool = sp.teacherIds || [];
         classes.filter(cls => rotation[cls.id]?.[day] === sp.id).forEach(cls => {
-          const tid = leastBusyFree(pool, day, fixedTime, dur);
+          const tid = leastBusyFree(pool, day, dayTime, dur);
           if (tid) {
             SchedState.specialsSchedule[cls.id][day].teacherId = tid;
-            book(tid, day, fixedTime, dur);
+            book(tid, day, dayTime, dur);
           }
         });
       });
     });
 
-    // Write generic bt_spec to masterSchedule at fixedTime on every day that has sessions,
-    // so auto-populate treats those slots as occupied. Generic 'bt_spec' (no subject suffix)
-    // is used because multiple subjects run simultaneously in the carousel.
+    // Write generic bt_spec to masterSchedule using per-day start times.
     const maxDur   = Math.max(...specials.map(sp => sp.duration || 45));
     const numSlots = Math.ceil(maxDur / 5);
     DAYS.forEach(day => {
+      const dayTime = gradeTimesPerDay[day];
+      if (!dayTime) return;
       if (!classes.some(cls => SchedState.specialsSchedule[cls.id]?.[day]?.subjectId)) return;
       const daySlots = _autoFillSlots(day);
-      const startIdx = daySlots.indexOf(fixedTime);
+      const startIdx = daySlots.indexOf(dayTime);
       if (startIdx < 0) return;
       if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
       if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
@@ -1787,9 +1789,8 @@ function buildSpecialsSchedule() {
       }
     });
 
-    // Recovery pass: some classes may still be short of cpw if teacher capacity was
-    // exceeded during the main booking. Try the carousel fixed time first on any
-    // unscheduled day, then fall back to any open slot in the grade's schedule.
+    // Recovery pass: fill any cpw shortfall. Try the day's carousel time first,
+    // then any open slot off-carousel.
     classes.forEach(cls => {
       const ss = SchedState.specialsSchedule[cls.id];
       specials.forEach(sp => {
@@ -1802,13 +1803,15 @@ function buildSpecialsSchedule() {
         const pool  = sp.teacherIds || [];
         let fill    = needed - placed;
 
-        // Pass 1: try to place at the carousel fixed time on an unscheduled day.
+        // Pass 1: try to place at the carousel time for that day.
         for (const day of DAYS) {
           if (fill <= 0) break;
           if (ss[day]?.teacherId) continue;
           if (ss[day]?.subjectId && ss[day].subjectId !== sp.id) continue;
+          const dayTime    = gradeTimesPerDay[day];
+          if (!dayTime) continue;
           const daySlots   = _autoFillSlots(day);
-          const si         = daySlots.indexOf(fixedTime);
+          const si         = daySlots.indexOf(dayTime);
           if (si < 0) continue;
           const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
           let ok = true;
@@ -1817,10 +1820,10 @@ function buildSpecialsSchedule() {
             if (sv && sv !== 'bt_spec') { ok = false; break; }
           }
           if (!ok) continue;
-          const tid = leastBusyFree(pool, day, fixedTime, dur);
+          const tid = leastBusyFree(pool, day, dayTime, dur);
           if (!tid) continue;
-          ss[day] = { subjectId: sp.id, teacherId: tid, startTime: fixedTime };
-          book(tid, day, fixedTime, dur);
+          ss[day] = { subjectId: sp.id, teacherId: tid, startTime: dayTime };
+          book(tid, day, dayTime, dur);
           fill--;
         }
 
@@ -2334,7 +2337,6 @@ function renderIAScheduleView() {
         <p>No instructional assistants on staff yet. Add IAs in the Staff Roster to get started.</p>
         <button class="btn btn-primary mt-16" data-nav="staff">Go to Staff Roster →</button>
       </div>`;
-    container.querySelector('[data-nav]')?.addEventListener('click', () => { navigateTo('staff'); renderStaff(); });
     return;
   }
 
@@ -3003,8 +3005,15 @@ function renderExportPlaceholder() {
 
       <div class="form-section">
         <h2 class="form-section-title">Export to Spreadsheet</h2>
-        <p class="form-hint">Download the master schedule as an Excel workbook. Each weekday gets its own tab, plus tabs for School Info and Staff.</p>
-        <button class="btn btn-primary" id="export-xlsx-btn" style="margin-top:12px">Download Excel (.xlsx)</button>
+        <p class="form-hint">Downloads an Excel workbook with the following tabs:</p>
+        <ul class="form-hint" style="margin:6px 0 12px 18px;line-height:1.7">
+          <li><strong>Mon – Fri</strong> — master schedule grid, one tab per day</li>
+          <li><strong>Class Schedules</strong> — each class's full week, with specific specials subjects filled in</li>
+          <li><strong>Specials</strong> — each specials teacher's weekly assignment list</li>
+          <li><strong>IA Schedule</strong> — each IA's daily assignments with grade, category, and note</li>
+          <li><strong>School Info</strong> + <strong>Staff</strong> — reference tabs</li>
+        </ul>
+        <button class="btn btn-primary" id="export-xlsx-btn">Download Excel (.xlsx)</button>
       </div>
 
     </div>
@@ -3058,31 +3067,146 @@ async function importJSON(e) {
 function exportXLSX() {
   const s      = SchedState.school;
   const grades = gradesSorted();
-  const DAYS   = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const days   = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const slots  = generateTimeSlots(s.firstBell || s.dayStart || '08:00', s.dismissal || s.dayEnd || '14:30');
+  const ss     = SchedState.specialsSchedule || {};
+  const specials = s.specials || [];
 
-  const blockName = id => {
-    const bt = (SchedState.blockTypes || []).find(b => b.id === id);
-    return bt ? bt.name : '';
+  // Resolve block name including specials subject and morning-meeting name
+  const cellLabel = (btId) => btId ? getBtName(btId) : '';
+
+  // For a class on a given day+slot, returns the specific specials subject if applicable
+  const classLabel = (clsId, grade, day, slot) => {
+    const master = ((SchedState.masterSchedule || {})[day]?.[grade] || {})[slot];
+    if (!master) return '';
+    if (master === 'bt_spec' || master.startsWith('bt_spec|')) {
+      const entry = ss[clsId]?.[day];
+      if (entry) {
+        const sp   = specials.find(x => x.id === entry.subjectId);
+        const dur  = sp?.duration || 45;
+        const dsl  = _autoFillSlots(day);
+        const si   = dsl.indexOf(entry.startTime);
+        const idx  = dsl.indexOf(slot);
+        if (si >= 0 && idx >= si && idx < si + Math.ceil(dur / 5)) {
+          return sp ? sp.name : 'Specials';
+        }
+      }
+      return 'Specials';
+    }
+    return cellLabel(master);
   };
 
   const wb = XLSX.utils.book_new();
 
-  // ── One tab per weekday ──────────────────────────────────────────
-  DAYS.forEach(day => {
+  // ── One tab per weekday (master schedule) ───────────────────────
+  days.forEach(day => {
     const dayData = ((SchedState.masterSchedule || {})[day]) || {};
     const header  = ['Time', ...grades.map(g => GRADE_LABELS[g] || g)];
     const rows    = [header, ...slots.map(slot => [
-      slot,
+      fmtTime12(slot),
       ...grades.map(g => {
         const id = (dayData[g] || {})[slot];
-        return id ? blockName(id) : '';
+        return id ? cellLabel(id) : '';
       })
     ])];
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 7 }, ...grades.map(() => ({ wch: 22 }))];
+    ws['!cols'] = [{ wch: 9 }, ...grades.map(() => ({ wch: 22 }))];
     XLSX.utils.book_append_sheet(wb, ws, day.slice(0, 3));
   });
+
+  // ── Class Schedules tab ─────────────────────────────────────────
+  const allClasses = grades.flatMap(g => getClassesForGrade(g));
+  if (allClasses.length) {
+    const hdr  = ['Class', 'Time', ...days.map(d => d.slice(0, 3))];
+    const rows = [hdr];
+    allClasses.forEach(cls => {
+      const gradeLabel = GRADE_LABELS[cls.gradeAssignment] || cls.gradeAssignment || '';
+      rows.push([cls.name ? `${cls.name} (${gradeLabel})` : gradeLabel]);
+      slots.forEach(slot => {
+        rows.push([
+          '',
+          fmtTime12(slot),
+          ...days.map(day => classLabel(cls.id, cls.gradeAssignment, day, slot)),
+        ]);
+      });
+      rows.push([]); // blank row between classes
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 22 }, { wch: 9 }, ...days.map(() => ({ wch: 18 }))];
+    XLSX.utils.book_append_sheet(wb, ws, 'Class Schedules');
+  }
+
+  // ── Specials tab ────────────────────────────────────────────────
+  const specialTeacherIds = new Set(specials.flatMap(sp => sp.teacherIds || []));
+  const specialTeachers   = (SchedState.staff || []).filter(t => specialTeacherIds.has(t.id));
+  if (specialTeachers.length && Object.keys(ss).length) {
+    const hdr  = ['Teacher', ...days.map(d => d.slice(0, 3))];
+    const rows = [hdr];
+    specialTeachers.forEach(t => {
+      const row = [t.name];
+      days.forEach(day => {
+        const sessions = [];
+        Object.entries(ss).forEach(([clsId, dayMap]) => {
+          const entry = dayMap[day];
+          if (!entry || entry.teacherId !== t.id) return;
+          const sp    = specials.find(x => x.id === entry.subjectId);
+          const cls   = (SchedState.staff || []).find(x => x.id === clsId);
+          const gl    = cls?.gradeAssignment ? (GRADE_LABELS[cls.gradeAssignment] || cls.gradeAssignment) : '';
+          const time  = fmtTime12(entry.startTime);
+          sessions.push(`${sp?.name || 'Specials'} — ${gl} ${time}`);
+        });
+        row.push(sessions.join('\n') || '—');
+      });
+      rows.push(row);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 24 }, ...days.map(() => ({ wch: 30 }))];
+    XLSX.utils.book_append_sheet(wb, ws, 'Specials');
+  }
+
+  // ── IA Schedule tab ─────────────────────────────────────────────
+  const ias = (SchedState.staff || []).filter(x => x.role === 'ia');
+  if (ias.length && SchedState.iaSchedule) {
+    const hdr  = ['IA', 'Day', 'Time Block', 'Grade', 'Budget Category', 'Note'];
+    const rows = [hdr];
+    ias.forEach(ia => {
+      days.forEach(day => {
+        const dsl = _autoFillSlots(day);
+        let prevAlloc = null, blockStart = null, blockGrade = null, blockNote = null;
+        const flush = endSlot => {
+          if (!prevAlloc || !blockStart) return;
+          const alloc = (SchedState.iaAllocations || []).find(a => a.id === prevAlloc);
+          const si    = dsl.indexOf(blockStart);
+          const ei    = dsl.indexOf(endSlot);
+          const mins  = Math.max((ei - si) * 5, 5);
+          rows.push([
+            ia.name,
+            day.slice(0, 3),
+            `${fmtTime12(blockStart)} – ${fmtTime12(endSlot)} (${mins} min)`,
+            blockGrade ? (GRADE_LABELS[blockGrade] || blockGrade) : '',
+            alloc?.name || '',
+            blockNote || '',
+          ]);
+          prevAlloc = null; blockStart = null; blockGrade = null; blockNote = null;
+        };
+        dsl.forEach(slot => {
+          const entry = (SchedState.iaSchedule[day] || {})[ia.id]?.[slot];
+          if (!entry) { flush(slot); return; }
+          const { allocId, targetId: grade, note } = entry;
+          if (allocId !== prevAlloc || grade !== blockGrade) {
+            flush(slot);
+            prevAlloc = allocId; blockStart = slot; blockGrade = grade; blockNote = note;
+          }
+        });
+        if (dsl.length) flush(dsl[dsl.length - 1]);
+      });
+    });
+    if (rows.length > 1) {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 20 }, { wch: 7 }, { wch: 28 }, { wch: 12 }, { wch: 22 }, { wch: 32 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'IA Schedule');
+    }
+  }
 
   // ── School Info tab ──────────────────────────────────────────────
   const recessMap = typeof computeRecessTimes === 'function' ? computeRecessTimes(s) : {};
@@ -3256,7 +3380,6 @@ function renderSpecialsScheduleView() {
         <p>${!specials.length ? 'No specials configured yet.' : 'No teachers assigned to specials yet.'} Set up specials and assign teachers in the Specials tab.</p>
         <button class="btn btn-primary mt-16" data-nav="specials">Go to Specials Setup →</button>
       </div>`;
-    container.querySelector('[data-nav]')?.addEventListener('click', () => { navigateTo('specials'); renderSpecialsView(); });
     return;
   }
 
@@ -3427,7 +3550,6 @@ function renderClassSchedulesView() {
         <p>Build the master schedule first, then return here to view individual class schedules.</p>
         <button class="btn btn-primary mt-16" data-nav="master">Go to Master Schedule →</button>
       </div>`;
-    container.querySelector('[data-nav]')?.addEventListener('click', () => { navigateTo('master'); renderMasterSchedule(); });
     return;
   }
 
