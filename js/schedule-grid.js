@@ -734,6 +734,45 @@ function onPointerDown(e) {
     openIABlockPanel(filled.dataset.grade, filled.dataset.time);
     return;
   }
+
+  // Specials-half drag — click on the left half of a mixed split cell
+  if (!gridUI.activeBtId) {
+    const specHalf = e.target.closest('.split-half-specials');
+    if (specHalf) {
+      const cell = specHalf.closest('.grid-cell');
+      if (!cell) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const grade    = cell.dataset.grade;
+      const slot     = cell.dataset.time;
+      const day      = gridUI.activeDay;
+      const specInfo = getSpecialsAtSlot(day, grade, slot);
+      if (!specInfo?.all?.length) return;
+      const startSlot = specInfo.all[0].startTime;
+      const duration  = specInfo.all[0].duration;
+      const daySlots  = _autoFillSlots(day);
+      const startIdx  = daySlots.indexOf(startSlot);
+      const numSlots  = Math.ceil(duration / 5);
+      drag.active       = true;
+      drag.hasMoved     = false;
+      drag.mode         = 'move-specials';
+      drag.startGrade   = grade;
+      drag.startSlot    = startSlot;
+      drag.endGrade     = grade;
+      drag.endSlot      = slot;
+      drag.moveSlots    = daySlots.slice(startIdx, startIdx + numSlots);
+      drag.moveGrade    = grade;
+      drag.specInfoSnap = specInfo.all.map(en => ({
+        clsId:     en.cls.id,
+        subjectId: en.subjectId,
+        teacherId: en.teacherId,
+        startTime: en.startTime,
+        duration:  en.duration,
+      }));
+      return;
+    }
+  }
+
   const cell = e.target.closest('.grid-cell');
   if (!cell) return;
   e.preventDefault();
@@ -790,6 +829,12 @@ function onPointerMove(e) {
 
   if (drag.mode === 'move') {
     showMovePreview();
+  } else if (drag.mode === 'move-specials') {
+    // Light highlight on the target row while dragging specials
+    document.querySelectorAll('.grid-cell.specials-drag-target')
+      .forEach(c => c.classList.remove('specials-drag-target'));
+    document.querySelectorAll(`.grid-cell[data-time="${drag.endSlot}"]`)
+      .forEach(c => c.classList.add('specials-drag-target'));
   } else {
     showDragPreview();
   }
@@ -801,9 +846,14 @@ function onPointerUp(e) {
   clearDragPreview();
   clearMovePreview();
 
+  document.querySelectorAll('.grid-cell.specials-drag-target')
+    .forEach(c => c.classList.remove('specials-drag-target'));
+
   if (drag.mode === 'move') {
     if (drag.hasMoved) commitMove();
     // no-move click on a block: do nothing (don't delete it)
+  } else if (drag.mode === 'move-specials') {
+    if (drag.hasMoved) commitSpecialsMove();
   } else if (!drag.hasMoved) {
     commitClick();
   } else {
@@ -966,8 +1016,95 @@ function commitMove() {
     placeBlock(day, destGrade, currentSlots[destIdx], drag.moveValue);
   }
 
+  // Sync specialsSchedule when a bt_spec block was moved
+  if (drag.moveValue && drag.moveValue.startsWith('bt_spec|')) {
+    const oldStart = drag.moveSlots[0];
+    const newStart = currentSlots[destStartIdx];
+    if (oldStart !== newStart) {
+      const snap = [];
+      getClassesForGrade(srcGrade).forEach(cls => {
+        const entry = (SchedState.specialsSchedule[cls.id] || {})[day];
+        if (entry && entry.startTime === oldStart) {
+          SchedState.specialsSchedule[cls.id][day].startTime = newStart;
+          const sp = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
+          snap.push({ subjectId: entry.subjectId, teacherId: entry.teacherId, duration: sp?.duration || 45 });
+        }
+      });
+      _checkAndSurfaceSpecialsConflicts(day, srcGrade, newStart, snap);
+    }
+  }
+
   showConflictBanner();
   rebuildTbody();
+}
+
+function commitSpecialsMove() {
+  pushUndoSnapshot();
+  const day   = gridUI.activeDay;
+  const grade = drag.moveGrade;
+  const snap  = drag.specInfoSnap || [];
+  const oldStart = drag.startSlot;
+  const newStart = drag.endSlot;
+  if (oldStart === newStart) return;
+
+  snap.forEach(en => {
+    const dayMap = SchedState.specialsSchedule[en.clsId];
+    if (dayMap && dayMap[day]) {
+      dayMap[day].startTime = newStart;
+    }
+  });
+
+  _checkAndSurfaceSpecialsConflicts(day, grade, newStart, snap);
+  saveToLocal();
+  rebuildTbody();
+}
+
+function _checkAndSurfaceSpecialsConflicts(day, grade, newStart, snap) {
+  if (!snap || !snap.length) return;
+  const ss       = SchedState.specialsSchedule || {};
+  const daySlots = _autoFillSlots(day);
+  const warnings = new Set();
+
+  snap.forEach(en => {
+    if (!en.teacherId) return;
+    const numSlots   = Math.ceil((en.duration || 45) / 5);
+    const startIdx   = daySlots.indexOf(newStart);
+    if (startIdx < 0) return;
+    const newSlotSet = new Set(daySlots.slice(startIdx, startIdx + numSlots));
+
+    Object.entries(ss).forEach(([clsId, dayMap]) => {
+      const otherEntry = dayMap[day];
+      if (!otherEntry || otherEntry.teacherId !== en.teacherId) return;
+      const otherCls = (SchedState.staff || []).find(s => s.id === clsId && s.role === 'classroom_teacher');
+      if (!otherCls) return;
+      const otherGrade = otherCls.gradeAssignment;
+      if (otherGrade === grade) return; // same grade, skip
+
+      const otherSp       = (SchedState.school.specials || []).find(s => s.id === otherEntry.subjectId);
+      const otherDuration = otherSp?.duration || 45;
+      const otherIdx      = daySlots.indexOf(otherEntry.startTime);
+      if (otherIdx < 0) return;
+      const otherSlots = daySlots.slice(otherIdx, otherIdx + Math.ceil(otherDuration / 5));
+      if (otherSlots.some(s => newSlotSet.has(s))) {
+        const teacher    = (SchedState.staff || []).find(t => t.id === en.teacherId);
+        const gradeLabel = GRADE_LABELS[otherGrade] || otherGrade || '';
+        warnings.add(`${teacher?.name || 'Teacher'} is already teaching${gradeLabel ? ' ' + gradeLabel : ''} at ${fmtTime12(newStart)}`);
+      }
+    });
+  });
+
+  const existing = document.getElementById('specials-move-warning');
+  if (existing) existing.remove();
+  if (!warnings.size) return;
+
+  const banner = document.createElement('div');
+  banner.id        = 'specials-move-warning';
+  banner.className = 'conflict-banner';
+  banner.innerHTML = '&#9888; Specials conflict: ' + [...warnings].join(' · ') +
+    ' <button id="specials-warning-dismiss" class="conflict-banner-dismiss">&#x2715;</button>';
+  const wrap = document.querySelector('#view-master .grid-top') || document.getElementById('view-master');
+  if (wrap) wrap.insertAdjacentElement('afterbegin', banner);
+  document.getElementById('specials-warning-dismiss')?.addEventListener('click', () => banner.remove());
 }
 
 // ── DOM refresh helpers ───────────────────────────────────────────────────────
@@ -1784,11 +1921,16 @@ function getSpecialsAtSlot(day, grade, slot) {
 
 // Renders a grid cell for a specials time slot (unified or split).
 function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
+  const day       = gridUI.activeDay;
   const bt        = SchedState.blockTypes.find(b => b.id === 'bt_spec');
   const fallback  = bt?.color || '#f97316';
   const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
 
-  if (specInfo.isUnified) {
+  // Show a single full-width block whenever ALL classes are in specials,
+  // even if they're doing different subjects (carousel rotation).
+  const allInSpecials = specInfo.all.length === specInfo.totalClasses;
+
+  if (allInSpecials) {
     const entry   = specInfo.all[0];
     const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
     const color   = sp?.color || fallback;
@@ -1799,7 +1941,7 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
     if (specInfo.isStart) {
       const mins    = entry.duration;
       const endSlot = minsToTime(timeToMins(slot) + mins);
-      const subLine = sp
+      const subLine = specInfo.isUnified && sp
         ? `<span class="cell-specials-subject">${escHtml(sp.name)}${teacher ? ' · ' + escHtml(teacher.name.split(' ')[0]) : ''}</span>`
         : '';
       inner = `<span class="cell-label" style="color:${color}">Specials` +
@@ -1810,22 +1952,33 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
     return `<td class="grid-cell filled${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${style}">${inner}</td>`;
   }
 
-  // Split: some classes have specials, others do not at this time
+  // Mixed split: some classes have specials, others have a different block.
+  // Each half is independently draggable.
   const entry   = specInfo.all[0];
   const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
   const color   = sp?.color || fallback;
-  const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
   const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
   const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
+
+  // Right half: the masterSchedule block the non-specials classes are doing
+  const masterBtId  = getBlock(day, grade, slot);
+  const masterBt    = masterBtId
+    ? (SchedState.blockTypes.find(b => b.id === masterBtId) ||
+       SchedState.blockTypes.find(b => masterBtId.startsWith(b.id + '|')))
+    : null;
+  const masterColor = masterBt?.color || '#94a3b8';
+  const masterName  = masterBtId ? getBtName(masterBtId) : '';
+
   let leftInner = '', rightInner = '';
   if (specInfo.isStart) {
     leftInner  = `<span class="split-label" style="color:${color}">Specials</span>`;
-    rightInner = `<span class="split-label" style="color:#64748b">${specInfo.all.length} of ${specInfo.totalClasses} classes</span>`;
+    rightInner = `<span class="split-label" style="color:${masterColor}">${escHtml(masterName)}</span>`;
   }
+
   return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
     `<div class="split-block-wrap">` +
-    `<div class="split-half split-half-specials" style="background:${color}18;border-left:3px solid ${color};">${leftInner}</div>` +
-    `<div class="split-half split-half-regular" style="background:#f1f5f9;border-left:3px solid #94a3b8;">${rightInner}</div>` +
+    `<div class="split-half split-half-specials" style="background:${color}18;border-left:3px solid ${color};" data-spec-start="${entry.startTime}" data-spec-grade="${grade}">${leftInner}</div>` +
+    `<div class="split-half split-half-regular" style="background:${masterColor}18;border-left:3px solid ${masterColor};">${rightInner}</div>` +
     `</div></td>`;
 }
 

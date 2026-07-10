@@ -1863,7 +1863,12 @@
   overflow: hidden;
   min-width: 0;
 }
-.split-half-specials { border-right: 1px solid rgba(0,0,0,0.08); }
+.split-half-specials {
+  border-right: 1px solid rgba(0,0,0,0.08);
+  cursor: grab;
+}
+.split-half-specials:active { cursor: grabbing; }
+.grid-cell.specials-drag-target { background: rgba(59,130,246,0.12) !important; }
 .split-label {
   font-size: 10px;
   font-weight: 600;
