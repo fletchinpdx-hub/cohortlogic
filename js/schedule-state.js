@@ -1,39 +1,18 @@
 // Central state for the Building Schedule Builder
 
-// Default block types — matches PDF instructional requirements pattern
+// Default block types — only universal blocks schools always need.
+// Schools add their own required instructional blocks via the Block Types tab.
 const DEFAULT_BLOCK_TYPES = [
-  // Required instructional blocks (show in requirements table)
-  { id: 'bt_ela',    name: 'ELA / Literacy',          color: '#3b82f6', category: 'instruction',  required: true,
-    subBlocks: [
-      { id: 'sub_comp', name: 'Comprehension' },
-      { id: 'sub_fs',   name: 'Foundational Skills' },
-      { id: 'sub_dg',   name: 'Differentiated Groups' },
-      { id: 'sub_wr',   name: 'Writing' },
-    ], bandMinutes: {}, subBandMinutes: {} },
-  { id: 'bt_math',  name: 'Math',                      color: '#8b5cf6', category: 'instruction',  required: true,
+  // System block — required by the scheduling algorithm
+  { id: 'bt_spec',  name: 'Specials',        color: '#f97316', category: 'specials',    required: true,
     subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
-  { id: 'bt_cm',    name: 'Community Meeting / SEL',   color: '#06b6d4', category: 'sel',          required: true,
-    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
-  { id: 'bt_win',   name: 'WIN — What I Need',         color: '#10b981', category: 'intervention', required: true,
-    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
-  { id: 'bt_eld',   name: 'ELD / SLD',                 color: '#f59e0b', category: 'intervention', required: true,
-    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
-  { id: 'bt_ssh',   name: 'Science / SS / Health',     color: '#0ea5e9', category: 'instruction',  required: true,
-    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
-  { id: 'bt_spec',  name: 'Specials',                  color: '#f97316', category: 'specials',     required: true,
-    subBlocks: [], bandMinutes: {}, subBandMinutes: {} },
-  // Auto-placed fixed blocks (placed from School Info settings)
-  { id: 'bt_mm',    name: 'Morning Meeting',            color: '#6366f1', category: 'instruction',  required: false },
-  { id: 'bt_lunch', name: 'Lunch',                     color: '#84cc16', category: 'transition',   required: false },
-  { id: 'bt_recess',name: 'Recess',                    color: '#22d3ee', category: 'transition',   required: false },
-  // Other palette blocks
-  { id: 'bt_sdi',   name: 'SDI',                       color: '#ec4899', category: 'intervention', required: false },
-  { id: 'bt_cico',  name: 'CICO',                      color: '#e879f9', category: 'behavior',     required: false },
-  { id: 'bt_rrr',   name: 'Rest & Return',             color: '#64748b', category: 'behavior',     required: false },
-  { id: 'bt_thresh',name: 'Threshold Greetings',       color: '#fb923c', category: 'transition',   required: false },
-  { id: 'bt_prep',  name: 'Prep / Planning',           color: '#a855f7', category: 'admin',        required: false },
-  { id: 'bt_arr',   name: 'Arrival Duty',              color: '#78716c', category: 'admin',        required: false },
-  { id: 'bt_un',    name: 'Unassigned Time',           color: '#d1d5db', category: 'admin',        required: false },
+  // Auto-placed fixed blocks (times set in School Info)
+  { id: 'bt_mm',    name: 'Morning Meeting',  color: '#6366f1', category: 'instruction', required: false },
+  { id: 'bt_lunch', name: 'Lunch',            color: '#84cc16', category: 'transition',  required: false },
+  { id: 'bt_recess',name: 'Recess',           color: '#22d3ee', category: 'transition',  required: false },
+  // Default uniform blocks
+  { id: 'bt_arr',   name: 'Arrival Duty',     color: '#78716c', category: 'admin',       required: false },
+  { id: 'bt_dis',   name: 'Dismissal Duty',   color: '#b45309', category: 'admin',       required: false },
 ];
 
 const SchedState = {
