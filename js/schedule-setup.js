@@ -951,8 +951,8 @@ function renderStaffTable() {
 
 function showAddStaffForm(existingId) {
   const existing = existingId ? SchedState.staff.find(s => s.id === existingId) : null;
-  const defaultStart = SchedState.school.firstBell    || '08:00';
-  const defaultEnd   = SchedState.school.dismissal    || '14:30';
+  const defaultStart = SchedState.school.teacherContractStart || SchedState.school.firstBell    || '08:00';
+  const defaultEnd   = SchedState.school.teacherContractEnd   || SchedState.school.dismissal    || '14:30';
   const grades       = gradesSorted();
 
   const gradeOpts = (selected, includeBlank, blankLabel) =>
@@ -989,11 +989,11 @@ function showAddStaffForm(existingId) {
           ${gradeOpts(existing?.splitGrade || '', true, '— No split —')}
         </select>
       </div>
-      <div class="form-group sf-hours-field${isSpecials ? ' hidden' : ''}">
+      <div class="form-group sf-hours-field">
         <label class="form-label">Start Time</label>
         <input type="time" class="input" id="sf-start" value="${existing?.startTime || defaultStart}" />
       </div>
-      <div class="form-group sf-hours-field${isSpecials ? ' hidden' : ''}">
+      <div class="form-group sf-hours-field">
         <label class="form-label">End Time</label>
         <input type="time" class="input" id="sf-end" value="${existing?.endTime || defaultEnd}" />
       </div>
@@ -1022,7 +1022,7 @@ function showAddStaffForm(existingId) {
   document.getElementById('sf-role').addEventListener('change', function() {
     const hideForSpecials = this.value === 'specials_teacher';
     const isIA = this.value === 'ia';
-    document.querySelectorAll('.sf-grade-field, .sf-split-field, .sf-hours-field').forEach(el => {
+    document.querySelectorAll('.sf-grade-field, .sf-split-field').forEach(el => {
       el.classList.toggle('hidden', hideForSpecials);
     });
     document.querySelector('.sf-color-field')?.classList.toggle('hidden', !isIA);
