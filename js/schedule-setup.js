@@ -963,6 +963,7 @@ function showAddStaffForm(existingId) {
   const isSpecials  = currentRole === 'specials_teacher';
   const form = document.getElementById('add-staff-form');
   form.classList.remove('hidden');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   form.innerHTML = `
     <div class="inline-form-grid">
       <div class="form-group">
@@ -1018,6 +1019,8 @@ function showAddStaffForm(existingId) {
       dot.classList.add('selected');
     });
   });
+
+  document.getElementById('sf-name')?.focus();
 
   document.getElementById('sf-role').addEventListener('change', function() {
     const hideForSpecials = this.value === 'specials_teacher';
