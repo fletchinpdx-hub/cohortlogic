@@ -979,7 +979,13 @@ function showAddStaffForm(existingId) {
         </select>
       </div>
       <div class="form-group sf-grade-field${isSpecials ? ' hidden' : ''}">
-        <label class="form-label">Primary Grade</label>
+        <label class="form-label">
+          <span class="field-tooltip">
+            Primary Grade
+            <span class="field-tooltip-icon" tabindex="0">?</span>
+            <span class="field-tooltip-body">For split-grade teachers, the primary grade drives lunch, recess, and specials scheduling. The master schedule is built around this grade's block sequence.</span>
+          </span>
+        </label>
         <select class="input" id="sf-grade">
           ${gradeOpts(existing?.gradeAssignment || '', true, 'Building-wide')}
         </select>
@@ -989,6 +995,9 @@ function showAddStaffForm(existingId) {
         <select class="input" id="sf-split-grade">
           ${gradeOpts(existing?.splitGrade || '', true, '— No split —')}
         </select>
+        <div class="split-grade-hint${existing?.splitGrade ? '' : ' hidden'}" id="sf-split-hint">
+          This teacher splits time between two grades. Their lunch, recess, and specials will follow the <strong>Primary Grade</strong> above.
+        </div>
       </div>
       <div class="form-group sf-hours-field">
         <label class="form-label">Start Time</label>
@@ -1021,6 +1030,10 @@ function showAddStaffForm(existingId) {
   });
 
   document.getElementById('sf-name')?.focus();
+
+  document.getElementById('sf-split-grade').addEventListener('change', function() {
+    document.getElementById('sf-split-hint')?.classList.toggle('hidden', !this.value);
+  });
 
   document.getElementById('sf-role').addEventListener('change', function() {
     const hideForSpecials = this.value === 'specials_teacher';

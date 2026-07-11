@@ -911,6 +911,74 @@
   line-height: 1.4;
 }
 
+/* ── Field tooltip (?  badge with hover reveal) ────────────────── */
+.field-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.field-tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--gray-600);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: default;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.field-tooltip-body {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  width: 260px;
+  background: var(--gray-800);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  padding: 8px 10px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  z-index: 200;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.field-tooltip-body::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 10px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid var(--gray-800);
+}
+.field-tooltip:hover .field-tooltip-body,
+.field-tooltip-icon:focus + .field-tooltip-body {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ── Split-grade hint ──────────────────────────────────────────── */
+.split-grade-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+  background: var(--gray-50);
+  border-left: 3px solid var(--blue-400, #60a5fa);
+  padding: 6px 8px;
+  border-radius: 0 4px 4px 0;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
 /* ── School Day Hours — time bounds grid ───────────────────────── */
 .time-bounds-grid {
   display: flex;
