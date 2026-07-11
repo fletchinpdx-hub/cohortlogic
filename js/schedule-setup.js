@@ -1438,11 +1438,7 @@ function renderBlocks() {
                         <button class="btn btn-sm btn-outline sw-find-btn" data-bt-id="${bt.id}">Find</button>
                       </span>
                     </div>
-                    <div class="sw-action-row">
-                      <button class="btn btn-sm btn-primary sw-apply-btn" data-bt-id="${bt.id}">Apply</button>
-                      ${hasUniform || bt.uniformMode === 'duration' ? `<button class="btn btn-sm btn-ghost sw-clear-btn" data-bt-id="${bt.id}">Clear</button>` : ''}
-                      ${uniformLabel ? `<span class="sw-current-label">${uniformLabel} · all grades</span>` : ''}
-                    </div>
+                    ${hasUniform || bt.uniformMode === 'duration' ? `<div class="sw-action-row"><button class="btn btn-sm btn-ghost sw-clear-btn" data-bt-id="${bt.id}">Clear</button></div>` : ''}
                   </div>
                 </td>
                 <td class="req-td-actions" style="display:table-cell;white-space:nowrap">
@@ -1792,35 +1788,6 @@ function wireOtherBlocks() {
     });
   });
 
-  // Apply school-wide time (fixed mode)
-  document.querySelectorAll('.sw-apply-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id  = btn.dataset.btId;
-      const bt  = SchedState.blockTypes.find(b => b.id === id);
-      if (!bt) return;
-      const mode = document.querySelector(`input[name="sw-mode-${id}"]:checked`)?.value || 'time';
-      if (mode === 'time') {
-        const start = document.querySelector(`.sw-start-input[data-bt-id="${id}"]`)?.value;
-        const end   = document.querySelector(`.sw-end-input[data-bt-id="${id}"]`)?.value;
-        if (!start || !end) { alert('Enter both a start and end time.'); return; }
-        bt.uniformMode  = 'time';
-        bt.uniformStart = start;
-        bt.uniformEnd   = end;
-        delete bt.uniformMinutes;
-      } else {
-        const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${id}"]`)?.value || '0', 10);
-        if (!mins || mins < 5) { alert('Enter a duration (minimum 5 minutes).'); return; }
-        bt.uniformMode    = 'duration';
-        bt.uniformMinutes = mins;
-        bt.uniformStart   = '';
-        bt.uniformEnd     = '';
-      }
-      saveToLocal();
-      preFillFixedBlocks();
-      saveToLocal();
-      renderBlocks();
-    });
-  });
 
   // Clear school-wide time
   document.querySelectorAll('.sw-clear-btn').forEach(btn => {
@@ -1947,15 +1914,43 @@ function showOtherBlockForm(existingId) {
   });
 }
 
+function collectUniformFromDOM() {
+  SchedState.blockTypes.filter(bt => !bt.required).forEach(bt => {
+    const modeEl = document.querySelector(`input[name="sw-mode-${bt.id}"]:checked`);
+    if (!modeEl) return;
+    const mode = modeEl.value;
+    if (mode === 'time') {
+      const start = document.querySelector(`.sw-start-input[data-bt-id="${bt.id}"]`)?.value;
+      const end   = document.querySelector(`.sw-end-input[data-bt-id="${bt.id}"]`)?.value;
+      if (start && end) {
+        bt.uniformMode  = 'time';
+        bt.uniformStart = start;
+        bt.uniformEnd   = end;
+        delete bt.uniformMinutes;
+      }
+    } else {
+      const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${bt.id}"]`)?.value || '0', 10);
+      if (mins >= 5) {
+        bt.uniformMode    = 'duration';
+        bt.uniformMinutes = mins;
+        bt.uniformStart   = '';
+        bt.uniformEnd     = '';
+      }
+    }
+    const dur = parseInt(document.querySelector(`.uniform-dur-input[data-bt-id="${bt.id}"]`)?.value || '0', 10);
+    if (dur >= 5) bt.defaultDuration = dur;
+  });
+}
+
 function saveBlocksAndContinue() {
   collectBandsFromDOM();
   collectReqFromDOM();
+  collectUniformFromDOM();
+  preFillFixedBlocks();
   saveToLocal();
   updateSidebarStatus();
   navigateTo('master');
   renderMasterSchedule();
-  // Fill any required blocks not yet placed (e.g. ELA configured after Math
-  // was already auto-filled). Won't touch blocks that already exist.
   fillMissingRequirements();
 }
 
