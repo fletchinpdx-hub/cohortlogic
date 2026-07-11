@@ -49,7 +49,7 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 ### 3. Building Schedule Builder (`schedule-app.html`)
 Master schedule builder for school administrators. Phase 1 complete; Phase 2 Specials Schedule view live.
 
-**Cache buster:** currently `?v=100` on all 5 script tags in `schedule-app.html`. Bump on every deploy.
+**Cache buster:** currently `?v=113` on all 5 script tags AND both CSS links in `schedule-app.html`. Bump ALL on every deploy.
 
 **Data model — file-based, not Supabase:**
 - Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
@@ -64,8 +64,8 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - Finish: Export (placeholder)
 
 **Key state — `SchedState` in `schedule-state.js`:**
-- `school` — name, year, grades, time bounds (firstBell, dismissal, studentCampusStart…), morningMeetings[], lunchPeriods[], gradeRecesses{}, gradeBands[], specials[]
-- `blockTypes[]` — DEFAULT_BLOCK_TYPES (17 blocks); required blocks have bandMinutes{} / subBandMinutes{}; ELA has sub-blocks
+- `school` — name, year, grades, time bounds (firstBell, dismissal, arrival=studentCampusStart, dismissal=studentCampusEnd, teacherContractStart/End…), morningMeetings[], lunchPeriods[], gradeRecesses{}, gradeBands[], specials[], specialsRotationMode
+- `blockTypes[]` — DEFAULT_BLOCK_TYPES (6 blocks for new schedules): bt_spec (system), bt_mm, bt_lunch, bt_recess (fixed/auto-placed), bt_arr (Arrival Duty), bt_dis (Dismissal Duty). Schools add required instructional blocks via the Block Types tab. Required blocks have bandMinutes{} / subBandMinutes{}.
 - `masterSchedule[day][grade][slot]` = blockTypeId — 5-minute slots Mon–Fri
 - `conflicts[day][grade][slot]` = [btId, …] — blocks displaced by manual drag; never created by auto-fill
 - `specialsSchedule[classId][day]` = `{ subjectId, teacherId, startTime }` — class-level specials (source of truth for Specials Schedule view)
@@ -84,8 +84,15 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - `autoPopulateGrade(grade)` — fills required instructional blocks per grade band requirements
 - `autoPopulateIfEmpty()` — runs on master schedule entry; auto-fills all grades if empty
 - `buildSpecialsSchedule()` — computes class-level rotation, finds grade-wide time slots, writes bt_spec|spId to masterSchedule and specialsSchedule
+- `computeClassSpecialsRotation(classes, specials, gradeOffset)` — rotation modes: `'intermittent'` (cycle all before repeating), `'sequential'` (complete one subject before starting next), `'none'` (no preference — place each special on first available day for max scheduler freedom)
 - `getSpecialsCoverageReport()` — detects classes with missing specials (day-level gaps not caught by grade-level failure); called from master schedule and Specials Schedule view
 - `getBtColor(btId)` / `getBtName(btId)` — resolve color/name for any block ID including compound `bt_spec|sp_id`
+- `computeMinutesBudget()` — shared fn in schedule-setup.js; returns per-band `{ required, available, fixed, dayTotal, mmMins, lunchMins, recessMins }` used by budget panel and validation banners
+- `computeRecessTimes(s)` — returns recessMap[grade]; enforces 60-min minimum spacing between recesses per grade
+- `collectUniformFromDOM()` — reads all uniform block time/duration inputs at save time; called by `saveBlocksAndContinue()` (no more per-row Apply button)
+- `showUnplacedBlocksBanner()` — audits placed vs required blocks post-fill; shows red banner for missing blocks
+- `showRecessSpacingWarning()` — checks recess spacing; shows warning banner on master schedule
+- `renderGradeSummaryRow()` — green ✓ / red ⚠ chip per grade below the schedule grid
 - Drag-to-move: pointerdown on filled cell with no paint tool → picks up block; commitMove() restores displaced conflict blocks instead of deleting them
 - Conflict split cells: `placeBlock()` stores displaced block in `conflicts[]`; `buildCell()` renders side-by-side halves; isConflictStart logic shows labels even mid-block
 - Conflict banner groups consecutive same-conflict slots into one time-range entry (not one per 5-min slot)
@@ -94,10 +101,15 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - IA Schedule view: two tabs — "All IAs" (`buildIAGrid`) and individual IA (`buildIndividualIAGrid`); both show duty blocks with dashed borders
 - Duty blocks (`SchedState.duties`): assigned to 1+ IAs and 1+ days with start/end time + budget category; managed via `openDutyPanel`; persisted to localStorage and `.cohortlogic` file; appear in both IA view tabs
 - `_dutySlotsFor(duty)` — returns array of 5-min slot strings between duty startTime and endTime
-- `getIAsForBlock(day, grade, slot)` — returns IA assignments for a master schedule block; dots render in the bottom-right corner of each filled cell (`.ia-block-ind`, absolutely positioned)
+- `getIAsForBlock(day, grade, slot)` — returns IA assignments for a master schedule block; dots render bottom-right of each filled cell (`.ia-block-ind`, `position: absolute; bottom: 4px; right: 5px`). Dot color = allocation category color, NOT staff member's `.color`
 - Block resize: drag bottom edge of any non-fixed, non-locked block to extend or shrink; blue outline preview; `commitResize()` handles extend (placeBlock) and shrink (restores displaced conflicts)
 - Context menu: right-click any filled non-specials cell → replace with another block type, clear, or lock/unlock grade
 - IA re-assign pre-fill: opening the IA block panel pre-selects existing IA assignments, alloc, and note for that block
+- Staff `.color`: only used/shown for IAs (dot on schedule). Teachers and specials teachers have no color swatch in roster table, no color border on review chips, and no color picker in the staff form (picker hidden unless role = IA)
+- Staff form UX: `showAddStaffForm()` calls `scrollIntoView({behavior:'smooth'})` + focuses name field after render; default hours pre-fill from `teacherContractStart/End`; specials teachers show hours fields (only grade/split fields hide)
+- Primary grade tooltip: `?` badge with hover-reveal CSS tooltip explains split-grade scheduling impact; contextual hint appears below split-grade dropdown when a second grade is selected
+- "Update Requirements Table" button: after re-render, scrolls table into view + pulses with blue flash animation + button turns green "✓ Table Updated" for 2 seconds
+- School Day Hours: three separate inputs — Arrival (`studentCampusStart`), First Bell (`firstBell`), Dismissal (`dismissal`). Instructional budget uses firstBell; IA budget uses arrival. `studentCampusEnd = dismissal` for backward-compat.
 
 **CSP constraint:** `script-src 'self' cdn.jsdelivr.net cdn.sheetjs.com` — no `unsafe-inline`. All event handlers via `addEventListener`. Never use `onclick=`/`onchange=`/`oninput=` HTML attributes.
 
