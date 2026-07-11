@@ -61,23 +61,28 @@ function renderResultsGrid() {
     return `<ul class="violation-list">${items}</ul>`;
   };
 
-  const sepCardExtra  = sepCount  ? ` violation-card" onclick="toggleViolationDetail('sep-detail')` : ``;
-  const togCardExtra  = togCount  ? ` violation-card" onclick="toggleViolationDetail('tog-detail')` : ``;
+  const sepCardExtra  = sepCount  ? ` violation-card` : ``;
+  const togCardExtra  = togCount  ? ` violation-card` : ``;
 
   stats.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Students</div><div class="stat-value">${totalStudents}</div></div>
     <div class="stat-card"><div class="stat-label">Total Classes</div><div class="stat-value">${totalClasses}</div></div>
-    <div class="stat-card${sepCardExtra}">
+    <div class="stat-card${sepCardExtra}" id="sep-card">
       <div class="stat-label">Keep Apart Violations${sepCount ? ' <span class="violation-hint">click for details</span>' : ''}</div>
       <div class="stat-value" style="color:${sepCount ? '#ef4444' : '#22c55e'}">${sepCount}</div>
       ${sepCount ? `<div id="sep-detail" class="violation-detail hidden">${violationList(sepViolations, 'apart')}</div>` : ''}
     </div>
-    <div class="stat-card${togCardExtra}">
+    <div class="stat-card${togCardExtra}" id="tog-card">
       <div class="stat-label">Keep Together Violations${togCount ? ' <span class="violation-hint">click for details</span>' : ''}</div>
       <div class="stat-value" style="color:${togCount ? '#ef4444' : '#22c55e'}">${togCount}</div>
       ${togCount ? `<div id="tog-detail" class="violation-detail hidden">${violationList(togViolations, 'together')}</div>` : ''}
     </div>
   `;
+
+  if (sepCount) document.getElementById('sep-card')
+    ?.addEventListener('click', () => toggleViolationDetail('sep-detail'));
+  if (togCount) document.getElementById('tog-card')
+    ?.addEventListener('click', () => toggleViolationDetail('tog-detail'));
 
   grid.innerHTML = '';
 
