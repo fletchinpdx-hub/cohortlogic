@@ -1638,6 +1638,24 @@ function wireBandsSection() {
       collectReqFromDOM();
       saveToLocal();
       renderBlocks();
+      // After re-render: scroll to table, flash it, and confirm via button text
+      setTimeout(() => {
+        const wrap = document.querySelector('.req-table-wrap');
+        const btn  = document.getElementById('refresh-req-btn');
+        if (wrap) {
+          wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          wrap.classList.add('req-table-flash');
+          setTimeout(() => wrap.classList.remove('req-table-flash'), 1200);
+        }
+        if (btn) {
+          btn.textContent = '✓ Table Updated';
+          btn.classList.add('btn-success-flash');
+          setTimeout(() => {
+            btn.textContent = 'Update Requirements Table →';
+            btn.classList.remove('btn-success-flash');
+          }, 2000);
+        }
+      }, 50);
     });
   }
 }

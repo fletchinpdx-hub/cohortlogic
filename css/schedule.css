@@ -3289,3 +3289,20 @@
   .gs-chip-ok   { background: #14532d44; border-color: #166534; color: #86efac; }
   .gs-chip-warn { background: #7f1d1d44; border-color: #991b1b; color: #fca5a5; }
 }
+
+/* ── Requirements table update feedback ───────────────────────── */
+@keyframes req-flash {
+  0%   { box-shadow: 0 0 0 3px rgba(59,130,246,.0); background: transparent; }
+  25%  { box-shadow: 0 0 0 3px rgba(59,130,246,.5); background: rgba(59,130,246,.06); }
+  100% { box-shadow: 0 0 0 3px rgba(59,130,246,.0); background: transparent; }
+}
+.req-table-flash {
+  animation: req-flash 1.2s ease-out forwards;
+  border-radius: 8px;
+}
+.btn-success-flash {
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #fff !important;
+  transition: background .2s, border-color .2s;
+}
