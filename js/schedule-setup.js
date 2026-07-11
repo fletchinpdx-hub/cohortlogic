@@ -1148,6 +1148,14 @@ function renderSpecialsView() {
               <div class="rotation-opt-desc">Complete all sessions of one special before moving to the next. Music × 2 days, then Library × 1 day, then PE × 1 day.</div>
             </div>
           </label>
+          <label class="rotation-opt ${SchedState.school.specialsRotationMode === 'none' ? 'active' : ''}">
+            <input type="radio" name="specials-rotation" value="none"
+                   ${SchedState.school.specialsRotationMode === 'none' ? 'checked' : ''} />
+            <div class="rotation-opt-body">
+              <div class="rotation-opt-title">No Preference</div>
+              <div class="rotation-opt-desc">Let the software place specials wherever they fit best. No rotation order is enforced — this gives the scheduler maximum flexibility to resolve conflicts and fill gaps.</div>
+            </div>
+          </label>
         </div>
       </div>
     </div>

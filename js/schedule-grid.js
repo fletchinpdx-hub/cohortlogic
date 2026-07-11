@@ -1800,7 +1800,37 @@ function computeClassSpecialsRotation(classes, specials, gradeOffset = 0) {
   const result = {};
   if (!classes.length || !specials.length) return result;
 
-  const mode = SchedState.school.specialsRotationMode || 'intermittent';
+  const mode    = SchedState.school.specialsRotationMode || 'intermittent';
+  const numDays = 5;
+
+  // Track per-day, per-subject count so we never exceed teacher capacity.
+  const daySpCount = {};
+  specials.forEach(sp => {
+    daySpCount[sp.id] = {};
+    DAYS.forEach(d => { daySpCount[sp.id][d] = 0; });
+  });
+
+  if (mode === 'none') {
+    // No preference: place each special for each class on the first available day.
+    // Stagger start day by class index so teacher load spreads naturally.
+    classes.forEach((cls, c) => {
+      result[cls.id] = {};
+      specials.forEach(sp => {
+        const sessions = Math.min(sp.classesPerWeek || 1, 5);
+        const cap      = Math.max((sp.teacherIds || []).length, 1);
+        let placed = 0;
+        for (let di = 0; di < numDays && placed < sessions; di++) {
+          const d = DAYS[(c + di) % numDays];
+          if (result[cls.id][d] === undefined && daySpCount[sp.id][d] < cap) {
+            result[cls.id][d] = sp.id;
+            daySpCount[sp.id][d]++;
+            placed++;
+          }
+        }
+      });
+    });
+    return result;
+  }
 
   let sessionSeq;
   if (mode === 'sequential') {
@@ -1811,19 +1841,11 @@ function computeClassSpecialsRotation(classes, specials, gradeOffset = 0) {
     sessionSeq = _buildIntermittentSeq(specials);
   }
 
-  const S       = sessionSeq.length;
-  const numDays = 5; // always spread across all 5 days so overflow sessions have room
+  const S = sessionSeq.length;
 
   // Spread step: space sessions of the same subject across non-consecutive days.
   // e.g. S=2, numDays=5 → step=2 → class 0 gets Mon+Wed instead of Mon+Tue.
   const step = S > 0 ? Math.max(Math.floor(numDays / S), 1) : 1;
-
-  // Track per-day, per-subject count so we never exceed teacher capacity.
-  const daySpCount = {};
-  specials.forEach(sp => {
-    daySpCount[sp.id] = {};
-    DAYS.forEach(d => { daySpCount[sp.id][d] = 0; });
-  });
 
   classes.forEach((cls, c) => {
     result[cls.id] = {};
