@@ -113,6 +113,10 @@ const SchedState = {
   // iaSchedule[day][iaId][slot] = { allocId, grade, activity } | undefined
   iaSchedule: {},
 
+  // duties: standalone IA duty blocks not tied to the master schedule
+  // [{ id, name, location, startTime, endTime, days[], iaIds[], allocId }]
+  duties: [],
+
   // ── Unified file passthrough ──
   _tools:   [],    // tools that have contributed to this file (e.g. ['schedule_builder','class_builder'])
   _clsData: null,  // Class Builder data — preserved on load, written back on save
@@ -289,6 +293,7 @@ function saveToLocal() {
     specialsSchedule: SchedState.specialsSchedule,
     iaAllocations:    SchedState.iaAllocations,
     iaSchedule:       SchedState.iaSchedule,
+    duties:           SchedState.duties,
     _tools:           SchedState._tools,
     _clsData:         SchedState._clsData,
   };
@@ -346,6 +351,7 @@ function loadFromLocal() {
     if (data.specialsSchedule) SchedState.specialsSchedule = data.specialsSchedule;
     if (data.iaAllocations)    SchedState.iaAllocations    = data.iaAllocations;
     if (data.iaSchedule)       SchedState.iaSchedule       = data.iaSchedule;
+    if (data.duties)           SchedState.duties           = data.duties;
     if (data._tools)           SchedState._tools           = data._tools;
     if (data._clsData)         SchedState._clsData         = data._clsData;
     // Defaults for fields added after initial release
@@ -480,6 +486,7 @@ function downloadScheduleFile() {
       specialsSchedule: SchedState.specialsSchedule,
       iaAllocations:    SchedState.iaAllocations,
       iaSchedule:       SchedState.iaSchedule,
+      duties:           SchedState.duties,
     },
     classes: SchedState._clsData || null,
   };
@@ -533,6 +540,7 @@ function loadScheduleFromFile(file) {
             if (data.schedule.specialsSchedule) SchedState.specialsSchedule = data.schedule.specialsSchedule;
             if (data.schedule.iaAllocations)    SchedState.iaAllocations    = data.schedule.iaAllocations;
             if (data.schedule.iaSchedule)       SchedState.iaSchedule       = data.schedule.iaSchedule;
+            if (data.schedule.duties)           SchedState.duties           = data.schedule.duties;
           }
         }
 

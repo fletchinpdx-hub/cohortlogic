@@ -163,6 +163,7 @@ function undoLastMove() {
   SchedState.conflicts       = prev.conflicts;
   saveToLocal();
   rebuildTbody();
+  showRecessSpacingWarning();
   showSpecialsConflictWarning();
   showConflictBanner();
   const btn = document.getElementById('undo-btn');
@@ -257,6 +258,81 @@ function showLunchOutOfHoursWarning() {
   banner.querySelector('.setup-banner-link').addEventListener('click', () => navigateTo('school'));
 }
 
+function showOverBudgetWarning() {
+  const existing = document.getElementById('over-budget-banner');
+  if (existing) existing.remove();
+  if (typeof computeMinutesBudget !== 'function') return;
+
+  const overBands = computeMinutesBudget().filter(b => b.required > b.available);
+  if (!overBands.length) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'over-budget-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  banner.innerHTML =
+    `<div><strong>Required minutes exceed available time — some blocks will be left out:</strong>` +
+    `<ul>${overBands.map(b =>
+      `<li><strong>${escHtml(b.band.name)}:</strong> ${b.required} min required but only ${b.available} min available ` +
+      `(${b.dayTotal} min day − ${b.mmMins} mtg − ${b.lunchMins} lunch − ${b.recessMins} recess). ` +
+      `Over by <strong>${b.required - b.available} min</strong>.</li>`
+    ).join('')}</ul></div>` +
+    `<button class="btn-link setup-banner-link">Fix in Block Types →</button>`;
+
+  const scrollWrap = document.getElementById('grid-scroll-wrap');
+  if (scrollWrap) scrollWrap.before(banner);
+  banner.querySelector('.setup-banner-link').addEventListener('click', () => {
+    if (typeof navigateTo === 'function') navigateTo('blocks');
+    if (typeof renderBlocks === 'function') renderBlocks();
+  });
+}
+
+function showRecessSpacingWarning() {
+  const existing = document.getElementById('recess-spacing-banner');
+  if (existing) existing.remove();
+
+  const s = SchedState.school;
+  if (typeof computeRecessTimes !== 'function') return;
+  const recessMap = computeRecessTimes(s);
+  const MIN_GAP = 60;
+
+  const violations = [];
+  Object.entries(recessMap).forEach(([grade, recesses]) => {
+    if (recesses.length < 2) return;
+    const sorted = [...recesses].sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const endOfFirst  = timeToMins(sorted[i].start) + Number(sorted[i].duration);
+      const startOfNext = timeToMins(sorted[i + 1].start);
+      const gap = startOfNext - endOfFirst;
+      if (gap < MIN_GAP) {
+        violations.push({
+          grade,
+          a: sorted[i],
+          b: sorted[i + 1],
+          gap,
+        });
+      }
+    }
+  });
+
+  if (!violations.length) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'recess-spacing-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  banner.innerHTML =
+    `<div><strong>Recess spacing error:</strong> Recesses must be at least 60 minutes apart.` +
+    `<ul>${violations.map(v =>
+      `<li><strong>${escHtml(GRADE_LABELS[v.grade] || v.grade)}:</strong> ` +
+      `${escHtml(v.a.name)} (${fmtTime12(v.a.start)}) and ${escHtml(v.b.name)} (${fmtTime12(v.b.start)}) ` +
+      `are only <strong>${v.gap} min</strong> apart.</li>`
+    ).join('')}</ul></div>` +
+    `<button class="btn-link setup-banner-link">Fix in School Info →</button>`;
+
+  const scrollWrap = document.getElementById('grid-scroll-wrap');
+  if (scrollWrap) scrollWrap.before(banner);
+  banner.querySelector('.setup-banner-link').addEventListener('click', () => navigateTo('school'));
+}
+
 function showMissingRequirementsWarning() {
   const bands = SchedState.school.gradeBands || [];
   const missing = SchedState.blockTypes.filter(bt => {
@@ -287,6 +363,129 @@ function showMissingRequirementsWarning() {
   banner.querySelector('.setup-banner-link').addEventListener('click', () => {
     navigateTo('blocks'); renderBlocks();
   });
+}
+
+function renderGradeSummaryRow() {
+  const wrap = document.getElementById('grade-summary-wrap');
+  if (!wrap) return;
+
+  const s     = SchedState.school;
+  const bands = s.gradeBands || [];
+  if (!bands.length || !gradesSorted().length) { wrap.innerHTML = ''; return; }
+
+  const chips = gradesSorted().map(grade => {
+    const band = bands.find(b => b.grades.includes(grade));
+    if (!band) return '';
+
+    const reqBTs = SchedState.blockTypes.filter(bt =>
+      bt.required && bt.id !== 'bt_spec' && (bt.bandMinutes?.[band.id] > 0 ||
+        (bt.subBlocks || []).some(sub => ((bt.subBandMinutes?.[sub.id] || {})[band.id] > 0)))
+    );
+
+    const missing = [];
+    DAYS.forEach(day => {
+      const sched    = (SchedState.masterSchedule[day] || {})[grade] || {};
+      const allSlots = _autoFillSlots(day);
+      reqBTs.forEach(req => {
+        const configuredSubs = (req.subBlocks || []).filter(sub =>
+          ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
+        );
+        const units = configuredSubs.length
+          ? configuredSubs.map(sub => ({
+              id: `${req.id}|${sub.id}`,
+              expected: Math.ceil(req.subBandMinutes[sub.id][band.id] / 5),
+              label: sub.name,
+            }))
+          : [{ id: req.id, expected: Math.ceil((req.bandMinutes[band.id] || 0) / 5), label: req.name }];
+
+        units.forEach(unit => {
+          if (allSlots.filter(sl => sched[sl] === unit.id).length < unit.expected) {
+            const key = `${grade}|${unit.id}`;
+            if (!missing.some(m => m.key === key)) missing.push({ key, label: unit.label });
+          }
+        });
+      });
+    });
+
+    const ok  = missing.length === 0;
+    const cls = ok ? 'gs-chip-ok' : 'gs-chip-warn';
+    const icon = ok ? '✓' : '⚠';
+    const tip  = ok
+      ? 'All required blocks placed'
+      : 'Missing: ' + [...new Set(missing.map(m => m.label))].join(', ');
+
+    return `<div class="gs-chip ${cls}" title="${escHtml(tip)}">
+      <span class="gs-grade">${escHtml(GRADE_LABELS[grade] || grade)}</span>
+      <span class="gs-icon">${icon}</span>
+      ${!ok ? `<span class="gs-missing">${escHtml([...new Set(missing.map(m => m.label))].join(', '))}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  wrap.innerHTML = `<div class="gs-row">${chips}</div>`;
+}
+
+// Audits placed blocks vs. requirements and shows a banner for anything missing.
+// Called after every auto-populate so silent failures surface immediately.
+function showUnplacedBlocksBanner() {
+  const existing = document.getElementById('unplaced-blocks-banner');
+  if (existing) existing.remove();
+
+  const s     = SchedState.school;
+  const bands = s.gradeBands || [];
+  if (!bands.length) return;
+
+  const seen   = new Set();
+  const issues = [];
+
+  gradesSorted().forEach(grade => {
+    const band = bands.find(b => b.grades.includes(grade));
+    if (!band) return;
+
+    SchedState.blockTypes
+      .filter(bt => bt.required && bt.id !== 'bt_spec')
+      .forEach(req => {
+        const configuredSubs = (req.subBlocks || []).filter(sub =>
+          ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
+        );
+        const units = configuredSubs.length
+          ? configuredSubs.map(sub => ({
+              id:       `${req.id}|${sub.id}`,
+              expected: Math.ceil(req.subBandMinutes[sub.id][band.id] / 5),
+              label:    `${req.name} – ${sub.name}`,
+            }))
+          : (req.bandMinutes?.[band.id] > 0
+              ? [{ id: req.id, expected: Math.ceil(req.bandMinutes[band.id] / 5), label: req.name }]
+              : []);
+
+        units.forEach(unit => {
+          DAYS.forEach(day => {
+            const sched    = (SchedState.masterSchedule[day] || {})[grade] || {};
+            const allSlots = _autoFillSlots(day);
+            const placed   = allSlots.filter(sl => sched[sl] === unit.id).length;
+            if (placed < unit.expected) {
+              const key = `${grade}|${unit.id}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                issues.push({ grade, label: unit.label });
+              }
+            }
+          });
+        });
+      });
+  });
+
+  if (!issues.length) return;
+
+  const banner = document.createElement('div');
+  banner.id        = 'unplaced-blocks-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  banner.innerHTML =
+    `⚠ <strong>Required blocks couldn't be placed — not enough room:</strong> ` +
+    issues.map(i => `${GRADE_LABELS[i.grade] || i.grade}: <strong>${escHtml(i.label)}</strong>`).join(', ') +
+    `. Try clearing and re-filling the grade, or reduce time requirements in Block Types.`;
+
+  const scrollWrap = document.getElementById('grid-scroll-wrap');
+  if (scrollWrap) scrollWrap.before(banner);
 }
 
 // ── Main render ───────────────────────────────────────────────────────────────
@@ -405,6 +604,8 @@ function renderMasterSchedule() {
           </table>
         </div>
 
+        <div id="grade-summary-wrap" class="grade-summary-wrap"></div>
+
         <div class="grid-footer">
           <button class="btn btn-outline" id="master-back-btn">← Back to Block Types</button>
           <button class="btn btn-outline" id="master-print-btn">Print</button>
@@ -441,6 +642,8 @@ function renderMasterSchedule() {
   // Auto-populate all grades on first entry if no instructional blocks are placed yet
   autoPopulateIfEmpty();
   showLunchOutOfHoursWarning();
+  showRecessSpacingWarning();
+  showOverBudgetWarning();
   showMissingRequirementsWarning();
   showConflictBanner();
   showSpecialsCoverageBanner();
@@ -693,10 +896,12 @@ function buildCell(slot, grade, prevSlot) {
     inner = `<span class="split-label" style="color:${conflictColor}">⚠ ${getBtName(conflictBtId)}</span>`;
   }
 
-  const conflictCls = hasConflict ? ' cell-has-conflict' : '';
+  const conflictCls  = hasConflict ? ' cell-has-conflict' : '';
+  const resizeHandle = (bt && isEnd && !lockedCls && !isFixedBlock(btId))
+    ? '<div class="resize-handle" title="Drag to resize"></div>' : '';
   return `<td class="grid-cell${bt ? ' filled' : ''}${isCont ? ' cont' : ''}${lockedCls}${conflictCls}"
               data-time="${slot}" data-grade="${grade}"
-              style="${style}">${inner}</td>`;
+              style="${style}">${inner}${resizeHandle}</td>`;
 }
 
 // ── Pointer-based interaction (rectangle drag) ────────────────────────────────
@@ -710,6 +915,7 @@ function wireGridPointer() {
   wrap.addEventListener('pointermove', onPointerMove);
   wrap.addEventListener('pointerup',   onPointerUp);
   wrap.addEventListener('pointercancel', onPointerUp);
+  wrap.addEventListener('contextmenu', onContextMenu);
 
   // Cmd/Ctrl+Z — undo (registered once for the lifetime of the page)
   if (!_gridKeydownWired) {
@@ -733,6 +939,37 @@ function onPointerDown(e) {
     e.currentTarget.setPointerCapture(e.pointerId);
     openIABlockPanel(filled.dataset.grade, filled.dataset.time);
     return;
+  }
+
+  // Resize handle — drag the bottom edge of a block to extend or shrink it
+  if (!gridUI.activeBtId) {
+    const resizeHandle = e.target.closest('.resize-handle');
+    if (resizeHandle) {
+      const cell = resizeHandle.closest('.grid-cell');
+      if (!cell) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const grade    = cell.dataset.grade;
+      const slot     = cell.dataset.time;
+      const day      = gridUI.activeDay;
+      const btId     = getBlock(day, grade, slot);
+      if (!btId) return;
+      const blockStart = findBlockStart(day, grade, slot);
+      const blockLen   = findBlockLength(day, grade, blockStart);
+      const startIdx   = currentSlots.indexOf(blockStart);
+      drag.active         = true;
+      drag.hasMoved       = false;
+      drag.mode           = 'resize';
+      drag.startGrade     = grade;
+      drag.startSlot      = blockStart;
+      drag.endGrade       = grade;
+      drag.endSlot        = slot;
+      drag.moveValue      = btId;
+      drag.moveSlots      = currentSlots.slice(startIdx, startIdx + blockLen);
+      drag.moveGrade      = grade;
+      drag.resizeOrigEnd  = currentSlots[startIdx + blockLen - 1];
+      return;
+    }
   }
 
   // Specials-half drag — click on the left half of a mixed split cell
@@ -821,6 +1058,27 @@ function onPointerMove(e) {
 
   const grade = cell.dataset.grade;
   const slot  = cell.dataset.time;
+
+  // Resize mode: constrain to same grade, clamp to block start or beyond
+  if (drag.mode === 'resize') {
+    if (grade !== drag.moveGrade) return;
+    const startIdx   = currentSlots.indexOf(drag.startSlot);
+    const hoverIdx   = currentSlots.indexOf(slot);
+    const clampedIdx = Math.max(hoverIdx, startIdx);
+    const clampedSlot = currentSlots[clampedIdx];
+    if (clampedSlot === drag.endSlot) return;
+    drag.hasMoved = true;
+    drag.endSlot  = clampedSlot;
+    drag.endGrade = grade;
+    document.querySelectorAll('.grid-cell.resize-preview')
+      .forEach(c => c.classList.remove('resize-preview'));
+    for (let i = startIdx; i <= clampedIdx; i++) {
+      document.querySelector(`td[data-grade="${drag.moveGrade}"][data-time="${currentSlots[i]}"]`)
+        ?.classList.add('resize-preview');
+    }
+    return;
+  }
+
   if (grade === drag.endGrade && slot === drag.endSlot) return;
 
   drag.hasMoved = true;
@@ -854,6 +1112,10 @@ function onPointerUp(e) {
     // no-move click on a block: do nothing (don't delete it)
   } else if (drag.mode === 'move-specials') {
     if (drag.hasMoved) commitSpecialsMove();
+  } else if (drag.mode === 'resize') {
+    document.querySelectorAll('.grid-cell.resize-preview')
+      .forEach(c => c.classList.remove('resize-preview'));
+    if (drag.hasMoved) commitResize();
   } else if (!drag.hasMoved) {
     commitClick();
   } else {
@@ -908,6 +1170,133 @@ function commitRect() {
   }
   showConflictBanner();
   rebuildTbody();
+}
+
+// ── Block resize ─────────────────────────────────────────────────────────────
+
+function commitResize() {
+  pushUndoSnapshot();
+  const day        = gridUI.activeDay;
+  const grade      = drag.moveGrade;
+  const btId       = drag.moveValue;
+  const blockStart = drag.startSlot;
+  const origEnd    = drag.resizeOrigEnd;
+  const newEnd     = drag.endSlot;
+
+  const origEndIdx = currentSlots.indexOf(origEnd);
+  const newEndIdx  = currentSlots.indexOf(newEnd);
+  if (newEndIdx === origEndIdx) return;
+
+  if (newEndIdx > origEndIdx) {
+    // Extending: paint additional slots
+    for (let i = origEndIdx + 1; i <= newEndIdx; i++) {
+      placeBlock(day, grade, currentSlots[i], btId);
+    }
+  } else {
+    // Shrinking: clear trailing slots (restore conflict if one was displaced)
+    for (let i = newEndIdx + 1; i <= origEndIdx; i++) {
+      const sl = currentSlots[i];
+      const displaced = (SchedState.conflicts[day]?.[grade]?.[sl] || [])[0] || null;
+      setBlock(day, grade, sl, displaced);
+      if (displaced && SchedState.conflicts[day]?.[grade]?.[sl]) {
+        SchedState.conflicts[day][grade][sl] = SchedState.conflicts[day][grade][sl].slice(1);
+        if (!SchedState.conflicts[day][grade][sl].length) delete SchedState.conflicts[day][grade][sl];
+      }
+    }
+  }
+
+  showConflictBanner();
+  rebuildTbody();
+  saveToLocal();
+}
+
+// ── Right-click context menu ──────────────────────────────────────────────────
+
+function onContextMenu(e) {
+  const cell = e.target.closest('.grid-cell.filled');
+  if (!cell || e.target.closest('.split-half-specials')) return;
+  e.preventDefault();
+  const grade = cell.dataset.grade;
+  const slot  = cell.dataset.time;
+  const btId  = getBlock(gridUI.activeDay, grade, slot);
+  if (!btId) return;
+  showBlockContextMenu(e.clientX, e.clientY, grade, slot, btId);
+}
+
+function showBlockContextMenu(x, y, grade, slot, btId) {
+  dismissContextMenu();
+  const day      = gridUI.activeDay;
+  const name     = getBtName(btId);
+  const isFixed  = isFixedBlock(btId);
+  const isLocked = gridUI.lockedGrades?.has(grade);
+
+  const blockItems = (SchedState.blockTypes || [])
+    .filter(b => !b.id.includes('|') && b.id !== btId && b.id !== 'bt_spec')
+    .map(b => `<li class="ctx-item" data-ctx-replace="${escHtml(b.id)}">
+        <span class="ctx-dot" style="background:${escHtml(b.color || '#ccc')}"></span>${escHtml(b.name)}
+      </li>`)
+    .join('');
+
+  const lockLabel = isLocked ? 'Unlock grade' : 'Lock grade';
+
+  const menu = document.createElement('div');
+  menu.id = 'block-ctx-menu';
+  menu.className = 'ctx-menu';
+  menu.innerHTML = `
+    <div class="ctx-header">${escHtml(name)}</div>
+    ${!isFixed && blockItems ? `<ul class="ctx-list">${blockItems}</ul><div class="ctx-sep"></div>` : ''}
+    <ul class="ctx-list">
+      ${!isFixed ? `<li class="ctx-item ctx-danger" data-ctx-clear>Clear block</li>` : ''}
+      <li class="ctx-item" data-ctx-lock>${escHtml(lockLabel)}</li>
+    </ul>
+  `;
+
+  document.body.appendChild(menu);
+  const rect = menu.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  menu.style.left = Math.min(x, vw - rect.width  - 8) + 'px';
+  menu.style.top  = Math.min(y, vh - rect.height - 8) + 'px';
+
+  menu.addEventListener('click', e2 => {
+    const item = e2.target.closest('[data-ctx-replace],[data-ctx-clear],[data-ctx-lock]');
+    if (!item) return;
+    dismissContextMenu();
+
+    if (item.hasAttribute('data-ctx-replace')) {
+      const newBtId = item.dataset.ctxReplace;
+      pushUndoSnapshot();
+      const blockStart = findBlockStart(day, grade, slot);
+      const blockLen   = findBlockLength(day, grade, blockStart);
+      const startIdx   = currentSlots.indexOf(blockStart);
+      for (let i = 0; i < blockLen; i++) placeBlock(day, grade, currentSlots[startIdx + i], newBtId);
+      showConflictBanner();
+      rebuildTbody();
+      saveToLocal();
+    } else if (item.hasAttribute('data-ctx-clear')) {
+      pushUndoSnapshot();
+      const blockStart = findBlockStart(day, grade, slot);
+      const blockLen   = findBlockLength(day, grade, blockStart);
+      const startIdx   = currentSlots.indexOf(blockStart);
+      for (let i = 0; i < blockLen; i++) placeBlock(day, grade, currentSlots[startIdx + i], null);
+      showConflictBanner();
+      rebuildTbody();
+      saveToLocal();
+    } else if (item.hasAttribute('data-ctx-lock')) {
+      if (!gridUI.lockedGrades) gridUI.lockedGrades = new Set();
+      if (isLocked) gridUI.lockedGrades.delete(grade);
+      else gridUI.lockedGrades.add(grade);
+      rebuildTbody();
+    }
+  });
+
+  setTimeout(() => {
+    document.addEventListener('click', dismissContextMenu, { once: true });
+    document.addEventListener('contextmenu', dismissContextMenu, { once: true });
+  }, 0);
+}
+
+function dismissContextMenu() {
+  document.getElementById('block-ctx-menu')?.remove();
 }
 
 // ── Drag preview (highlight rect while dragging) ──────────────────────────────
@@ -1910,7 +2299,27 @@ function getSpecialsAtSlot(day, grade, slot) {
     }
   });
 
-  if (!matching.length) return null;
+  if (!matching.length) {
+    // No class-level specials entries cover this slot, but masterSchedule still
+    // has bt_spec — synthesize a display entry so it renders as "Specials"
+    // rather than falling back to a raw subject-name block.
+    const masterBtId = SchedState.masterSchedule[day]?.[grade]?.[slot];
+    if (!masterBtId || !masterBtId.startsWith('bt_spec|')) return null;
+    const subId = masterBtId.split('|')[1];
+    const sp    = specials.find(s => s.id === subId);
+    if (!sp) return null;
+    let startIdx = slotIdx;
+    while (startIdx > 0 && SchedState.masterSchedule[day]?.[grade]?.[daySlots[startIdx - 1]] === masterBtId) startIdx--;
+    return {
+      all:          [{ subjectId: subId, teacherId: null, startTime: daySlots[startIdx],
+                       cls: { id: `_grade_${grade}` }, isStart: slotIdx === startIdx,
+                       duration: sp.duration || 45 }],
+      isStart:      slotIdx === startIdx,
+      isUnified:    true,
+      totalClasses: 1,
+    };
+  }
+
   return {
     all:          matching,
     isStart:      matching[0].isStart,
@@ -1930,8 +2339,11 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
 
   // Show a single full-width block whenever ALL classes are in specials,
-  // even if they're doing different subjects (carousel rotation).
-  const allInSpecials = specInfo.all.length === specInfo.totalClasses;
+  // OR whenever the masterSchedule slot is itself bt_spec — splitting when
+  // both halves represent specials creates a misleading "Specials | Music" display.
+  const _slotBtId     = getBlock(day, grade, slot);
+  const allInSpecials = specInfo.all.length === specInfo.totalClasses ||
+                        (_slotBtId && _slotBtId.startsWith('bt_spec'));
 
   if (allInSpecials) {
     const entry   = specInfo.all[0];
@@ -2120,6 +2532,8 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
   saveToLocal();
   rebuildTbody();
   showSpecialsCoverageBanner();
+  showUnplacedBlocksBanner();
+  renderGradeSummaryRow();
 }
 
 // Called from renderMasterSchedule. Runs _populateGradeData for every grade so that:
@@ -2137,6 +2551,8 @@ function autoPopulateIfEmpty() {
   saveToLocal();
   rebuildTbody();
   showSpecialsConflictWarning();
+  showUnplacedBlocksBanner();
+  renderGradeSummaryRow();
 }
 
 // Called after Block Types is saved: fills any required blocks that aren't
@@ -2148,9 +2564,13 @@ function fillMissingRequirements() {
   saveToLocal();
   rebuildTbody();
   showLunchOutOfHoursWarning();
+  showRecessSpacingWarning();
+  showOverBudgetWarning();
   showMissingRequirementsWarning();
   showSpecialsConflictWarning();
   showConflictBanner();
+  showUnplacedBlocksBanner();
+  renderGradeSummaryRow();
 }
 
 // Returns the dismissal time for a specific day, respecting early-release settings.
@@ -2304,6 +2724,17 @@ function getIASummaryForIA(iaId) {
       total += 5 / 60;
     });
   });
+  // Include standalone duty blocks
+  (SchedState.duties || []).forEach(duty => {
+    if (!(duty.iaIds || []).includes(iaId)) return;
+    const durationMin = timeToMins(duty.endTime) - timeToMins(duty.startTime);
+    if (durationMin <= 0) return;
+    const hrs = durationMin / 60;
+    (duty.days || []).forEach(() => {
+      if (duty.allocId) byAlloc[duty.allocId] = (byAlloc[duty.allocId] || 0) + hrs;
+      total += hrs;
+    });
+  });
   return { byAlloc, total };
 }
 
@@ -2427,7 +2858,10 @@ function renderIAScheduleView() {
            <button class="btn btn-primary btn-sm ia-empty-go-btn" id="ia-empty-go-btn">← Go to Master Schedule</button>
          </div>`;
     contentHtml = `
-      <div class="ia-view-picker-row">${iaPicker}</div>
+      <div class="ia-view-picker-row">
+        ${iaPicker}
+        <button class="btn btn-outline btn-sm ia-add-duty-btn" id="ia-add-duty-btn">+ Add duty</button>
+      </div>
       <div class="ia-ind-grid-summary" id="ia-ind-summary"></div>
       <div class="grid-scroll-wrap ia-ind-grid-wrap" id="ia-ind-grid-wrap">
         ${iaGridOrEmpty}
@@ -2641,9 +3075,26 @@ function exportIASummaryCSV() {
 }
 
 function buildIAGrid(day, ias) {
-  const slots  = _autoFillSlots(day);
-  const dayMap = (SchedState.iaSchedule || {})[day] || {};
   const allocs = SchedState.iaAllocations || [];
+
+  // Extend slot range to include any duty start/end slots for this day
+  const slotSet = new Set(_autoFillSlots(day));
+  const dayDuties = (SchedState.duties || []).filter(d => (d.days || []).includes(day));
+  dayDuties.forEach(duty => _dutySlotsFor(duty).forEach(s => slotSet.add(s)));
+  const slots = [...slotSet].sort();
+
+  // Pre-build duty map per IA for this day: dutyMap[iaId][slot] = duty
+  const dutyMap = {};
+  ias.forEach(ia => { dutyMap[ia.id] = {}; });
+  dayDuties.forEach(duty => {
+    _dutySlotsFor(duty).forEach(s => {
+      (duty.iaIds || []).forEach(iaId => {
+        if (dutyMap[iaId]) dutyMap[iaId][s] = duty;
+      });
+    });
+  });
+
+  const dayMap = (SchedState.iaSchedule || {})[day] || {};
 
   const headCols = ias.map(ia =>
     `<th class="th-ia-name" title="${escHtml(ia.name)}">${escHtml(ia.name)}</th>`
@@ -2657,6 +3108,30 @@ function buildIAGrid(day, ias) {
     const showLbl  = isMajor || mm === 30;
 
     const cells = ias.map(ia => {
+      // Duty block takes priority
+      const duty = dutyMap[ia.id]?.[slot];
+      if (duty) {
+        const alloc  = allocs.find(a => a.id === duty.allocId);
+        const color  = alloc?.color || '#6366f1';
+        const prevDuty = prevSlot ? dutyMap[ia.id]?.[prevSlot] : null;
+        const nextDuty = nextSlot ? dutyMap[ia.id]?.[nextSlot] : null;
+        const isCont = prevDuty?.id === duty.id;
+        const isEnd  = nextDuty?.id !== duty.id;
+        const inner  = isCont ? '' : `
+          <div class="ia-cell-label ia-duty-name">${escHtml(duty.name)}</div>
+          ${duty.location ? `<div class="ia-cell-grade ia-duty-loc">${escHtml(duty.location)}</div>` : ''}`;
+        const styleStr = [
+          `background:${color}22`,
+          `border-left:3px dashed ${color}`,
+          `border-right:1px solid ${color}40`,
+          isCont ? 'border-top:1px solid transparent' : `border-top:2px dashed ${color}`,
+          isEnd  ? `border-bottom:2px dashed ${color}` : '',
+        ].filter(Boolean).join(';');
+        return `<td class="ia-cell filled duty-cell${isCont ? ' cont' : ''}" data-ia="${ia.id}" data-slot="${slot}"
+                 data-duty-id="${escHtml(duty.id)}" style="${styleStr}"
+                 title="${escHtml(duty.name + (duty.location ? ' · ' + duty.location : ''))}">${inner}</td>`;
+      }
+
       const iaSlots   = dayMap[ia.id] || {};
       const entry     = iaSlots[slot];
       const prevEntry = prevSlot ? (iaSlots[prevSlot] || null) : null;
@@ -3214,10 +3689,10 @@ function exportXLSX() {
     ['School Name',          s.name || ''],
     ['School Year',          s.year || ''],
     [],
-    ['Teacher Contract',     (s.teacherContractStart || '') + ' – ' + (s.teacherContractEnd || '')],
-    ['Student Campus Hours', (s.studentCampusStart   || '') + ' – ' + (s.studentCampusEnd   || '')],
-    ['First Bell',           s.firstBell  || ''],
-    ['Dismissal',            s.dismissal  || ''],
+    ['Teacher Contract',  (s.teacherContractStart || '') + ' – ' + (s.teacherContractEnd || '')],
+    ['Arrival',           s.studentCampusStart || ''],
+    ['First Bell',        s.firstBell  || ''],
+    ['Dismissal',         s.dismissal  || ''],
     [],
     ['Morning Meeting',      s.morningMeetingEnabled ? 'Yes' : 'No'],
     ...(s.morningMeetingEnabled ? [
@@ -3504,6 +3979,154 @@ function renderSpecialsScheduleView() {
       renderSpecialsScheduleView();
     });
   });
+
+  // Click a filled cell to open the specials override panel
+  container.querySelector('.grid-scroll-wrap')?.addEventListener('click', e => {
+    const cell  = e.target.closest('.grid-cell.filled');
+    if (!cell) return;
+    const clsId = cell.dataset.clsId;
+    const day   = cell.dataset.day;
+    if (!clsId || !day) return;
+    const entry = (SchedState.specialsSchedule[clsId] || {})[day];
+    if (!entry) return;
+    openSpecialsOverridePanel(cell, clsId, day, entry);
+  });
+}
+
+// ── Specials individual override ─────────────────────────────────────────────
+
+function openSpecialsOverridePanel(anchorCell, clsId, day, entry) {
+  document.getElementById('specials-override-panel')?.remove();
+
+  const specials = SchedState.school.specials || [];
+  const sp  = specials.find(s => s.id === entry.subjectId);
+  const cls = (SchedState.staff || []).find(s => s.id === clsId);
+  const gradeLabel = GRADE_LABELS[cls?.gradeAssignment] || cls?.gradeAssignment || '';
+
+  const teacherOptions = (sp?.teacherIds || []).map(tid => {
+    const t = (SchedState.staff || []).find(s => s.id === tid);
+    return t ? `<option value="${escHtml(tid)}"${tid === entry.teacherId ? ' selected' : ''}>${escHtml(t.name)}</option>` : '';
+  }).join('');
+
+  const dayOptions = DAYS.map(d =>
+    `<option value="${d}"${d === day ? ' selected' : ''}>${d}</option>`
+  ).join('');
+
+  const sc = SchedState.school;
+  const schoolSlots = generateTimeSlots(
+    sc.firstBell || sc.studentCampusStart || sc.dayStart || '08:00',
+    sc.dismissal || sc.lastBell || sc.dayEnd || '14:30'
+  );
+  const timeOptions = schoolSlots.map(s =>
+    `<option value="${s}"${s === entry.startTime ? ' selected' : ''}>${fmtTime12(s)}</option>`
+  ).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'specials-override-panel';
+  panel.className = 'override-panel';
+  panel.innerHTML = `
+    <div class="override-panel-header">
+      <span class="override-panel-title">Edit ${escHtml(sp?.name || 'Specials')} · ${escHtml(cls?.name || gradeLabel)}</span>
+      <button class="override-panel-close" id="sp-override-close">&#x2715;</button>
+    </div>
+    <div class="override-panel-body">
+      <div class="override-field-row">
+        <label class="override-label">Day</label>
+        <select id="sp-override-day" class="override-select">${dayOptions}</select>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Start time</label>
+        <select id="sp-override-time" class="override-select">${timeOptions}</select>
+      </div>
+      ${teacherOptions ? `<div class="override-field-row">
+        <label class="override-label">Teacher</label>
+        <select id="sp-override-teacher" class="override-select"><option value="">— same teacher —</option>${teacherOptions}</select>
+      </div>` : ''}
+      <div class="override-actions">
+        <button class="btn btn-primary btn-sm" id="sp-override-save">Save</button>
+        <button class="btn btn-outline btn-sm" id="sp-override-cancel">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+  const rect = anchorCell.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let top  = rect.bottom + window.scrollY + 4;
+  let left = rect.left  + window.scrollX;
+  // After append, getBoundingClientRect won't reflect final size — use rough estimate
+  if (left + 300 > vw) left = Math.max(8, vw - 308);
+  if (rect.bottom + 260 > vh) top = rect.top + window.scrollY - 264;
+  panel.style.top  = top  + 'px';
+  panel.style.left = left + 'px';
+
+  document.getElementById('sp-override-close')?.addEventListener('click', () => panel.remove());
+  document.getElementById('sp-override-cancel')?.addEventListener('click', () => panel.remove());
+  document.getElementById('sp-override-save')?.addEventListener('click', () => {
+    const newDay     = document.getElementById('sp-override-day').value;
+    const newTime    = document.getElementById('sp-override-time').value;
+    const newTeacher = document.getElementById('sp-override-teacher')?.value || entry.teacherId;
+    panel.remove();
+    applySpecialsOverride(clsId, day, newDay, newTime, newTeacher || entry.teacherId);
+  });
+}
+
+function applySpecialsOverride(clsId, oldDay, newDay, newStartTime, newTeacherId) {
+  pushUndoSnapshot();
+  const oldEntry = (SchedState.specialsSchedule[clsId] || {})[oldDay];
+  if (!oldEntry) return;
+
+  const specials  = SchedState.school.specials || [];
+  const sp        = specials.find(s => s.id === oldEntry.subjectId);
+  const dur       = sp?.duration || 45;
+  const subjectId = oldEntry.subjectId;
+  const numSlots  = Math.ceil(dur / 5);
+
+  const cls   = (SchedState.staff || []).find(s => s.id === clsId && s.role === 'classroom_teacher');
+  const grade = cls?.gradeAssignment;
+  if (!grade) return;
+
+  // Update specialsSchedule
+  delete SchedState.specialsSchedule[clsId][oldDay];
+  if (!SchedState.specialsSchedule[clsId]) SchedState.specialsSchedule[clsId] = {};
+  SchedState.specialsSchedule[clsId][newDay] = { subjectId, teacherId: newTeacherId, startTime: newStartTime };
+
+  // Sync masterSchedule — old day: only clear bt_spec slots if no other class in grade still has specials there
+  const gradeClasses  = getClassesForGrade(grade);
+  const oldDaySlots   = _autoFillSlots(oldDay);
+  const oldStartIdx   = oldDaySlots.indexOf(oldEntry.startTime);
+  if (oldStartIdx >= 0 && SchedState.masterSchedule[oldDay]?.[grade]) {
+    for (let i = 0; i < numSlots && oldStartIdx + i < oldDaySlots.length; i++) {
+      const sl = oldDaySlots[oldStartIdx + i];
+      const othersHere = gradeClasses.filter(c =>
+        c.id !== clsId &&
+        (SchedState.specialsSchedule[c.id] || {})[oldDay]?.startTime === oldEntry.startTime
+      );
+      if (!othersHere.length) {
+        const sv = SchedState.masterSchedule[oldDay][grade][sl];
+        if (sv === 'bt_spec' || (sv && sv.startsWith('bt_spec|'))) {
+          delete SchedState.masterSchedule[oldDay][grade][sl];
+        }
+      }
+    }
+  }
+
+  // Sync masterSchedule — new day: write bt_spec
+  if (!SchedState.masterSchedule[newDay]) SchedState.masterSchedule[newDay] = {};
+  if (!SchedState.masterSchedule[newDay][grade]) SchedState.masterSchedule[newDay][grade] = {};
+  const newDaySlots = _autoFillSlots(newDay);
+  const newStartIdx = newDaySlots.indexOf(newStartTime);
+  if (newStartIdx >= 0) {
+    for (let i = 0; i < numSlots && newStartIdx + i < newDaySlots.length; i++) {
+      placeBlock(newDay, grade, newDaySlots[newStartIdx + i], 'bt_spec');
+    }
+  }
+
+  _checkAndSurfaceSpecialsConflicts(newDay, grade, newStartTime,
+    [{ subjectId, teacherId: newTeacherId, duration: dur }]);
+  showConflictBanner();
+  saveToLocal();
+  renderSpecialsScheduleView();
 }
 
 function printScheduleGrid(title, subtitle, tableEl) {
@@ -3704,6 +4327,7 @@ function buildSpecialsTeacherGrid(teacherId) {
             grade,
             gradeLabel: GRADE_LABELS[grade] || grade,
             classLabel: staff?.name || '',
+            classId,
             subjectId:   entry.subjectId,
             subjectName: sp?.name || 'Specials',
             color,
@@ -3808,7 +4432,12 @@ function buildSpecialsTeacherGrid(teacherId) {
         </span>`;
       }
 
-      return `<td class="grid-cell filled${isCont ? ' cont' : ''}" data-time="${slot}" style="${style}">${inner}</td>`;
+      return `<td class="grid-cell filled${isCont ? ' cont' : ''}"
+          data-time="${slot}" data-day="${day}"
+          data-cls-id="${entry.classId || ''}"
+          data-start-time="${entry.startTime}"
+          data-subject-id="${entry.subjectId || ''}"
+          style="${style}">${inner}</td>`;
     }).join('');
 
     return `<tr class="sched-row${isMajor ? ' row-hour' : ''}" data-time="${slot}">
@@ -4186,6 +4815,15 @@ function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
   let selectedAllocId = null;
   const confirmBtn    = document.getElementById('ia-confirm-assign-btn');
 
+  // Pre-fill from existing assignments on this block
+  const preExisting = getIAsForBlock(day, grade, startSlot);
+  if (preExisting.length) {
+    preExisting.forEach(({ ia, alloc }) => {
+      selectedIAIds.add(ia.id);
+      if (!selectedAllocId && alloc) selectedAllocId = alloc.id;
+    });
+  }
+
   function updateConfirm() {
     if (confirmBtn) confirmBtn.disabled = !(selectedIAIds.size > 0 && selectedAllocId);
   }
@@ -4210,6 +4848,21 @@ function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
       updateConfirm();
     });
   });
+
+  // Reflect pre-existing selections in UI
+  if (preExisting.length) {
+    selectedIAIds.forEach(id => {
+      document.querySelector(`[data-pick-ia="${id}"]`)?.classList.add('active');
+    });
+    if (selectedAllocId) {
+      document.querySelectorAll('[data-pick-alloc]').forEach(b =>
+        b.classList.toggle('active', b.dataset.pickAlloc === selectedAllocId));
+    }
+    const note = preExisting[0]?.entry?.note || '';
+    const noteEl = document.getElementById('ia-assign-note');
+    if (noteEl && note) noteEl.value = note;
+    updateConfirm();
+  }
 
   // Time mode toggle
   document.querySelectorAll('input[name="ia-time-mode"]').forEach(radio => {
@@ -4317,7 +4970,22 @@ function refreshIAIndicator(day, grade, startSlot) {
 function buildIndividualIAGrid(iaId) {
   const allSlotSet = new Set();
   DAYS.forEach(d => _autoFillSlots(d).forEach(s => allSlotSet.add(s)));
+
+  // Include any 5-min slots covered by duties assigned to this IA
+  const iaDuties = (SchedState.duties || []).filter(d => (d.iaIds || []).includes(iaId));
+  iaDuties.forEach(duty => _dutySlotsFor(duty).forEach(s => allSlotSet.add(s)));
+
   const allSlots = [...allSlotSet].sort();
+
+  // Pre-build duty map: dutyMap[day][slot] = duty (for this IA)
+  const dutyMap = {};
+  DAYS.forEach(day => {
+    dutyMap[day] = {};
+    iaDuties.forEach(duty => {
+      if (!(duty.days || []).includes(day)) return;
+      _dutySlotsFor(duty).forEach(s => { dutyMap[day][s] = duty; });
+    });
+  });
 
   const headCols = DAYS.map(d => `<th class="th-ia-day">${d.slice(0,3)}</th>`).join('');
 
@@ -4329,6 +4997,30 @@ function buildIndividualIAGrid(iaId) {
     const showLbl   = mm % 15 === 0;
 
     const cells = DAYS.map(day => {
+      // Duty block takes priority over grade-based assignment
+      const duty = dutyMap[day][slot];
+      if (duty) {
+        const alloc    = (SchedState.iaAllocations || []).find(a => a.id === duty.allocId);
+        const color    = alloc?.color || '#6366f1';
+        const prevDuty = prevSlot ? dutyMap[day][prevSlot] : null;
+        const nextDuty = nextSlot ? dutyMap[day][nextSlot] : null;
+        const isCont   = prevDuty?.id === duty.id;
+        const isEnd    = nextDuty?.id !== duty.id;
+        const inner    = isCont ? '' : `
+          <div class="ia-ind-cell-grade ia-duty-name">${escHtml(duty.name)}</div>
+          ${duty.location ? `<div class="ia-ind-cell-block ia-duty-loc">${escHtml(duty.location)}</div>` : ''}
+          ${alloc ? `<span class="ia-ind-alloc-dot" style="background:${alloc.color}" title="${escHtml(alloc.name)}"></span>` : ''}`;
+        const styleStr = [
+          `background:${color}18`,
+          `border-left:3px dashed ${color}`,
+          `border-right:1px solid ${color}40`,
+          isCont ? 'border-top:1px solid transparent' : `border-top:2px dashed ${color}`,
+          isEnd  ? `border-bottom:2px dashed ${color}` : '',
+        ].filter(Boolean).join(';');
+        return `<td class="ia-ind-cell filled duty-cell${isCont ? ' cont' : ''}" style="${styleStr}"
+          data-duty-id="${escHtml(duty.id)}" title="${escHtml(duty.name + (duty.location ? ' · ' + duty.location : ''))}">${inner}</td>`;
+      }
+
       const iaDay  = (SchedState.iaSchedule[day] || {})[iaId] || {};
       const entry  = iaDay[slot];
       if (!entry) return `<td class="ia-ind-cell empty"></td>`;
@@ -4382,6 +5074,140 @@ function buildIndividualIAGrid(iaId) {
   </table>`;
 }
 
+function _dutySlotsFor(duty) {
+  const start = timeToMins(duty.startTime);
+  const end   = timeToMins(duty.endTime);
+  const slots = [];
+  for (let m = start; m < end; m += 5) slots.push(minsToTime(m));
+  return slots;
+}
+
+// ── Duty panel ────────────────────────────────────────────────────────────────
+
+function openDutyPanel(duty, defaultIaId) {
+  document.getElementById('duty-panel')?.remove();
+
+  const isEdit = !!duty;
+  const ias    = (SchedState.staff || []).filter(s => s.role === 'ia');
+  const allocs = SchedState.iaAllocations || [];
+
+  // Wide time range for duties (before/after school)
+  const timeOpts = generateTimeSlots('06:00', '19:00').map(t => `<option value="${t}">${fmtTime12(t)}</option>`).join('');
+
+  const selectedDays  = duty?.days  || DAYS.slice();
+  const selectedIaIds = duty?.iaIds || (defaultIaId ? [defaultIaId] : []);
+
+  const dayChecks = DAYS.map(d =>
+    `<label class="duty-day-label"><input type="checkbox" name="duty-day" value="${d}"${selectedDays.includes(d) ? ' checked' : ''}> ${d.slice(0,3)}</label>`
+  ).join('');
+
+  const iaChecks = ias.map(ia =>
+    `<label class="duty-ia-label"><input type="checkbox" name="duty-ia" value="${ia.id}"${selectedIaIds.includes(ia.id) ? ' checked' : ''}> ${escHtml(ia.name)}</label>`
+  ).join('');
+
+  const allocOptions = `<option value="">— None —</option>` +
+    allocs.map(a => `<option value="${a.id}"${duty?.allocId === a.id ? ' selected' : ''}>${escHtml(a.name)}</option>`).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'duty-panel';
+  panel.className = 'override-panel duty-panel';
+  panel.innerHTML = `
+    <div class="override-panel-header">
+      <span class="override-panel-title">${isEdit ? 'Edit Duty' : 'Add Duty'}</span>
+      <button class="override-panel-close" id="duty-panel-close">&#x2715;</button>
+    </div>
+    <div class="override-panel-body">
+      <div class="override-field-row">
+        <label class="override-label">Duty name</label>
+        <input id="duty-name" class="override-select" type="text" placeholder="e.g. Morning Greeting" value="${escHtml(duty?.name || '')}">
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Location <span class="override-label-opt">(optional)</span></label>
+        <input id="duty-location" class="override-select" type="text" placeholder="e.g. Front Entrance" value="${escHtml(duty?.location || '')}">
+      </div>
+      <div class="override-field-row duty-time-row">
+        <div class="duty-time-col">
+          <label class="override-label">Start</label>
+          <select id="duty-start" class="override-select">${timeOpts}</select>
+        </div>
+        <div class="duty-time-col">
+          <label class="override-label">End</label>
+          <select id="duty-end" class="override-select">${timeOpts}</select>
+        </div>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Days</label>
+        <div class="duty-day-checks">${dayChecks}</div>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Assign IAs</label>
+        <div class="duty-ia-checks">${iaChecks}</div>
+      </div>
+      ${allocs.length ? `<div class="override-field-row">
+        <label class="override-label">Budget category</label>
+        <select id="duty-alloc" class="override-select">${allocOptions}</select>
+      </div>` : ''}
+      <div class="override-actions">
+        <button class="btn btn-primary btn-sm" id="duty-save-btn">${isEdit ? 'Save changes' : 'Add duty'}</button>
+        ${isEdit ? `<button class="btn btn-outline btn-sm ia-danger" id="duty-delete-btn">Delete</button>` : ''}
+        <button class="btn btn-outline btn-sm" id="duty-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+
+  // Set default / current start + end times
+  const startSel = document.getElementById('duty-start');
+  const endSel   = document.getElementById('duty-end');
+  if (duty?.startTime && startSel) startSel.value = duty.startTime;
+  else if (startSel) startSel.value = SchedState.school.firstBell || SchedState.school.studentCampusStart || '07:45';
+  if (duty?.endTime && endSel) endSel.value = duty.endTime;
+  else if (endSel) endSel.value = SchedState.school.firstBell || '08:10';
+
+  const close = () => panel.remove();
+  document.getElementById('duty-panel-close').addEventListener('click', close);
+  document.getElementById('duty-cancel-btn').addEventListener('click', close);
+
+  document.getElementById('duty-delete-btn')?.addEventListener('click', () => {
+    if (!confirm(`Delete "${duty.name}"?`)) return;
+    SchedState.duties = (SchedState.duties || []).filter(d => d.id !== duty.id);
+    saveToLocal();
+    panel.remove();
+    renderIAScheduleView();
+  });
+
+  document.getElementById('duty-save-btn').addEventListener('click', () => {
+    const name     = document.getElementById('duty-name')?.value.trim();
+    const location = document.getElementById('duty-location')?.value.trim() || '';
+    const start    = document.getElementById('duty-start')?.value;
+    const end      = document.getElementById('duty-end')?.value;
+    const days     = [...document.querySelectorAll('#duty-panel input[name="duty-day"]:checked')].map(c => c.value);
+    const iaIds    = [...document.querySelectorAll('#duty-panel input[name="duty-ia"]:checked')].map(c => c.value);
+    const allocId  = document.getElementById('duty-alloc')?.value || null;
+
+    if (!name) { document.getElementById('duty-name')?.focus(); return; }
+    if (!start || !end || timeToMins(end) <= timeToMins(start)) {
+      alert('End time must be after start time.'); return;
+    }
+    if (!days.length) { alert('Select at least one day.'); return; }
+    if (!iaIds.length) { alert('Assign at least one IA.'); return; }
+
+    if (!SchedState.duties) SchedState.duties = [];
+
+    if (isEdit) {
+      const existing = SchedState.duties.find(d => d.id === duty.id);
+      if (existing) Object.assign(existing, { name, location, startTime: start, endTime: end, days, iaIds, allocId });
+    } else {
+      SchedState.duties.push({ id: uid(), name, location, startTime: start, endTime: end, days, iaIds, allocId });
+    }
+
+    saveToLocal();
+    panel.remove();
+    renderIAScheduleView();
+  });
+}
+
 // Render the hours summary bar for the focused IA.
 function _renderIAIndSummary(iaId) {
   const el = document.getElementById('ia-ind-summary');
@@ -4424,6 +5250,20 @@ function wireIAViewEvents(container, ias) {
       iaSchedUI.focusedIAId = btn.dataset.iaPick;
       renderIAScheduleView();
     });
+  });
+
+  // Add duty button
+  document.getElementById('ia-add-duty-btn')?.addEventListener('click', () => {
+    openDutyPanel(null, iaSchedUI.focusedIAId);
+  });
+
+  // Click a duty cell to edit that duty
+  container.querySelector('.ia-ind-grid-wrap')?.addEventListener('click', e => {
+    const cell = e.target.closest('.duty-cell');
+    if (!cell) return;
+    const dutyId = cell.dataset.dutyId;
+    const duty   = (SchedState.duties || []).find(d => d.id === dutyId);
+    if (duty) openDutyPanel(duty, iaSchedUI.focusedIAId);
   });
 
   // Day tabs (All IAs view)

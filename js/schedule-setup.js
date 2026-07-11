@@ -158,22 +158,12 @@ function renderSchoolInfo() {
           </div>
 
           <div class="time-bound-row">
-            <span class="time-bound-label">Student Campus Hours <span class="form-hint-sm">(non-teacher supervision at start &amp; end)</span></span>
+            <span class="time-bound-label">Student Campus Hours</span>
             <div class="time-bound-inputs">
               <div class="form-group form-group-sm">
-                <label class="form-label">Start</label>
+                <label class="form-label">Arrival</label>
                 <input type="time" class="input" id="student-campus-start" value="${s.studentCampusStart || '07:45'}" />
               </div>
-              <div class="form-group form-group-sm">
-                <label class="form-label">End</label>
-                <input type="time" class="input" id="student-campus-end" value="${s.studentCampusEnd || '15:15'}" />
-              </div>
-            </div>
-          </div>
-
-          <div class="time-bound-row">
-            <span class="time-bound-label">First Bell &amp; Dismissal <span class="form-hint-sm">(teacher instructional day)</span></span>
-            <div class="time-bound-inputs">
               <div class="form-group form-group-sm">
                 <label class="form-label">First Bell</label>
                 <input type="time" class="input" id="first-bell" value="${s.firstBell || '08:00'}" />
@@ -222,6 +212,8 @@ function renderSchoolInfo() {
       </div>
 
     </div>
+
+    <div id="school-warnings"></div>
 
     <div class="view-actions">
       <button class="btn btn-primary" id="school-next-btn">Save & Continue →</button>
@@ -336,10 +328,16 @@ function renderGradeRecessHTML(s) {
   if (!grades.length) {
     return '<p class="form-hint" style="margin:0">Select grade levels above first.</p>';
   }
-  const gr = s.gradeRecesses || {};
+  if (!s.gradeRecesses) s.gradeRecesses = {};
+  const gr = s.gradeRecesses;
   return grades.map(g => {
-    const slots = gr[g] || [];
-    return renderGradeRecessItem(g, slots);
+    if (!gr[g] || gr[g].length === 0) {
+      gr[g] = [
+        { id: uid(), duration: 20, lunchAdjacent: false, lunchSide: 'after' },
+        { id: uid(), duration: 15, lunchAdjacent: true,  lunchSide: 'after' },
+      ];
+    }
+    return renderGradeRecessItem(g, gr[g]);
   }).join('');
 }
 
@@ -619,6 +617,38 @@ function computeRecessTimes(s) {
     });
   });
 
+  // Enforce 60-min minimum gap between consecutive recesses within each grade.
+  // Lunch-adjacent recesses are anchored to lunch, so they can't move — instead
+  // pull the earlier (free-floating) recess earlier to create the required gap.
+  // Free-floating recesses can be pushed later when the earlier slot is anchored.
+  const MIN_RECESS_GAP = 60;
+  Object.keys(result).forEach(grade => {
+    const recesses = result[grade];
+    if (recesses.length < 2) return;
+    recesses.sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
+    for (let i = 0; i < recesses.length - 1; i++) {
+      const endA  = timeToMins(recesses[i].start) + Number(recesses[i].duration);
+      const startB = timeToMins(recesses[i + 1].start);
+      if (startB - endA >= MIN_RECESS_GAP) continue;
+
+      if (!recesses[i + 1].lunchAdjacent) {
+        // Later recess is free-floating — push it later
+        const newStart = Math.round((endA + MIN_RECESS_GAP) / 5) * 5;
+        const h = String(Math.floor(newStart / 60)).padStart(2, '0');
+        const m = String(newStart % 60).padStart(2, '0');
+        recesses[i + 1].start = `${h}:${m}`;
+      } else {
+        // Later recess is lunch-adjacent (anchored) — pull earlier recess earlier
+        const requiredEnd   = startB - MIN_RECESS_GAP;
+        const newStart      = Math.round((requiredEnd - Number(recesses[i].duration)) / 5) * 5;
+        const clamped       = Math.max(newStart, fbMins + 30);
+        const h = String(Math.floor(clamped / 60)).padStart(2, '0');
+        const m = String(clamped % 60).padStart(2, '0');
+        recesses[i].start = `${h}:${m}`;
+      }
+    }
+  });
+
   return result;
 }
 
@@ -737,9 +767,9 @@ function saveSchoolAndContinue() {
   s.teacherContractStart = document.getElementById('teacher-contract-start').value;
   s.teacherContractEnd   = document.getElementById('teacher-contract-end').value;
   s.studentCampusStart   = document.getElementById('student-campus-start').value;
-  s.studentCampusEnd     = document.getElementById('student-campus-end').value;
   s.firstBell            = document.getElementById('first-bell').value;
   s.dismissal            = document.getElementById('dismissal').value;
+  s.studentCampusEnd     = s.dismissal; // kept for backward-compat with saved files
   s.dayStart = s.firstBell;
   s.dayEnd   = s.dismissal;
 
@@ -761,8 +791,67 @@ function saveSchoolAndContinue() {
   saveToLocal();
   preFillFixedBlocks();
   updateSidebarStatus();
+
+  // Check for recess spacing and lunch errors; show warnings but don't block navigation
+  const schoolWarnings = _computeSchoolInfoWarnings(s);
+  if (schoolWarnings.length) {
+    const warnEl = document.getElementById('school-warnings');
+    if (warnEl) {
+      warnEl.innerHTML = schoolWarnings.map(w =>
+        `<div class="setup-banner setup-banner-error" style="margin-bottom:8px">${w}</div>`
+      ).join('');
+      warnEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return; // Show warnings in-place; user must re-save or dismiss to continue
+    }
+  }
+
   navigateTo('staff');
   renderStaff();
+}
+
+function _computeSchoolInfoWarnings(s) {
+  const warnings = [];
+  const fbMins  = timeToMins(s.firstBell || '08:00');
+  const disMins = timeToMins(s.dismissal  || '14:30');
+
+  // Lunch out-of-hours
+  (s.lunchPeriods || []).forEach(lp => {
+    if (!lp.start) return;
+    const lsMins = timeToMins(lp.start);
+    if (lsMins < fbMins || lsMins >= disMins) {
+      warnings.push(
+        `⚠ <strong>Lunch time error:</strong> Lunch at <strong>${fmtTime12(lp.start)}</strong> is outside ` +
+        `the school day (${fmtTime12(s.firstBell || '08:00')} first bell – ${fmtTime12(s.dismissal || '14:30')} dismissal). ` +
+        `Check for AM/PM mistakes.`
+      );
+    }
+  });
+
+  // Recess spacing
+  if (typeof computeRecessTimes === 'function') {
+    const recessMap = computeRecessTimes(s);
+    const MIN_GAP = 60;
+    Object.entries(recessMap).forEach(([grade, recesses]) => {
+      if (recesses.length < 2) return;
+      const sorted = [...recesses].sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const endA  = timeToMins(sorted[i].start) + Number(sorted[i].duration);
+        const startB = timeToMins(sorted[i + 1].start);
+        const gap = startB - endA;
+        if (gap < MIN_GAP) {
+          warnings.push(
+            `⚠ <strong>Recess spacing (${escHtml(GRADE_LABELS[grade] || grade)}):</strong> ` +
+            `${escHtml(sorted[i].name)} (${fmtTime12(sorted[i].start)}) and ` +
+            `${escHtml(sorted[i + 1].name)} (${fmtTime12(sorted[i + 1].start)}) ` +
+            `are only <strong>${gap} min</strong> apart — minimum is 60 min. ` +
+            `Adjust recess times or lunch time to create more space.`
+          );
+        }
+      }
+    });
+  }
+
+  return warnings;
 }
 
 
@@ -811,7 +900,7 @@ function renderStaffRow(s) {
     : '—';
   return `
     <tr data-id="${s.id}">
-      <td><span class="color-swatch" style="background:${s.color}"></span></td>
+      <td>${s.role === 'ia' ? `<span class="color-swatch" style="background:${s.color}"></span>` : ''}</td>
       <td class="staff-name">${escHtml(s.name)}</td>
       <td>${ROLE_LABELS[s.role] || s.role}</td>
       <td>${gradeDisplay}${splitBadge}</td>
@@ -908,8 +997,8 @@ function showAddStaffForm(existingId) {
         <label class="form-label">End Time</label>
         <input type="time" class="input" id="sf-end" value="${existing?.endTime || defaultEnd}" />
       </div>
-      <div class="form-group form-group-color" style="flex: 0 0 100%">
-        <label class="form-label">Color</label>
+      <div class="form-group form-group-color sf-color-field${existing?.role === 'ia' ? '' : ' hidden'}" style="flex: 0 0 100%">
+        <label class="form-label">Color <span class="form-hint-sm">shown as a dot on IA schedule</span></label>
         <div class="color-palette" id="sf-color-palette">
           ${STAFF_COLOR_PALETTE.map(c => `
             <button type="button" class="color-dot ${(existing?.color || nextStaffColor()) === c ? 'selected' : ''}" data-color="${c}" style="background:${c}"></button>
@@ -932,9 +1021,11 @@ function showAddStaffForm(existingId) {
 
   document.getElementById('sf-role').addEventListener('change', function() {
     const hideForSpecials = this.value === 'specials_teacher';
+    const isIA = this.value === 'ia';
     document.querySelectorAll('.sf-grade-field, .sf-split-field, .sf-hours-field').forEach(el => {
       el.classList.toggle('hidden', hideForSpecials);
     });
+    document.querySelector('.sf-color-field')?.classList.toggle('hidden', !isIA);
   });
 
   document.getElementById('sf-cancel-btn').addEventListener('click', () => {
@@ -955,7 +1046,9 @@ function showAddStaffForm(existingId) {
       splitGrade:      splitGrade || null,
       startTime:       document.getElementById('sf-start').value || defaultStart,
       endTime:         document.getElementById('sf-end').value   || defaultEnd,
-      color:           document.querySelector('.color-dot.selected')?.dataset.color || nextStaffColor(),
+      color:           document.getElementById('sf-role').value === 'ia'
+                       ? (document.querySelector('.color-dot.selected')?.dataset.color || nextStaffColor())
+                       : (existing?.color || '#94a3b8'),
     };
 
     if (existing) {
@@ -1361,6 +1454,13 @@ function renderBlocks() {
       `}
     </div>
 
+    ${bands.length ? `
+    <div class="form-section">
+      <h2 class="form-section-title">Daily Minutes Budget</h2>
+      <p class="form-hint">Required instructional minutes vs. time available after fixed blocks (morning meeting, lunch, recess).</p>
+      <div id="budget-panel"></div>
+    </div>` : ''}
+
     <div class="view-actions">
       <button class="btn btn-outline" id="blocks-back-btn">← Back to Specials</button>
       <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Master Schedule →</button>
@@ -1382,6 +1482,101 @@ function renderBlocks() {
 
   document.getElementById('blocks-back-btn').addEventListener('click', () => { navigateTo('specials'); renderSpecialsView(); });
   document.getElementById('blocks-next-btn').addEventListener('click', saveBlocksAndContinue);
+
+  renderBudgetPanel();
+}
+
+// ── Minutes budget computation (shared by Block Types view, pre-entry gate, School Info) ──
+
+// Returns array of { band, required, available, fixed } per grade band.
+// `required` = sum of configured bandMinutes for all required blocks.
+// `available` = school day length minus fixed blocks (morning meeting, lunch, recess).
+// `fixed` = breakdown of what was subtracted.
+function computeMinutesBudget() {
+  const s     = SchedState.school;
+  const bands = s.gradeBands || [];
+  const fbMins  = timeToMins(s.firstBell || s.dayStart || '08:00');
+  const disMins = timeToMins(s.dismissal  || s.dayEnd   || '14:30');
+  const dayTotal = disMins - fbMins;
+
+  // Morning meeting minutes
+  const btMM = SchedState.blockTypes.find(bt => bt.id === 'bt_mm');
+  let mmMins = 0;
+  if (btMM?.uniformStart && btMM?.uniformEnd) {
+    mmMins = timeToMins(btMM.uniformEnd) - timeToMins(btMM.uniformStart);
+  } else {
+    (s.morningMeetings || []).forEach(m => {
+      if (m.start && m.end) mmMins += timeToMins(m.end) - timeToMins(m.start);
+    });
+  }
+
+  const recessMap = typeof computeRecessTimes === 'function' ? computeRecessTimes(s) : {};
+
+  return bands.map(band => {
+    const repGrade = (band.grades || [])[0];
+
+    // Lunch minutes for representative grade
+    const lp = repGrade
+      ? ((s.lunchPeriods || []).find(p => (p.grades || []).includes(repGrade))
+      || (s.lunchPeriods || []).find(p => !(p.grades || []).length)
+      || (s.lunchPeriods || [])[0])
+      : (s.lunchPeriods || [])[0];
+    const lunchMins = lp ? Number(lp.duration) : 0;
+
+    // Recess minutes for representative grade
+    const recessMins = repGrade
+      ? (recessMap[repGrade] || []).reduce((sum, r) => sum + Number(r.duration), 0)
+      : 0;
+
+    const fixed     = mmMins + lunchMins + recessMins;
+    const available = Math.max(0, dayTotal - fixed);
+
+    // Required = sum of all required blocks' bandMinutes for this band
+    const required = SchedState.blockTypes
+      .filter(bt => bt.required)
+      .reduce((sum, bt) => {
+        if (bt.subBlocks && bt.subBlocks.length && bt.subBandMinutes) {
+          const subSum = (bt.subBlocks || []).reduce((s2, sub) =>
+            s2 + (((bt.subBandMinutes[sub.id] || {})[band.id]) || 0), 0);
+          return sum + (subSum > 0 ? subSum : ((bt.bandMinutes || {})[band.id] || 0));
+        }
+        return sum + ((bt.bandMinutes || {})[band.id] || 0);
+      }, 0);
+
+    return { band, required, available, fixed, dayTotal, mmMins, lunchMins, recessMins };
+  });
+}
+
+function renderBudgetPanel() {
+  const panel = document.getElementById('budget-panel');
+  if (!panel) return;
+  const budget = computeMinutesBudget();
+  if (!budget.length) { panel.innerHTML = ''; return; }
+
+  panel.innerHTML = budget.map(({ band, required, available, mmMins, lunchMins, recessMins, dayTotal }) => {
+    const over    = required - available;
+    const pct     = available > 0 ? Math.round((required / available) * 100) : 0;
+    const cls     = over > 0 ? 'budget-over' : (over > -15 ? 'budget-tight' : 'budget-ok');
+    const label   = over > 0 ? `Over by ${over} min` : (over === 0 ? 'Exactly full' : `${-over} min free`);
+    const barPct  = Math.min(pct, 100);
+    const barOver = over > 0 ? Math.min(Math.round((over / available) * 100), 50) : 0;
+
+    return `
+      <div class="budget-band">
+        <div class="budget-band-name">${escHtml(band.name)}</div>
+        <div class="budget-bar-wrap">
+          <div class="budget-bar-fill ${cls}" style="width:${barPct}%"></div>
+          ${barOver ? `<div class="budget-bar-over" style="width:${barOver}%"></div>` : ''}
+        </div>
+        <div class="budget-nums">
+          <span class="budget-req ${cls}">${required} min required</span>
+          <span class="budget-avail">of ${available} min available
+            <span class="budget-hint">(${dayTotal} day − ${mmMins} mtg − ${lunchMins} lunch − ${recessMins} recess)</span>
+          </span>
+          <span class="budget-label ${cls}">${label}</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ── Band section wiring ───────────────────────────────────────────────────────
@@ -1433,7 +1628,7 @@ function wireReqTable() {
     });
   });
 
-  // Sub-block minutes → live-update calculated totals
+  // Sub-block minutes → live-update calculated totals + budget panel
   document.querySelectorAll('.sub-min-input').forEach(inp => {
     inp.addEventListener('input', () => {
       const { parentId, bandId } = inp.dataset;
@@ -1441,7 +1636,14 @@ function wireReqTable() {
         .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
       const el = document.querySelector(`.req-calc-total[data-bt-id="${parentId}"][data-band-id="${bandId}"]`);
       if (el) el.textContent = sum;
+      collectReqFromDOM();
+      renderBudgetPanel();
     });
+  });
+
+  // Required block minutes → live-update budget panel
+  document.querySelectorAll('.req-min-input').forEach(inp => {
+    inp.addEventListener('input', () => { collectReqFromDOM(); renderBudgetPanel(); });
   });
 
   // Toggle sub-block section
@@ -1755,7 +1957,9 @@ function renderReview() {
           <div class="review-row"><span class="review-label">School</span><span class="review-value">${s.name || '—'}</span></div>
           <div class="review-row"><span class="review-label">Year</span><span class="review-value">${s.year}</span></div>
           <div class="review-row"><span class="review-label">Grades</span><span class="review-value">${gradeList}</span></div>
-          <div class="review-row"><span class="review-label">School Day</span><span class="review-value">${s.dayStart} – ${s.dayEnd}</span></div>
+          <div class="review-row"><span class="review-label">Arrival</span><span class="review-value">${fmtTime12(s.studentCampusStart || s.dayStart || '07:45')}</span></div>
+          <div class="review-row"><span class="review-label">First Bell</span><span class="review-value">${fmtTime12(s.firstBell || '08:00')}</span></div>
+          <div class="review-row"><span class="review-label">Dismissal</span><span class="review-value">${fmtTime12(s.dismissal || s.dayEnd || '14:30')}</span></div>
           <div class="review-row"><span class="review-label">Alternate Days</span><span class="review-value">${altDays}</span></div>
         </div>
       </div>
@@ -1773,7 +1977,7 @@ function renderReview() {
                 <div class="review-row review-row-stack">
                   <span class="review-label">${role}</span>
                   <div class="review-staff-chips">
-                    ${members.map(m => `<span class="review-staff-chip" style="border-left: 3px solid ${m.color}">${m.name}</span>`).join('')}
+                    ${members.map(m => `<span class="review-staff-chip"${m.role === 'ia' ? ` style="border-left: 3px solid ${m.color}"` : ''}>${m.name}</span>`).join('')}
                   </div>
                 </div>
               `).join('')

@@ -49,7 +49,7 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 ### 3. Building Schedule Builder (`schedule-app.html`)
 Master schedule builder for school administrators. Phase 1 complete; Phase 2 Specials Schedule view live.
 
-**Cache buster:** currently `?v=66` on all 5 script tags in `schedule-app.html`. Bump on every deploy.
+**Cache buster:** currently `?v=100` on all 5 script tags in `schedule-app.html`. Bump on every deploy.
 
 **Data model — file-based, not Supabase:**
 - Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
@@ -60,7 +60,7 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 **Nav flow (current):**
 - Phase 1 — Setup: School Info → Staff Roster → Specials → Block Types
 - Phase 1 — Build: Master Schedule (locked until grades configured)
-- Phase 2 — Detail: Specials Schedule (locked until specials configured) → IA Schedule (placeholder)
+- Phase 2 — Detail: Specials Schedule (locked until specials configured) → IA Schedule (live) → Class Schedules (placeholder)
 - Finish: Export (placeholder)
 
 **Key state — `SchedState` in `schedule-state.js`:**
@@ -69,11 +69,14 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - `masterSchedule[day][grade][slot]` = blockTypeId — 5-minute slots Mon–Fri
 - `conflicts[day][grade][slot]` = [btId, …] — blocks displaced by manual drag; never created by auto-fill
 - `specialsSchedule[classId][day]` = `{ subjectId, teacherId, startTime }` — class-level specials (source of truth for Specials Schedule view)
+- `iaSchedule[day][iaId][slot]` = `{ allocId, targetType, targetId, note }` — IA grade/class assignments
+- `iaAllocations[]` = `[{ id, name, color, hoursPerDay }]` — budget categories for IAs
+- `duties[]` = `[{ id, name, location, startTime, endTime, days[], iaIds[], allocId }]` — IA duty blocks (non-grade, e.g. "Morning Greeting"); not tied to master schedule
 
 **Key JS files:**
 - `js/schedule-state.js` — SchedState, DEFAULT_BLOCK_TYPES, saveToLocal, loadFromLocal, downloadScheduleFile, loadScheduleFromFile, uid(), updateSidebarStatus()
 - `js/schedule-setup.js` — School Info, Staff Roster, Specials, Block Types views + save flows; SP_DEFAULT_COLORS
-- `js/schedule-grid.js` — Master Schedule grid, drag-to-move, auto-populate, conflict rendering, specials scheduling, Specials Schedule view, XLSX export, coverage validation
+- `js/schedule-grid.js` — Master Schedule grid, drag-to-move, auto-populate, conflict rendering, specials scheduling, Specials Schedule view, IA Schedule view (All IAs + Individual IA), duty blocks, XLSX export, coverage validation
 - `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring
 
 **Key behaviors:**
@@ -87,6 +90,14 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - Conflict split cells: `placeBlock()` stores displaced block in `conflicts[]`; `buildCell()` renders side-by-side halves; isConflictStart logic shows labels even mid-block
 - Conflict banner groups consecutive same-conflict slots into one time-range entry (not one per 5-min slot)
 - Specials Schedule view: per-teacher weekly grid (Mon–Fri × time rows), teacher chip picker, coverage summary panel at top
+- Specials override panel: clicking a filled cell in the Specials Schedule teacher grid opens an anchored panel to change day, start time, or teacher for that class's specials assignment (`applySpecialsOverride`)
+- IA Schedule view: two tabs — "All IAs" (`buildIAGrid`) and individual IA (`buildIndividualIAGrid`); both show duty blocks with dashed borders
+- Duty blocks (`SchedState.duties`): assigned to 1+ IAs and 1+ days with start/end time + budget category; managed via `openDutyPanel`; persisted to localStorage and `.cohortlogic` file; appear in both IA view tabs
+- `_dutySlotsFor(duty)` — returns array of 5-min slot strings between duty startTime and endTime
+- `getIAsForBlock(day, grade, slot)` — returns IA assignments for a master schedule block; dots render in the bottom-right corner of each filled cell (`.ia-block-ind`, absolutely positioned)
+- Block resize: drag bottom edge of any non-fixed, non-locked block to extend or shrink; blue outline preview; `commitResize()` handles extend (placeBlock) and shrink (restores displaced conflicts)
+- Context menu: right-click any filled non-specials cell → replace with another block type, clear, or lock/unlock grade
+- IA re-assign pre-fill: opening the IA block panel pre-selects existing IA assignments, alloc, and note for that block
 
 **CSP constraint:** `script-src 'self' cdn.jsdelivr.net cdn.sheetjs.com` — no `unsafe-inline`. All event handlers via `addEventListener`. Never use `onclick=`/`onchange=`/`oninput=` HTML attributes.
 
@@ -382,7 +393,7 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 
 ### Schedule Builder
 - **Specials scheduling algorithm** — `buildSpecialsSchedule()` finds one grade-wide time slot per day; if a teacher is already booked by an earlier grade that day, the later grade silently misses specials. Coverage gaps are now detected and surfaced but not auto-resolved. Consider: per-subject independent slot search, or grade priority ordering
-- **IA Schedule view** — Phase 2, placeholder card; not yet built
+- **Class Schedules view** — Phase 2, placeholder card; not yet built
 - **Export view** — Phase 2/Finish, placeholder card; not yet built
 - **FERPA privacy policy page** — older pending item
 - **Teacher-level RLS** — on hold; needs product decisions
