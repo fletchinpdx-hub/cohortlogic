@@ -4066,7 +4066,7 @@ function showSpecialsCoverageBanner() {
 
 // ── Specials Schedule View ────────────────────────────────────────────────────
 
-const specialsSchedUI = { selectedTeacherId: null };
+const specialsSchedUI = { selectedTeacherId: null, coverageCollapsed: false };
 
 const classSchedUI = {
   selectedGrade:   null,
@@ -4132,9 +4132,14 @@ function renderSpecialsScheduleView() {
       }).join('');
     }
 
+    // Only the detail table is collapsible, so the panel is only interactive when
+    // there are issues (and thus a detail table to hide).
+    const collapsible = hasIssues;
+    const collapsed   = collapsible && specialsSchedUI.coverageCollapsed;
     coverageHtml = `
-      <div class="coverage-panel">
-        <div class="coverage-panel-header">
+      <div class="coverage-panel${collapsible ? ' collapsible' : ''}${collapsed ? ' collapsed' : ''}">
+        <div class="coverage-panel-header"${collapsible ? ' id="coverage-toggle" role="button" tabindex="0" aria-expanded="' + (!collapsed) + '"' : ''}>
+          ${collapsible ? '<span class="coverage-caret">▾</span>' : ''}
           <span class="coverage-panel-title">Coverage</span>
           <span class="coverage-status ${statusClass}">${statusLabel}</span>
           ${hasIssues ? `<span class="coverage-hint">Check teacher availability or free up schedule space</span>` : ''}
@@ -4215,6 +4220,21 @@ function renderSpecialsScheduleView() {
       renderSpecialsScheduleView();
     });
   });
+
+  // Collapse/expand the coverage detail table
+  const coverageToggle = container.querySelector('#coverage-toggle');
+  if (coverageToggle) {
+    const toggle = () => {
+      specialsSchedUI.coverageCollapsed = !specialsSchedUI.coverageCollapsed;
+      container.querySelector('.coverage-panel')
+        ?.classList.toggle('collapsed', specialsSchedUI.coverageCollapsed);
+      coverageToggle.setAttribute('aria-expanded', String(!specialsSchedUI.coverageCollapsed));
+    };
+    coverageToggle.addEventListener('click', toggle);
+    coverageToggle.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  }
 
   // Click a filled cell to open the specials override panel
   container.querySelector('.grid-scroll-wrap')?.addEventListener('click', e => {

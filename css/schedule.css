@@ -1632,6 +1632,19 @@
   padding: 10px 24px;
   flex-wrap: wrap;
 }
+.coverage-panel.collapsible .coverage-panel-header {
+  cursor: pointer;
+  user-select: none;
+}
+.coverage-panel.collapsible .coverage-panel-header:hover { background: var(--gray-50, #f9fafb); }
+.coverage-caret {
+  display: inline-block;
+  transition: transform .15s ease;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+.coverage-panel.collapsed .coverage-caret { transform: rotate(-90deg); }
+.coverage-panel.collapsed .coverage-detail { display: none; }
 .coverage-panel-title {
   font-size: 12px;
   font-weight: 700;
