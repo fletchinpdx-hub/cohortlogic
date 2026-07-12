@@ -1273,6 +1273,18 @@ function collectReqFromDOM() {
         if (subSum > 0) bt.bandMinutes[band.id] = subSum;
       });
     }
+    // Split session settings (only for blocks without sub-blocks)
+    if (!(bt.subBlocks || []).length) {
+      bt.splitAllowed    = bt.splitAllowed    || {};
+      bt.splitMinMinutes = bt.splitMinMinutes || {};
+      row.querySelectorAll('.split-allowed-input').forEach(inp => {
+        bt.splitAllowed[inp.dataset.bandId] = inp.checked;
+      });
+      row.querySelectorAll('.split-min-input').forEach(inp => {
+        const val = parseInt(inp.value, 10);
+        bt.splitMinMinutes[inp.dataset.bandId] = isNaN(val) ? 15 : Math.max(5, val);
+      });
+    }
   });
 }
 
@@ -1315,6 +1327,7 @@ function renderSubTable(bt, bands) {
 
 function renderReqRow(bt, bands) {
   const hasSubs = (bt.subBlocks || []).length > 0;
+  const anySplitEnabled = !hasSubs && Object.values(bt.splitAllowed || {}).some(Boolean);
   return `
     <tr class="req-row" data-bt-id="${bt.id}">
       <td><input type="text" class="req-name-input" value="${escHtml(bt.name)}" placeholder="Block name"></td>
@@ -1323,7 +1336,6 @@ function renderReqRow(bt, bands) {
         <input type="color" class="req-color-input" value="${bt.color}">
       </td>
       ${bands.map(b => {
-        const hasSubs = (bt.subBlocks || []).length > 0;
         if (hasSubs) {
           const total = (bt.subBlocks || []).reduce((sum, sub) =>
             sum + (((bt.subBandMinutes || {})[sub.id] || {})[b.id] || 0), 0);
@@ -1333,6 +1345,7 @@ function renderReqRow(bt, bands) {
       }).join('')}
       <td class="req-td-actions">
         <button class="btn-sm req-sub-toggle" data-bt-id="${bt.id}">${hasSubs ? `Sub-blocks (${bt.subBlocks.length})` : 'Sub-blocks'}</button>
+        ${!hasSubs ? `<button class="btn-sm req-split-toggle${anySplitEnabled ? ' req-split-active' : ''}" data-bt-id="${bt.id}" title="Configure split sessions">Split</button>` : ''}
         <button class="btn-icon req-delete-btn" data-bt-id="${bt.id}" title="Remove block">×</button>
       </td>
     </tr>
@@ -1341,6 +1354,28 @@ function renderReqRow(bt, bands) {
       <td></td>
       <td colspan="${bands.length + 1}" class="req-sub-td">${renderSubTable(bt, bands)}</td>
     </tr>
+    ${!hasSubs ? `
+    <tr class="req-split-row${anySplitEnabled ? '' : ' hidden'}" id="req-split-row-${bt.id}">
+      <td colspan="2" class="req-split-label">
+        ⚡ Split Sessions
+        <span class="form-hint-sm">If no single gap fits, the algorithm places 2 chunks summing to the required minutes.</span>
+      </td>
+      ${bands.map(b => `
+        <td class="req-split-td">
+          <label class="split-check-label">
+            <input type="checkbox" class="split-allowed-input" data-bt-id="${bt.id}" data-band-id="${b.id}"
+                   ${(bt.splitAllowed || {})[b.id] ? 'checked' : ''}>
+            Allow split
+          </label>
+          <div class="split-min-wrap${(bt.splitAllowed || {})[b.id] ? '' : ' hidden'}">
+            <span class="form-hint-sm">Min:</span>
+            <input type="number" class="split-min-input" data-bt-id="${bt.id}" data-band-id="${b.id}"
+                   min="5" step="5" max="180" value="${(bt.splitMinMinutes || {})[b.id] || 15}">
+            <span class="form-hint-sm">min</span>
+          </div>
+        </td>`).join('')}
+      <td></td>
+    </tr>` : ''}
   `;
 }
 
@@ -1689,6 +1724,22 @@ function wireReqTable() {
     btn.addEventListener('click', () => {
       const row = document.getElementById(`req-sub-row-${btn.dataset.btId}`);
       if (row) row.classList.toggle('hidden');
+    });
+  });
+
+  // Toggle split session section
+  document.querySelectorAll('.req-split-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = document.getElementById(`req-split-row-${btn.dataset.btId}`);
+      if (row) row.classList.toggle('hidden');
+    });
+  });
+
+  // Split checkbox → show/hide min input
+  document.querySelectorAll('.split-allowed-input').forEach(inp => {
+    inp.addEventListener('change', function() {
+      const wrap = this.closest('.req-split-td')?.querySelector('.split-min-wrap');
+      if (wrap) wrap.classList.toggle('hidden', !this.checked);
     });
   });
 

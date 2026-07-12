@@ -3306,3 +3306,71 @@
   color: #fff !important;
   transition: background .2s, border-color .2s;
 }
+
+/* ── Split session config rows ─────────────────────────────────── */
+.req-split-toggle {
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  color: var(--gray-500);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.req-split-toggle.req-split-active {
+  background: #fef9c3;
+  border-color: #ca8a04;
+  color: #92400e;
+}
+.req-split-row td {
+  background: #fefce8;
+  border-top: 1px dashed #fde047;
+  padding: 8px 10px;
+  vertical-align: top;
+}
+.req-split-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #78350f;
+  line-height: 1.5;
+}
+.req-split-label .form-hint-sm {
+  display: block;
+  font-weight: 400;
+  color: #a16207;
+  margin-top: 2px;
+}
+.req-split-td {
+  font-size: 12px;
+}
+.split-check-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.split-min-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.split-min-wrap input[type="number"] {
+  width: 50px;
+  padding: 2px 4px;
+  font-size: 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+}
+@media (prefers-color-scheme: dark) {
+  .req-split-toggle { border-color: var(--gray-600); color: var(--gray-400); }
+  .req-split-toggle.req-split-active { background: #422006; border-color: #92400e; color: #fde68a; }
+  .req-split-row td { background: #1c1a07; border-top-color: #713f12; }
+  .req-split-label { color: #fde68a; }
+  .req-split-label .form-hint-sm { color: #ca8a04; }
+}

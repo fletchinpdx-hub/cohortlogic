@@ -2424,6 +2424,35 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
 // clearFirst=false → only place blocks that have ZERO slots placed; skip any
 //                    block that exists even partially to prevent double-placement.
 // onlyDay — if provided, only process that specific day (used by switchDay for efficiency).
+// Find two non-overlapping contiguous free runs that together hold totalSlots,
+// each at least minSlots long. Returns [{startIdx, len}, {startIdx, len}] or null.
+function _findSplitPlacements(allSlots, occupied, totalSlots, minSlots) {
+  if (totalSlots < minSlots * 2) return null;
+  const runs = [];
+  let runStart = -1, runLen = 0;
+  for (let i = 0; i < allSlots.length; i++) {
+    if (!occupied.has(allSlots[i])) {
+      if (runStart === -1) { runStart = i; runLen = 1; } else runLen++;
+    } else {
+      if (runStart !== -1 && runLen >= minSlots) runs.push({ start: runStart, len: runLen });
+      runStart = -1; runLen = 0;
+    }
+  }
+  if (runStart !== -1 && runLen >= minSlots) runs.push({ start: runStart, len: runLen });
+  if (runs.length < 2) return null;
+  for (let i = 0; i < runs.length - 1; i++) {
+    for (let j = i + 1; j < runs.length; j++) {
+      const r1 = runs[i], r2 = runs[j];
+      const chunk1 = Math.min(r1.len, totalSlots - minSlots);
+      const chunk2 = totalSlots - chunk1;
+      if (chunk1 >= minSlots && chunk2 <= r2.len) {
+        return [{ startIdx: r1.start, len: chunk1 }, { startIdx: r2.start, len: chunk2 }];
+      }
+    }
+  }
+  return null;
+}
+
 function _populateGradeData(grade, clearFirst, onlyDay) {
   const s    = SchedState.school;
   const band = (s.gradeBands || []).find(b => b.grades.includes(grade));
@@ -2514,6 +2543,8 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
           });
         }
       }
+      // Try single contiguous placement
+      let placed = false;
       for (let i = 0; i <= allSlots.length - unit.slots; i++) {
         let ok = true;
         for (let j = 0; j < unit.slots; j++) {
@@ -2524,7 +2555,25 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
             sched[allSlots[i + j]] = unit.id;
             occupied.add(allSlots[i + j]);
           }
+          placed = true;
           break;
+        }
+      }
+
+      // Split fallback: only for top-level blocks (not sub-blocks), when configured per band
+      if (!placed && !unit.id.includes('|')) {
+        const parentBt = SchedState.blockTypes.find(b => b.id === unit.id);
+        if (parentBt?.splitAllowed?.[band.id]) {
+          const minSlots = Math.ceil(((parentBt.splitMinMinutes || {})[band.id] || 15) / 5);
+          const split = _findSplitPlacements(allSlots, occupied, unit.slots, minSlots);
+          if (split) {
+            split.forEach(chunk => {
+              for (let j = 0; j < chunk.len; j++) {
+                sched[allSlots[chunk.startIdx + j]] = unit.id;
+                occupied.add(allSlots[chunk.startIdx + j]);
+              }
+            });
+          }
         }
       }
     });
