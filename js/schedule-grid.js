@@ -273,7 +273,7 @@ function showOverBudgetWarning() {
     `<div><strong>Required minutes exceed available time — some blocks will be left out:</strong>` +
     `<ul>${overBands.map(b =>
       `<li><strong>${escHtml(b.band.name)}:</strong> ${b.required} min required but only ${b.available} min available ` +
-      `(${b.dayTotal} min day − ${b.mmMins} mtg − ${b.lunchMins} lunch − ${b.recessMins} recess). ` +
+      `(${b.dayTotal} min day − ${b.mmMins} mtg − ${b.lunchMins} lunch − ${b.recessMins} recess${b.specialsMins ? ` − ${b.specialsMins} specials` : ''}). ` +
       `Over by <strong>${b.required - b.available} min</strong>.</li>`
     ).join('')}</ul></div>` +
     `<button class="btn-link setup-banner-link">Fix in Block Types →</button>`;
@@ -453,8 +453,16 @@ function showUnplacedBlocksBanner() {
   const bands = s.gradeBands || [];
   if (!bands.length) return;
 
-  const seen   = new Set();
-  const issues = [];
+  // Separate full days from early-release alt days.
+  // Shortfalls on alt days are expected (less instructional time) — show a
+  // softer informational note rather than a hard error.
+  const altDaySet = new Set((s.altDays || []).filter(ad => ad.earlyRelease).map(ad => ad.day));
+  const fullDays  = DAYS.filter(d => !altDaySet.has(d));
+  const altDays   = DAYS.filter(d => altDaySet.has(d));
+  if (!fullDays.length) return;
+
+  const fullSeen = new Set(), altSeen = new Set();
+  const fullIssues = [], altIssues = [];
 
   gradesSorted().forEach(grade => {
     const band = bands.find(b => b.grades.includes(grade));
@@ -477,34 +485,58 @@ function showUnplacedBlocksBanner() {
               : []);
 
         units.forEach(unit => {
-          DAYS.forEach(day => {
+          const key = `${grade}|${unit.id}`;
+
+          const missingOnFullDay = fullDays.some(day => {
             const sched    = (SchedState.masterSchedule[day] || {})[grade] || {};
             const allSlots = _autoFillSlots(day);
-            const placed   = allSlots.filter(sl => sched[sl] === unit.id).length;
-            if (placed < unit.expected) {
-              const key = `${grade}|${unit.id}`;
-              if (!seen.has(key)) {
-                seen.add(key);
-                issues.push({ grade, label: unit.label });
-              }
-            }
+            return allSlots.filter(sl => sched[sl] === unit.id).length < unit.expected;
           });
+
+          if (missingOnFullDay) {
+            if (!fullSeen.has(key)) { fullSeen.add(key); fullIssues.push({ grade, label: unit.label }); }
+            return;
+          }
+
+          if (altDays.length) {
+            const missingOnAltDay = altDays.some(day => {
+              const sched    = (SchedState.masterSchedule[day] || {})[grade] || {};
+              const allSlots = _autoFillSlots(day);
+              return allSlots.filter(sl => sched[sl] === unit.id).length < unit.expected;
+            });
+            if (missingOnAltDay && !altSeen.has(key)) {
+              altSeen.add(key); altIssues.push({ grade, label: unit.label });
+            }
+          }
         });
       });
   });
 
-  if (!issues.length) return;
-
-  const banner = document.createElement('div');
-  banner.id        = 'unplaced-blocks-banner';
-  banner.className = 'setup-banner setup-banner-error';
-  banner.innerHTML =
-    `⚠ <strong>Required blocks couldn't be placed — not enough room:</strong> ` +
-    issues.map(i => `${GRADE_LABELS[i.grade] || i.grade}: <strong>${escHtml(i.label)}</strong>`).join(', ') +
-    `. Try clearing and re-filling the grade, or reduce time requirements in Block Types.`;
-
   const scrollWrap = document.getElementById('grid-scroll-wrap');
-  if (scrollWrap) scrollWrap.before(banner);
+
+  if (fullIssues.length) {
+    const banner = document.createElement('div');
+    banner.id        = 'unplaced-blocks-banner';
+    banner.className = 'setup-banner setup-banner-error';
+    banner.innerHTML =
+      `⚠ <strong>Required blocks couldn't be placed — not enough room:</strong> ` +
+      fullIssues.map(i => `${GRADE_LABELS[i.grade] || i.grade}: <strong>${escHtml(i.label)}</strong>`).join(', ') +
+      `. Try clearing and re-filling the grade, or reduce time requirements in Block Types.`;
+    if (scrollWrap) scrollWrap.before(banner);
+    return;
+  }
+
+  if (altIssues.length) {
+    const altLabel = [...altDaySet].join(', ');
+    const banner = document.createElement('div');
+    banner.id        = 'unplaced-blocks-banner';
+    banner.className = 'setup-banner';
+    banner.innerHTML =
+      `ℹ <strong>On early-release day${altDays.length !== 1 ? 's' : ''} (${escHtml(altLabel)}), some blocks were skipped — not enough time:</strong> ` +
+      altIssues.map(i => `${GRADE_LABELS[i.grade] || i.grade}: <strong>${escHtml(i.label)}</strong>`).join(', ') +
+      `. Full days are complete. This is normal for shortened days.`;
+    if (scrollWrap) scrollWrap.before(banner);
+  }
 }
 
 // ── Main render ───────────────────────────────────────────────────────────────
@@ -1773,9 +1805,12 @@ const AUTO_FILL_PRIORITY = {
 // Pass a day string to get day-specific slots; omit for the regular school day.
 function _autoFillSlots(day) {
   const sc = SchedState.school;
-  const candidates = [sc.firstBell, sc.studentCampusStart, sc.dayStart]
-    .filter(t => t && /^\d\d:\d\d/.test(t));
-  const fb  = candidates.length ? candidates.reduce((a, b) => a < b ? a : b) : '07:30';
+  // Instructional placement starts at FIRST BELL — matching computeMinutesBudget.
+  // studentCampusStart (arrival) is earlier, but that window is arrival/duty time,
+  // not instruction; including it made the grid disagree with the budget panel and
+  // placed instructional blocks before the bell. (See CLAUDE.md: "Instructional
+  // budget uses firstBell; IA budget uses arrival.")
+  const fb  = sc.firstBell || sc.dayStart || sc.studentCampusStart || '07:30';
   const dis = day ? getDismissalForDay(day) : (sc.dismissal || sc.studentCampusEnd || sc.dayEnd || '14:30');
   return generateTimeSlots(fb, dis);
 }

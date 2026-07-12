@@ -36,6 +36,16 @@ function renderMMRow(m) {
   `;
 }
 
+function wireMMRemove() {
+  document.querySelectorAll('.remove-mm-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.mmId;
+      SchedState.school.morningMeetings = (SchedState.school.morningMeetings || []).filter(m => m.id !== id);
+      btn.closest('.mm-row')?.remove();
+    });
+  });
+}
+
 const DEFAULT_SPECIALS = [
   { id: 'sp_pe',  name: 'PE',      duration: 45, classesPerWeek: 1, teacherIds: [], color: '#f97316' },
   { id: 'sp_mu',  name: 'Music',   duration: 45, classesPerWeek: 1, teacherIds: [], color: '#a855f7' },
@@ -179,6 +189,14 @@ function renderSchoolInfo() {
 
       </div>
 
+      <!-- Morning Meetings -->
+      <div class="form-section">
+        <h2 class="form-section-title">Morning Meetings</h2>
+        <p class="form-hint">Recurring meetings placed at a fixed time for every grade (e.g. Morning Meeting, Greeting). These occupy instructional time, so they count against each grade's available minutes.</p>
+        <div id="mm-list">${(s.morningMeetings || []).map(renderMMRow).join('')}</div>
+        <button class="btn btn-outline btn-sm" id="add-mm-btn" style="margin-top:8px">+ Add Morning Meeting</button>
+      </div>
+
       <!-- Lunch Periods -->
       <div class="form-section">
         <h2 class="form-section-title">Lunch Periods</h2>
@@ -236,6 +254,16 @@ function renderSchoolInfo() {
     SchedState.school.lunchPeriods.push({ id: uid(), start: '11:00', duration: 30, grades: [] });
     refreshLunchList();
   });
+
+  // Morning meeting add
+  document.getElementById('add-mm-btn').addEventListener('click', () => {
+    SchedState.school.morningMeetings = SchedState.school.morningMeetings || [];
+    const m = { id: uid(), name: 'Morning Meeting', start: '08:00', end: '08:15' };
+    SchedState.school.morningMeetings.push(m);
+    document.getElementById('mm-list').insertAdjacentHTML('beforeend', renderMMRow(m));
+    wireMMRemove();
+  });
+  wireMMRemove();
 
   wireRecessEvents();
 
@@ -772,6 +800,14 @@ function saveSchoolAndContinue() {
   s.studentCampusEnd     = s.dismissal; // kept for backward-compat with saved files
   s.dayStart = s.firstBell;
   s.dayEnd   = s.dismissal;
+
+  // Morning meetings — collect from the editor rows.
+  s.morningMeetings = [...document.querySelectorAll('#mm-list .mm-row')].map(row => ({
+    id:    row.dataset.mmId,
+    name:  row.querySelector('.mm-name').value.trim() || 'Morning Meeting',
+    start: row.querySelector('.mm-start').value,
+    end:   row.querySelector('.mm-end').value,
+  })).filter(m => m.start && m.end);
 
   s.altDays = [];
   document.querySelectorAll('.alt-day-row').forEach(row => {
@@ -1614,12 +1650,20 @@ function computeMinutesBudget() {
       ? (recessMap[repGrade] || []).reduce((sum, r) => sum + Number(r.duration), 0)
       : 0;
 
-    const fixed     = mmMins + lunchMins + recessMins;
+    // Specials block time — the longest special's duration is reserved every day
+    const specialsList = s.specials || [];
+    const specialsMins = specialsList.length
+      ? Math.max(...specialsList.map(sp => Number(sp.duration) || 45))
+      : 0;
+
+    const fixed     = mmMins + lunchMins + recessMins + specialsMins;
     const available = Math.max(0, dayTotal - fixed);
 
-    // Required = sum of all required blocks' bandMinutes for this band
+    // Required = sum of all required blocks' bandMinutes for this band,
+    // excluding fixed-time blocks (bt_spec, bt_mm, uniform blocks) since
+    // those are already subtracted from available above.
     const required = SchedState.blockTypes
-      .filter(bt => bt.required)
+      .filter(bt => bt.required && bt.id !== 'bt_spec' && !isFixedBlock(bt.id))
       .reduce((sum, bt) => {
         if (bt.subBlocks && bt.subBlocks.length && bt.subBandMinutes) {
           const subSum = (bt.subBlocks || []).reduce((s2, sub) =>
@@ -1629,7 +1673,7 @@ function computeMinutesBudget() {
         return sum + ((bt.bandMinutes || {})[band.id] || 0);
       }, 0);
 
-    return { band, required, available, fixed, dayTotal, mmMins, lunchMins, recessMins };
+    return { band, required, available, fixed, dayTotal, mmMins, lunchMins, recessMins, specialsMins };
   });
 }
 
