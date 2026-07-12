@@ -649,6 +649,28 @@ function computeRecessTimes(s) {
     }
   });
 
+  // Rule: first recess must not begin within the first 60 min of the day.
+  // Rule: last recess must end at least 30 min before dismissal.
+  // Only adjusts free-floating recesses; lunch-adjacent slots are anchored to lunch.
+  const disMins  = timeToMins(s.dismissal || '14:30');
+  const snapTime = m => minsToTime(Math.round(Math.max(m, 0) / 5) * 5);
+  Object.keys(result).forEach(grade => {
+    const recesses = result[grade];
+    if (!recesses.length) return;
+    recesses.sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
+
+    const first = recesses[0];
+    if (!first.lunchAdjacent && timeToMins(first.start) < fbMins + 60) {
+      first.start = snapTime(fbMins + 60);
+    }
+
+    const last    = recesses[recesses.length - 1];
+    const lastEnd = timeToMins(last.start) + Number(last.duration);
+    if (!last.lunchAdjacent && lastEnd > disMins - 30) {
+      last.start = snapTime(Math.max(disMins - 30 - Number(last.duration), fbMins + 60));
+    }
+  });
+
   return result;
 }
 
@@ -827,26 +849,52 @@ function _computeSchoolInfoWarnings(s) {
     }
   });
 
-  // Recess spacing
+  // Recess spacing + boundary checks
   if (typeof computeRecessTimes === 'function') {
     const recessMap = computeRecessTimes(s);
-    const MIN_GAP = 60;
+    const MIN_GAP   = 60;
+    const fbMins    = timeToMins(s.firstBell  || '08:00');
+    const disMins   = timeToMins(s.dismissal  || '14:30');
     Object.entries(recessMap).forEach(([grade, recesses]) => {
-      if (recesses.length < 2) return;
+      if (!recesses.length) return;
+      const label  = escHtml(GRADE_LABELS[grade] || grade);
       const sorted = [...recesses].sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
+
+      // Spacing check
       for (let i = 0; i < sorted.length - 1; i++) {
-        const endA  = timeToMins(sorted[i].start) + Number(sorted[i].duration);
+        const endA   = timeToMins(sorted[i].start) + Number(sorted[i].duration);
         const startB = timeToMins(sorted[i + 1].start);
-        const gap = startB - endA;
+        const gap    = startB - endA;
         if (gap < MIN_GAP) {
           warnings.push(
-            `⚠ <strong>Recess spacing (${escHtml(GRADE_LABELS[grade] || grade)}):</strong> ` +
+            `⚠ <strong>Recess spacing (${label}):</strong> ` +
             `${escHtml(sorted[i].name)} (${fmtTime12(sorted[i].start)}) and ` +
             `${escHtml(sorted[i + 1].name)} (${fmtTime12(sorted[i + 1].start)}) ` +
             `are only <strong>${gap} min</strong> apart — minimum is 60 min. ` +
             `Adjust recess times or lunch time to create more space.`
           );
         }
+      }
+
+      // Boundary: first recess must not start within the first 60 min of the day
+      const first = sorted[0];
+      if (!first.lunchAdjacent && timeToMins(first.start) < fbMins + 60) {
+        warnings.push(
+          `⚠ <strong>Recess too early (${label}):</strong> ` +
+          `${escHtml(first.name)} starts at ${fmtTime12(first.start)}, which is within the first 60 min of the day. ` +
+          `Move it to ${fmtTime12(minsToTime(fbMins + 60))} or later.`
+        );
+      }
+
+      // Boundary: last recess must not end within the last 30 min of the day
+      const last    = sorted[sorted.length - 1];
+      const lastEnd = timeToMins(last.start) + Number(last.duration);
+      if (!last.lunchAdjacent && lastEnd > disMins - 30) {
+        warnings.push(
+          `⚠ <strong>Recess too late (${label}):</strong> ` +
+          `${escHtml(last.name)} ends at ${fmtTime12(minsToTime(lastEnd))}, which is within the last 30 min of the day. ` +
+          `Move it earlier so it ends by ${fmtTime12(minsToTime(disMins - 30))}.`
+        );
       }
     });
   }

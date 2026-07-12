@@ -293,39 +293,56 @@ function showRecessSpacingWarning() {
   const s = SchedState.school;
   if (typeof computeRecessTimes !== 'function') return;
   const recessMap = computeRecessTimes(s);
-  const MIN_GAP = 60;
+  const MIN_GAP  = 60;
+  const fbMins   = timeToMins(s.firstBell  || '08:00');
+  const disMins  = timeToMins(s.dismissal  || '14:30');
+  const toTime12 = m => { const h = Math.floor(m / 60), mn = m % 60, ap = h < 12 ? 'AM' : 'PM', h12 = h % 12 || 12; return `${h12}:${String(mn).padStart(2,'0')} ${ap}`; };
 
-  const violations = [];
+  const items = [];
+
   Object.entries(recessMap).forEach(([grade, recesses]) => {
-    if (recesses.length < 2) return;
+    if (!recesses.length) return;
     const sorted = [...recesses].sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
+
+    // Spacing violations
     for (let i = 0; i < sorted.length - 1; i++) {
       const endOfFirst  = timeToMins(sorted[i].start) + Number(sorted[i].duration);
       const startOfNext = timeToMins(sorted[i + 1].start);
       const gap = startOfNext - endOfFirst;
       if (gap < MIN_GAP) {
-        violations.push({
-          grade,
-          a: sorted[i],
-          b: sorted[i + 1],
-          gap,
-        });
+        items.push(`<strong>${escHtml(GRADE_LABELS[grade] || grade)}:</strong> ` +
+          `${escHtml(sorted[i].name)} (${fmtTime12(sorted[i].start)}) and ` +
+          `${escHtml(sorted[i+1].name)} (${fmtTime12(sorted[i+1].start)}) ` +
+          `are only <strong>${gap} min</strong> apart (min 60 min).`);
       }
+    }
+
+    // Boundary: first recess within first 60 min of day
+    const first = sorted[0];
+    if (timeToMins(first.start) < fbMins + 60) {
+      items.push(`<strong>${escHtml(GRADE_LABELS[grade] || grade)}:</strong> ` +
+        `${escHtml(first.name)} starts at ${fmtTime12(first.start)} — first recess cannot begin ` +
+        `within 60 min of first bell (${fmtTime12(s.firstBell || '08:00')}).`);
+    }
+
+    // Boundary: last recess too close to dismissal
+    const last    = sorted[sorted.length - 1];
+    const lastEnd = timeToMins(last.start) + Number(last.duration);
+    if (lastEnd > disMins - 30) {
+      items.push(`<strong>${escHtml(GRADE_LABELS[grade] || grade)}:</strong> ` +
+        `${escHtml(last.name)} ends at ${toTime12(lastEnd)} — last recess must end ` +
+        `at least 30 min before dismissal (${fmtTime12(s.dismissal || '14:30')}).`);
     }
   });
 
-  if (!violations.length) return;
+  if (!items.length) return;
 
   const banner = document.createElement('div');
   banner.id = 'recess-spacing-banner';
   banner.className = 'setup-banner setup-banner-error';
   banner.innerHTML =
-    `<div><strong>Recess spacing error:</strong> Recesses must be at least 60 minutes apart.` +
-    `<ul>${violations.map(v =>
-      `<li><strong>${escHtml(GRADE_LABELS[v.grade] || v.grade)}:</strong> ` +
-      `${escHtml(v.a.name)} (${fmtTime12(v.a.start)}) and ${escHtml(v.b.name)} (${fmtTime12(v.b.start)}) ` +
-      `are only <strong>${v.gap} min</strong> apart.</li>`
-    ).join('')}</ul></div>` +
+    `<div><strong>Recess placement issue:</strong>` +
+    `<ul>${items.map(t => `<li>${t}</li>`).join('')}</ul></div>` +
     `<button class="btn-link setup-banner-link">Fix in School Info →</button>`;
 
   const scrollWrap = document.getElementById('grid-scroll-wrap');
