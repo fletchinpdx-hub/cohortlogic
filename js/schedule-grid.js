@@ -317,21 +317,23 @@ function showRecessSpacingWarning() {
       }
     }
 
-    // Boundary: first recess within first 60 min of day
-    const first = sorted[0];
-    if (timeToMins(first.start) < fbMins + 60) {
+    // Boundary: first non-lunch-adjacent recess within first 60 min of day
+    const firstFree = sorted.find(r => !r.lunchAdjacent);
+    if (firstFree && timeToMins(firstFree.start) < fbMins + 60) {
       items.push(`<strong>${escHtml(GRADE_LABELS[grade] || grade)}:</strong> ` +
-        `${escHtml(first.name)} starts at ${fmtTime12(first.start)} — first recess cannot begin ` +
+        `${escHtml(firstFree.name)} starts at ${fmtTime12(firstFree.start)} — first recess cannot begin ` +
         `within 60 min of first bell (${fmtTime12(s.firstBell || '08:00')}).`);
     }
 
-    // Boundary: last recess too close to dismissal
-    const last    = sorted[sorted.length - 1];
-    const lastEnd = timeToMins(last.start) + Number(last.duration);
-    if (lastEnd > disMins - 30) {
-      items.push(`<strong>${escHtml(GRADE_LABELS[grade] || grade)}:</strong> ` +
-        `${escHtml(last.name)} ends at ${toTime12(lastEnd)} — last recess must end ` +
-        `at least 30 min before dismissal (${fmtTime12(s.dismissal || '14:30')}).`);
+    // Boundary: last non-lunch-adjacent recess too close to dismissal
+    const lastFree = [...sorted].reverse().find(r => !r.lunchAdjacent);
+    if (lastFree) {
+      const lastEnd = timeToMins(lastFree.start) + Number(lastFree.duration);
+      if (lastEnd > disMins - 30) {
+        items.push(`<strong>${escHtml(GRADE_LABELS[grade] || grade)}:</strong> ` +
+          `${escHtml(lastFree.name)} ends at ${toTime12(lastEnd)} — last recess must end ` +
+          `at least 30 min before dismissal (${fmtTime12(s.dismissal || '14:30')}).`);
+      }
     }
   });
 

@@ -649,28 +649,6 @@ function computeRecessTimes(s) {
     }
   });
 
-  // Rule: first recess must not begin within the first 60 min of the day.
-  // Rule: last recess must end at least 30 min before dismissal.
-  // Only adjusts free-floating recesses; lunch-adjacent slots are anchored to lunch.
-  const disMins  = timeToMins(s.dismissal || '14:30');
-  const snapTime = m => minsToTime(Math.round(Math.max(m, 0) / 5) * 5);
-  Object.keys(result).forEach(grade => {
-    const recesses = result[grade];
-    if (!recesses.length) return;
-    recesses.sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
-
-    const first = recesses[0];
-    if (!first.lunchAdjacent && timeToMins(first.start) < fbMins + 60) {
-      first.start = snapTime(fbMins + 60);
-    }
-
-    const last    = recesses[recesses.length - 1];
-    const lastEnd = timeToMins(last.start) + Number(last.duration);
-    if (!last.lunchAdjacent && lastEnd > disMins - 30) {
-      last.start = snapTime(Math.max(disMins - 30 - Number(last.duration), fbMins + 60));
-    }
-  });
-
   return result;
 }
 
