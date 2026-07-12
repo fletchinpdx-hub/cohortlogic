@@ -145,11 +145,15 @@ function buildClassCard(title, cls, gradeKey, classIdx, isSplit) {
   const sortKey  = `${gradeKey}-${classIdx}`;
   const curSort  = _cardSortState[sortKey];
 
-  const avgChips = Object.entries(avgs).map(([name, val]) => {
+  const chipData = Object.entries(avgs).map(([name, val]) => {
     const isActive = curSort && curSort.compName === name;
     const arrow    = isActive ? (curSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return `<div class="avg-chip sort-chip${isActive ? ' sort-active' : ''}" onclick="sortCardBy('${gradeKey}',${classIdx},'${name}')" title="Sort by ${name}">${name}: <strong>${val}</strong>${arrow}</div>`;
-  }).join('');
+    return { name, val, isActive, arrow };
+  });
+
+  const avgChips = chipData.map(({ name, val, isActive, arrow }) =>
+    `<div class="avg-chip sort-chip${isActive ? ' sort-active' : ''}" data-sort-name="${name}" title="Sort by ${name}">${name}: <strong>${val}</strong>${arrow}</div>`
+  ).join('');
 
   const card = document.createElement('div');
   card.className     = 'class-card';
@@ -168,6 +172,11 @@ function buildClassCard(title, cls, gradeKey, classIdx, isSplit) {
       ${renderStudentPills(cls, gradeKey, classIdx)}
     </div>
   `;
+
+  card.querySelectorAll('.sort-chip').forEach(chip => {
+    chip.addEventListener('click', () => sortCardBy(gradeKey, classIdx, chip.dataset.sortName));
+  });
+
   return card;
 }
 
