@@ -337,14 +337,10 @@ function loadFromLocal() {
     if (data._clsData)         SchedState._clsData         = data._clsData;
     // Defaults for fields added after initial release
     if (!SchedState.school.specialsRotationMode) SchedState.school.specialsRotationMode = 'intermittent';
-    // Migrate legacy morningMeetings → bt_mm.uniformStart/End (one-time, lazy)
-    const btMM = SchedState.blockTypes.find(bt => bt.id === 'bt_mm');
-    const legacyMMs = SchedState.school.morningMeetings || [];
-    if (btMM && !btMM.uniformStart && legacyMMs.length > 0 && legacyMMs[0].start && legacyMMs[0].end) {
-      btMM.uniformStart = legacyMMs[0].start;
-      btMM.uniformEnd   = legacyMMs[0].end;
-      btMM.uniformMode  = 'time';
-    }
+    // NOTE: legacy s.morningMeetings is intentionally NOT migrated into bt_mm anymore.
+    // Morning meetings are configured only as the bt_mm block (Block Types → school-wide
+    // time). Any stale morningMeetings data stays inert — it neither places blocks nor
+    // affects the minutes budget. Users re-enter meetings in the Blocks section.
     return true;
   } catch (e) {
     return false;

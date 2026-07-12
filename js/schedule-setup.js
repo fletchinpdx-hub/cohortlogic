@@ -24,28 +24,6 @@ function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function renderMMRow(m) {
-  return `
-    <div class="mm-row" data-mm-id="${m.id}">
-      <input type="text" class="mm-name input" placeholder="Meeting name" value="${escHtml(m.name)}">
-      <input type="time" class="mm-start input" value="${m.start || ''}">
-      <span style="color:var(--gray-400)">–</span>
-      <input type="time" class="mm-end input" value="${m.end || ''}">
-      <button class="btn-icon remove-mm-btn" data-mm-id="${m.id}" title="Remove">×</button>
-    </div>
-  `;
-}
-
-function wireMMRemove() {
-  document.querySelectorAll('.remove-mm-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.mmId;
-      SchedState.school.morningMeetings = (SchedState.school.morningMeetings || []).filter(m => m.id !== id);
-      btn.closest('.mm-row')?.remove();
-    });
-  });
-}
-
 const DEFAULT_SPECIALS = [
   { id: 'sp_pe',  name: 'PE',      duration: 45, classesPerWeek: 1, teacherIds: [], color: '#f97316' },
   { id: 'sp_mu',  name: 'Music',   duration: 45, classesPerWeek: 1, teacherIds: [], color: '#a855f7' },
@@ -189,14 +167,6 @@ function renderSchoolInfo() {
 
       </div>
 
-      <!-- Morning Meetings -->
-      <div class="form-section">
-        <h2 class="form-section-title">Morning Meetings</h2>
-        <p class="form-hint">Recurring meetings placed at a fixed time for every grade (e.g. Morning Meeting, Greeting). These occupy instructional time, so they count against each grade's available minutes.</p>
-        <div id="mm-list">${(s.morningMeetings || []).map(renderMMRow).join('')}</div>
-        <button class="btn btn-outline btn-sm" id="add-mm-btn" style="margin-top:8px">+ Add Morning Meeting</button>
-      </div>
-
       <!-- Lunch Periods -->
       <div class="form-section">
         <h2 class="form-section-title">Lunch Periods</h2>
@@ -254,16 +224,6 @@ function renderSchoolInfo() {
     SchedState.school.lunchPeriods.push({ id: uid(), start: '11:00', duration: 30, grades: [] });
     refreshLunchList();
   });
-
-  // Morning meeting add
-  document.getElementById('add-mm-btn').addEventListener('click', () => {
-    SchedState.school.morningMeetings = SchedState.school.morningMeetings || [];
-    const m = { id: uid(), name: 'Morning Meeting', start: '08:00', end: '08:15' };
-    SchedState.school.morningMeetings.push(m);
-    document.getElementById('mm-list').insertAdjacentHTML('beforeend', renderMMRow(m));
-    wireMMRemove();
-  });
-  wireMMRemove();
 
   wireRecessEvents();
 
@@ -736,21 +696,15 @@ function preFillFixedBlocks() {
       // Clear old auto-placed fixed blocks (bt_mm, bt_mm|id, bt_lunch, bt_recess)
       Object.keys(sched).forEach(slot => { if (isFixedBlock(sched[slot])) delete sched[slot]; });
 
-      // Morning meeting / bt_mm — prefer block type's uniformStart/End over legacy morningMeetings
+      // Morning meeting — configured ONLY as the bt_mm block (Block Types → school-wide
+      // time). Legacy s.morningMeetings / morningMeeting* fields are intentionally NOT
+      // read here, so stale data from old files can never silently place hidden blocks.
       const btMM = SchedState.blockTypes.find(bt => bt.id === 'bt_mm');
-      const meetings = (btMM?.uniformStart && btMM?.uniformEnd)
-        ? [{ id: null, start: btMM.uniformStart, end: btMM.uniformEnd }]
-        : (s.morningMeetings?.length
-          ? s.morningMeetings
-          : (s.morningMeetingEnabled && s.morningMeetingStart && s.morningMeetingEnd
-            ? [{ start: s.morningMeetingStart, end: s.morningMeetingEnd }] : []));
-      meetings.forEach(m => {
-        if (!m.start || !m.end) return;
-        const slotId = m.id ? `bt_mm|${m.id}` : 'bt_mm';
-        generateTimeSlots(m.start, m.end).forEach(slot => {
-          if (!sched[slot] || isFixedBlock(sched[slot])) sched[slot] = slotId;
+      if (btMM?.uniformStart && btMM?.uniformEnd) {
+        generateTimeSlots(btMM.uniformStart, btMM.uniformEnd).forEach(slot => {
+          if (!sched[slot] || isFixedBlock(sched[slot])) sched[slot] = 'bt_mm';
         });
-      });
+      }
 
       // Other uniform block types with fixed time config
       SchedState.blockTypes.filter(bt => bt.id !== 'bt_mm' && bt.uniformStart && bt.uniformEnd)
@@ -800,14 +754,6 @@ function saveSchoolAndContinue() {
   s.studentCampusEnd     = s.dismissal; // kept for backward-compat with saved files
   s.dayStart = s.firstBell;
   s.dayEnd   = s.dismissal;
-
-  // Morning meetings — collect from the editor rows.
-  s.morningMeetings = [...document.querySelectorAll('#mm-list .mm-row')].map(row => ({
-    id:    row.dataset.mmId,
-    name:  row.querySelector('.mm-name').value.trim() || 'Morning Meeting',
-    start: row.querySelector('.mm-start').value,
-    end:   row.querySelector('.mm-end').value,
-  })).filter(m => m.start && m.end);
 
   s.altDays = [];
   document.querySelectorAll('.alt-day-row').forEach(row => {
@@ -1621,16 +1567,12 @@ function computeMinutesBudget() {
   const disMins = timeToMins(s.dismissal  || s.dayEnd   || '14:30');
   const dayTotal = disMins - fbMins;
 
-  // Morning meeting minutes
+  // Morning meeting minutes — only the bt_mm block counts. Legacy s.morningMeetings
+  // is ignored so stale data can't silently shrink the available-minutes budget.
   const btMM = SchedState.blockTypes.find(bt => bt.id === 'bt_mm');
-  let mmMins = 0;
-  if (btMM?.uniformStart && btMM?.uniformEnd) {
-    mmMins = timeToMins(btMM.uniformEnd) - timeToMins(btMM.uniformStart);
-  } else {
-    (s.morningMeetings || []).forEach(m => {
-      if (m.start && m.end) mmMins += timeToMins(m.end) - timeToMins(m.start);
-    });
-  }
+  const mmMins = (btMM?.uniformStart && btMM?.uniformEnd)
+    ? timeToMins(btMM.uniformEnd) - timeToMins(btMM.uniformStart)
+    : 0;
 
   const recessMap = typeof computeRecessTimes === 'function' ? computeRecessTimes(s) : {};
 
