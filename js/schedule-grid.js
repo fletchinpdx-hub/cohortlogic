@@ -701,8 +701,6 @@ function renderMasterSchedule() {
           </table>
         </div>
 
-        <div id="grade-summary-wrap" class="grade-summary-wrap"></div>
-
         <div class="grid-footer">
           <button class="btn btn-outline" id="master-back-btn">← Back to Block Types</button>
           <button class="btn btn-outline" id="master-print-btn">Print</button>

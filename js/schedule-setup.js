@@ -682,6 +682,12 @@ function preFillFixedBlocks() {
   const grades = gradesSorted();
   if (!grades.length) return;
 
+  // Guarantee the fixed block TYPES (bt_mm/bt_lunch/bt_recess) exist before placing
+  // them. If they're missing from blockTypes (e.g. an older saved file), buildCell()
+  // can't resolve bt_lunch/bt_recess and renders those slots as empty cells. Running
+  // this here (not just on load) makes the schedule self-heal on every build.
+  if (typeof ensureFixedBlockTypes === 'function') ensureFixedBlockTypes();
+
   const lunchBT  = 'bt_lunch';
   const recessBT = 'bt_recess';
   const recessMap = computeRecessTimes(s);
