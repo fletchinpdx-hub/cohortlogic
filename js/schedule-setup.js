@@ -1299,17 +1299,22 @@ function collectReqFromDOM() {
         if (subSum > 0) bt.bandMinutes[band.id] = subSum;
       });
     }
-    // Split session settings (only for blocks without sub-blocks)
+    // Split session settings (only for blocks without sub-blocks).
+    // The split controls live in a sibling <tr id="req-split-row-{btId}">, not
+    // inside the .req-row, so query by id rather than from row.
     if (!(bt.subBlocks || []).length) {
       bt.splitAllowed    = bt.splitAllowed    || {};
       bt.splitMinMinutes = bt.splitMinMinutes || {};
-      row.querySelectorAll('.split-allowed-input').forEach(inp => {
-        bt.splitAllowed[inp.dataset.bandId] = inp.checked;
-      });
-      row.querySelectorAll('.split-min-input').forEach(inp => {
-        const val = parseInt(inp.value, 10);
-        bt.splitMinMinutes[inp.dataset.bandId] = isNaN(val) ? 15 : Math.max(5, val);
-      });
+      const splitRow = document.getElementById(`req-split-row-${btId}`);
+      if (splitRow) {
+        splitRow.querySelectorAll('.split-allowed-input').forEach(inp => {
+          bt.splitAllowed[inp.dataset.bandId] = inp.checked;
+        });
+        splitRow.querySelectorAll('.split-min-input').forEach(inp => {
+          const val = parseInt(inp.value, 10);
+          bt.splitMinMinutes[inp.dataset.bandId] = isNaN(val) ? 15 : Math.max(5, val);
+        });
+      }
     }
   });
 }

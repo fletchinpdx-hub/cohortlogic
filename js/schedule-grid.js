@@ -2500,7 +2500,8 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
         const sv = sched[slot];
         if (!sv) return;
         const pid = sv.includes('|') ? sv.split('|')[0] : sv;
-        if (pid === 'bt_spec') return; // specials handled by buildSpecialsSchedule
+        if (pid === 'bt_spec') return;    // specials handled by buildSpecialsSchedule
+        if (isFixedBlock(sv)) return;     // lunch/recess/mm placed by preFillFixedBlocks
         if (reqIds.has(sv) || requirements.some(r => r.id === pid)) {
           delete sched[slot];
           clearConflict(day, grade, slot);
@@ -2523,6 +2524,7 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
         }
         return;
       }
+      if (isFixedBlock(req.id)) return; // preFillFixedBlocks handles these at a fixed time
 
       const configuredSubs = (req.subBlocks || []).filter(sub =>
         ((req.subBandMinutes || {})[sub.id] || {})[band.id] > 0
@@ -2637,7 +2639,12 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
 function autoPopulateIfEmpty() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
-  gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
+  // Use clearFirst=true for unlocked grades so every render produces the optimal
+  // placement. Fully-placed blocks in fragmented positions (e.g. from a prior
+  // corrupted state) would otherwise block contiguous runs for other blocks.
+  gradesSorted().forEach(grade =>
+    _populateGradeData(grade, !gridUI.lockedGrades.has(grade), null)
+  );
   _cleanupStaleIAAssignments();
   saveToLocal();
   rebuildTbody();
