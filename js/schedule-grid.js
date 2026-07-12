@@ -2002,16 +2002,19 @@ function findGradeSpecialsTime(grade, classes, rotation, specials, isFreeTeacher
       }
       if (!ok) continue;
 
-      // Every subject's teacher must be free for the full block duration
+      // Every subject needs enough DISTINCT free teachers to cover every class
+      // rotated onto it this day — not just one. Checking for "any one teacher
+      // free" let a slot look valid when only some classes could actually be
+      // staffed, producing silent per-class coverage gaps downstream.
       if (isFreeTeacher) {
         for (const spId of subjectsOnDay) {
           const sp         = specials.find(s => s.id === spId);
           const teacherIds = sp?.teacherIds || [];
+          if (!teacherIds.length) continue; // no teachers configured — not a capacity blocker here
           const dur        = sp?.duration || 45;
-          if (teacherIds.length > 0 && !teacherIds.some(tid => isFreeTeacher(tid, day, candidateStart, dur))) {
-            ok = false;
-            break;
-          }
+          const needed     = classes.filter(cls => rotation[cls.id]?.[day] === spId).length;
+          const freeCount  = teacherIds.filter(tid => isFreeTeacher(tid, day, candidateStart, dur)).length;
+          if (freeCount < needed) { ok = false; break; }
         }
       }
 
