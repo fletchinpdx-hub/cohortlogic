@@ -1900,6 +1900,51 @@
 }
 .btn-link:hover { opacity: .8; }
 
+/* ── Consolidated warnings panel ─────────────────────────────── */
+.warnings-panel {
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  background: #fff5f5;
+  margin: 0 0 10px;
+  overflow: hidden;
+}
+.warnings-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.warnings-panel-header:hover { background: #fecaca; }
+.warnings-panel-header::before {
+  content: '\26A0';           /* ⚠ */
+  font-size: 14px;
+}
+.warnings-caret {
+  display: inline-block;
+  transition: transform .15s ease;
+  font-size: 11px;
+  color: #b91c1c;
+}
+.warnings-panel.collapsed .warnings-caret { transform: rotate(-90deg); }
+.warnings-panel-count { flex: 1; }
+.warnings-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+}
+.warnings-panel.collapsed .warnings-panel-body { display: none; }
+/* Banners inside the panel drop their own outer margin — the panel gaps them. */
+.warnings-panel-body .setup-banner { margin: 0; }
+
 /* ── v52: class-level specials ───────────────────────────────── */
 
 /* Specials grid cell — subject + teacher name tag */

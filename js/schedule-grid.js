@@ -12,6 +12,7 @@ const gridUI = {
   visibleGrades: null,      // null = all; Set<grade> when filtered
   lockedGrades:  new Set(), // grades protected from any change
   undoStack:     [],        // array of masterSchedule snapshots
+  warningsCollapsed: false, // collapsed state of the consolidated warnings panel
 };
 
 let _gridKeydownWired = false;
@@ -225,6 +226,57 @@ function blockDuration(day, grade, slot) {
 
 // Shows a red banner if any lunch period falls outside the school day,
 // since that causes lunch to be silently skipped in the grid.
+// ── Consolidated warnings panel ───────────────────────────────────────────────
+// Every schedule warning renders into ONE collapsible panel above the grid rather
+// than stacking as separate full-width banners. Each show*Warning/Banner function
+// builds its banner element as before, then calls _mountWarning() to place it here.
+
+function _warningsHost() {
+  const existing = document.getElementById('warnings-panel-body');
+  if (existing) return existing;
+  const anchor = document.getElementById('grid-scroll-wrap');
+  if (!anchor) return null;
+  const panel = document.createElement('div');
+  panel.id = 'warnings-panel';
+  panel.className = 'warnings-panel' + (gridUI.warningsCollapsed ? ' collapsed' : '');
+  panel.innerHTML =
+    `<button type="button" class="warnings-panel-header" id="warnings-panel-toggle" aria-expanded="${gridUI.warningsCollapsed ? 'false' : 'true'}">
+       <span class="warnings-caret">▾</span>
+       <span class="warnings-panel-count" id="warnings-panel-count"></span>
+     </button>
+     <div class="warnings-panel-body" id="warnings-panel-body"></div>`;
+  anchor.before(panel);
+  panel.querySelector('#warnings-panel-toggle').addEventListener('click', () => {
+    gridUI.warningsCollapsed = panel.classList.toggle('collapsed');
+    panel.querySelector('#warnings-panel-toggle')
+      .setAttribute('aria-expanded', String(!gridUI.warningsCollapsed));
+  });
+  const body = panel.querySelector('#warnings-panel-body');
+  // Removals (a warning clearing itself via existing.remove()) don't route through
+  // _mountWarning, so watch the body and refresh the count/visibility on any change.
+  new MutationObserver(() => _refreshWarningsPanel()).observe(body, { childList: true });
+  return body;
+}
+
+function _refreshWarningsPanel() {
+  const panel = document.getElementById('warnings-panel');
+  if (!panel) return;
+  const body  = document.getElementById('warnings-panel-body');
+  const count = body ? body.querySelectorAll('.setup-banner').length : 0;
+  if (count === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const label = document.getElementById('warnings-panel-count');
+  if (label) label.textContent = `${count} issue${count !== 1 ? 's' : ''} to review`;
+}
+
+// Place a warning banner into the consolidated panel (fallback: above the grid).
+function _mountWarning(banner) {
+  const host = _warningsHost();
+  if (host) { host.appendChild(banner); _refreshWarningsPanel(); return; }
+  const anchor = document.getElementById('grid-scroll-wrap');
+  if (anchor) anchor.before(banner);
+}
+
 function showLunchOutOfHoursWarning() {
   const existing = document.getElementById('lunch-ooh-banner');
   if (existing) existing.remove();
@@ -253,8 +305,7 @@ function showLunchOutOfHoursWarning() {
     </div>
     <button class="btn-link setup-banner-link">Fix in School Info →</button>
   `;
-  const scrollWrap = document.getElementById('grid-scroll-wrap');
-  if (scrollWrap) scrollWrap.before(banner);
+  _mountWarning(banner);
   banner.querySelector('.setup-banner-link').addEventListener('click', () => navigateTo('school'));
 }
 
@@ -278,8 +329,7 @@ function showOverBudgetWarning() {
     ).join('')}</ul></div>` +
     `<button class="btn-link setup-banner-link">Fix in Block Types →</button>`;
 
-  const scrollWrap = document.getElementById('grid-scroll-wrap');
-  if (scrollWrap) scrollWrap.before(banner);
+  _mountWarning(banner);
   banner.querySelector('.setup-banner-link').addEventListener('click', () => {
     if (typeof navigateTo === 'function') navigateTo('blocks');
     if (typeof renderBlocks === 'function') renderBlocks();
@@ -347,8 +397,7 @@ function showRecessSpacingWarning() {
     `<ul>${items.map(t => `<li>${t}</li>`).join('')}</ul></div>` +
     `<button class="btn-link setup-banner-link">Fix in School Info →</button>`;
 
-  const scrollWrap = document.getElementById('grid-scroll-wrap');
-  if (scrollWrap) scrollWrap.before(banner);
+  _mountWarning(banner);
   banner.querySelector('.setup-banner-link').addEventListener('click', () => navigateTo('school'));
 }
 
@@ -377,8 +426,7 @@ function showMissingRequirementsWarning() {
     <strong>${missing.map(bt => bt.name).join(', ')}</strong>.
     <button class="btn-link setup-banner-link" data-nav="blocks">Go to Block Types to set minutes →</button>
   `;
-  const scrollWrap = document.getElementById('grid-scroll-wrap');
-  if (scrollWrap) scrollWrap.before(banner);
+  _mountWarning(banner);
   banner.querySelector('.setup-banner-link').addEventListener('click', () => {
     navigateTo('blocks'); renderBlocks();
   });
@@ -512,8 +560,6 @@ function showUnplacedBlocksBanner() {
       });
   });
 
-  const scrollWrap = document.getElementById('grid-scroll-wrap');
-
   if (fullIssues.length) {
     const banner = document.createElement('div');
     banner.id        = 'unplaced-blocks-banner';
@@ -522,7 +568,7 @@ function showUnplacedBlocksBanner() {
       `⚠ <strong>Required blocks couldn't be placed — not enough room:</strong> ` +
       fullIssues.map(i => `${GRADE_LABELS[i.grade] || i.grade}: <strong>${escHtml(i.label)}</strong>`).join(', ') +
       `. Try clearing and re-filling the grade, or reduce time requirements in Block Types.`;
-    if (scrollWrap) scrollWrap.before(banner);
+    _mountWarning(banner);
     return;
   }
 
@@ -535,7 +581,7 @@ function showUnplacedBlocksBanner() {
       `ℹ <strong>On early-release day${altDays.length !== 1 ? 's' : ''} (${escHtml(altLabel)}), some blocks were skipped — not enough time:</strong> ` +
       altIssues.map(i => `${GRADE_LABELS[i.grade] || i.grade}: <strong>${escHtml(i.label)}</strong>`).join(', ') +
       `. Full days are complete. This is normal for shortened days.`;
-    if (scrollWrap) scrollWrap.before(banner);
+    _mountWarning(banner);
   }
 }
 
@@ -1660,8 +1706,7 @@ function showSpecialsConflictWarning() {
   ).join('');
   banner.innerHTML = `⚠ Specials teacher conflict — same teacher scheduled for multiple classes at the same time:<ul style="margin:6px 0 0 16px;padding:0">${list}</ul>`;
 
-  const topBar = document.querySelector('.grid-top-bar');
-  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+  _mountWarning(banner);
 }
 
 // ── Specials missing warning ──────────────────────────────────────────────────
@@ -1677,8 +1722,7 @@ function showSpecialsMissingWarning(failedGrades) {
   const gradeList = failedGrades.map(g => `<li><strong>${escHtml(g)}</strong> — no free slot found where all specials teachers are available. Check whether fixed blocks (recess, lunch) are fragmenting the day, or if teachers are fully booked by other grades.</li>`).join('');
   banner.innerHTML = `⚠ Specials could not be scheduled for ${failedGrades.length === 1 ? 'one grade' : failedGrades.length + ' grades'}:<ul style="margin:6px 0 0 16px;padding:0">${gradeList}</ul>`;
 
-  const topBar = document.querySelector('.grid-top-bar');
-  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+  _mountWarning(banner);
 }
 
 // ── Conflict banner (persistent, driven by SchedState.conflicts) ──────────────
@@ -1736,8 +1780,7 @@ function showConflictBanner() {
     `<button id="conflict-banner-dismiss" style="background:none;border:none;cursor:pointer;font-size:16px;flex-shrink:0">×</button>` +
     `</div>`;
 
-  const topBar = document.querySelector('.grid-top-bar');
-  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+  _mountWarning(banner);
 
   document.getElementById('conflict-banner-dismiss').addEventListener('click', () => banner.remove());
 }
@@ -4020,8 +4063,7 @@ function showSpecialsCoverageBanner() {
     `Try freeing up schedule space around the specials block, or check teacher availability in the Specials tab.` +
     `</div></div>`;
 
-  const topBar = document.querySelector('.grid-top-bar');
-  if (topBar) topBar.insertAdjacentElement('afterend', banner);
+  _mountWarning(banner);
 }
 
 // ── Specials Schedule View ────────────────────────────────────────────────────
