@@ -264,17 +264,18 @@ function migrateSubBlockMinutes() {
 // ── Persistence: localStorage (immediate) ───────────────────────────────────
 function saveToLocal() {
   const payload = {
-    school:           SchedState.school,
-    staff:            SchedState.staff,
-    blockTypes:       SchedState.blockTypes,
-    masterSchedule:   SchedState.masterSchedule,
-    conflicts:        SchedState.conflicts,
-    specialsSchedule: SchedState.specialsSchedule,
-    iaAllocations:    SchedState.iaAllocations,
-    iaSchedule:       SchedState.iaSchedule,
-    duties:           SchedState.duties,
-    _tools:           SchedState._tools,
-    _clsData:         SchedState._clsData,
+    school:              SchedState.school,
+    staff:               SchedState.staff,
+    blockTypes:          SchedState.blockTypes,
+    masterSchedule:      SchedState.masterSchedule,
+    conflicts:           SchedState.conflicts,
+    specialsSchedule:    SchedState.specialsSchedule,
+    iaAllocations:       SchedState.iaAllocations,
+    iaSchedule:          SchedState.iaSchedule,
+    duties:              SchedState.duties,
+    iaStalePurgeCount:   SchedState.iaStalePurgeCount || 0,
+    _tools:              SchedState._tools,
+    _clsData:            SchedState._clsData,
   };
   localStorage.setItem('cl_schedule_data', JSON.stringify(payload));
   if (SchedState.school.name) {
@@ -331,6 +332,7 @@ function loadFromLocal() {
     if (data.iaAllocations)    SchedState.iaAllocations    = data.iaAllocations;
     if (data.iaSchedule)       SchedState.iaSchedule       = data.iaSchedule;
     if (data.duties)           SchedState.duties           = data.duties;
+    if (data.iaStalePurgeCount) SchedState.iaStalePurgeCount = data.iaStalePurgeCount;
     if (data._tools)           SchedState._tools           = data._tools;
     if (data._clsData)         SchedState._clsData         = data._clsData;
     // Defaults for fields added after initial release

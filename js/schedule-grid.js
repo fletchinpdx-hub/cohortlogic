@@ -2638,6 +2638,7 @@ function autoPopulateIfEmpty() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
+  _cleanupStaleIAAssignments();
   saveToLocal();
   rebuildTbody();
   showSpecialsConflictWarning();
@@ -2651,6 +2652,7 @@ function fillMissingRequirements() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
+  _cleanupStaleIAAssignments();
   saveToLocal();
   rebuildTbody();
   showLunchOutOfHoursWarning();
@@ -2738,7 +2740,48 @@ function showCopyDayMenu() {
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 
+// Removes iaSchedule entries whose underlying master-schedule block no longer exists.
+// Called whenever the master schedule is saved or auto-filled.
+// Accumulates removed count in SchedState.iaStalePurgeCount for the IA tab banner.
+function _cleanupStaleIAAssignments() {
+  const ia = SchedState.iaSchedule || {};
+  let removed = 0;
+
+  DAYS.forEach(day => {
+    const dayMap = ia[day] || {};
+    Object.keys(dayMap).forEach(iaId => {
+      const slots = dayMap[iaId];
+      Object.keys(slots).forEach(slot => {
+        const entry = slots[slot];
+        if (!entry) return;
+
+        let gradeToCheck = null;
+        if (entry.targetType === 'grade') {
+          gradeToCheck = entry.targetId;
+        } else if (entry.targetType === 'class') {
+          const teacher = (SchedState.staff || []).find(s => s.id === entry.targetId);
+          gradeToCheck = teacher?.gradeAssignment || null;
+        }
+
+        if (gradeToCheck) {
+          const masterSlot = (SchedState.masterSchedule[day] || {})[gradeToCheck]?.[slot];
+          if (!masterSlot) {
+            delete slots[slot];
+            removed++;
+          }
+        }
+      });
+    });
+  });
+
+  if (removed > 0) {
+    SchedState.iaStalePurgeCount = (SchedState.iaStalePurgeCount || 0) + removed;
+    saveToLocal();
+  }
+}
+
 function saveMaster() {
+  _cleanupStaleIAAssignments();
   saveToLocal();
   const btn = document.getElementById('master-save-btn');
   if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.textContent = 'Save'; }, 1500); }
@@ -2746,6 +2789,7 @@ function saveMaster() {
 }
 
 function saveMasterAndNext() {
+  _cleanupStaleIAAssignments();
   saveToLocal();
   navigateTo('specials-sched');
   renderSpecialsScheduleView();
@@ -2967,6 +3011,17 @@ function renderIAScheduleView() {
       </div>`;
   }
 
+  const stalePurgeCount = SchedState.iaStalePurgeCount || 0;
+  if (stalePurgeCount > 0) SchedState.iaStalePurgeCount = 0;
+  const staleBanner = stalePurgeCount > 0
+    ? `<div class="setup-banner ia-stale-banner" id="ia-stale-banner">
+        <strong>⚠ ${stalePurgeCount} IA assignment${stalePurgeCount !== 1 ? 's were' : ' was'} removed</strong>
+        because the master schedule changed and those time slots no longer have a block.
+        Please review IA schedules and re-assign as needed.
+        <button class="btn-link ia-stale-dismiss-btn" style="margin-left:12px">Dismiss</button>
+       </div>`
+    : '';
+
   container.innerHTML = `
     <div class="ia-view-shell">
       <div class="ia-view-top-bar">
@@ -2980,6 +3035,7 @@ function renderIAScheduleView() {
           <button class="btn btn-outline btn-sm" id="ia-print-btn">Print</button>
         </div>
       </div>
+      ${staleBanner}
       ${allocBar}
       ${subTabsHtml}
       <div class="ia-view-content">
@@ -2993,6 +3049,14 @@ function renderIAScheduleView() {
 
   wireIAViewEvents(container, ias);
   if (iaSchedUI.viewMode === 'individual') _renderIAIndSummary(iaSchedUI.focusedIAId);
+
+  const dismissBtn = container.querySelector('.ia-stale-dismiss-btn');
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', () => {
+      const banner = container.querySelector('#ia-stale-banner');
+      if (banner) banner.remove();
+    });
+  }
 }
 
 function buildIAPaletteHtml(allocs) {
