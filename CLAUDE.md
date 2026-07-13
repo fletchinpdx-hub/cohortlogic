@@ -49,7 +49,7 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 ### 3. Building Schedule Builder (`schedule-app.html`)
 Master schedule builder for school administrators. Phase 1 complete; Phase 2 Specials Schedule view live.
 
-**Cache buster:** currently `?v=127` on all 5 script tags AND both CSS links in `schedule-app.html`. Bump ALL on every deploy.
+**Cache buster:** currently `?v=143` on all 5 script tags AND both CSS links in `schedule-app.html`. Bump ALL on every deploy.
 
 **Data model — file-based, not Supabase:**
 - Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
@@ -111,6 +111,9 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - Block resize: drag bottom edge of any non-fixed, non-locked block to extend or shrink; blue outline preview; `commitResize()` handles extend (placeBlock) and shrink (restores displaced conflicts)
 - Context menu: right-click any filled non-specials cell → replace with another block type, clear, or lock/unlock grade
 - Palette tool model (v136): `gridUI.tool` is `'move' | 'erase' | btId`; `gridUI.activeBtId` mirrors it (null for move/erase). Move is a distinct, always-visible, default-active palette item — separate from Eraser. Previously "no color selected" was overloaded for both, so Eraser silently hijacked filled-cell clicks into drag-to-move and a plain click did nothing. `onPointerDown`'s move-mode branch now gates on `gridUI.tool === 'move'` specifically. `selectGridTool(tool)` is the one place that sets both fields; Esc calls it with `'move'` (wired in the same keydown listener as Cmd/Ctrl+Z, master-schedule-only).
+- Palette exclusions (v141/v142): `buildPaletteGroups` filters out `PALETTE_EXCLUDE` = `bt_lunch, bt_recess, bt_mm, bt_arr` — auto-placed/config-driven blocks that aren't painted on the grid. Removing the last block in a category also drops that empty category header. (`bt_dis`/Dismissal Duty is still shown — remove similarly if requested.)
+- Master Schedule specials color (v140): `buildSpecialsCell` renders ALL specials in the uniform `bt_spec` color (`fallback`), not per-subject — the subject name stays in the label. Per-subject colors are kept in the Specials Schedule and Class Schedule views (separate renderers: `getClassSlotEntry`, the specials-teacher grid).
+- XLSX export blending (v143): `_blendColumnRuns(rows, cols, firstRow, lastRow)` merges each column's contiguous same-value runs into one vertical cell (label in the top row, continuations blanked) and returns `!merges` ranges, so a 60-min block is one merged cell instead of 12 repeated rows. Applied to the per-day master tabs and the Class Schedules tab (IA/Specials tabs already collapse to ranges). NOTE: the app ships the FREE SheetJS build (`xlsx.full.min.js`), which writes structure/merges but NOT cell styles — no colors/centering/borders on export without switching to the paid styled build.
 - IA re-assign pre-fill: opening the IA block panel pre-selects existing IA assignments, alloc, and note for that block
 - IA stale-assignment cleanup (v117): `_cleanupStaleIAAssignments()` removes `iaSchedule` entries whose master-schedule slot no longer has a block (master schedule wins over IA schedule — no locking). Called from `saveMaster`/`saveMasterAndNext`/`autoPopulateIfEmpty`/`fillMissingRequirements`. Accumulates a count in `SchedState.iaStalePurgeCount` (persisted); `renderIAScheduleView()` shows a dismissible banner and clears the count.
 - Staff `.color`: only used/shown for IAs (dot on schedule). Teachers and specials teachers have no color swatch in roster table, no color border on review chips, and no color picker in the staff form (picker hidden unless role = IA)
@@ -412,9 +415,11 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 ## Pending / to do
 
 ### Schedule Builder
-- **Specials scheduling algorithm** — `buildSpecialsSchedule()` finds one grade-wide time slot per day; if a teacher is already booked by an earlier grade that day, the later grade silently misses specials. Coverage gaps are now detected and surfaced but not auto-resolved. Consider: per-subject independent slot search, or grade priority ordering
-- **Class Schedules view** — Phase 2, placeholder card; not yet built
-- **Export view** — Phase 2/Finish, placeholder card; not yet built
+- **Specials scheduling** — substantially reworked (v137–v139): hardest-grade-first placement order, two-phase (all carousels then recovery), prefer ONE fixed time per grade across all days (`findGradeFixedTime`), and specials get first pick of the day (instruction cleared before placement, re-flowed after). Remaining hard limit: consolidation is bounded by specials-teacher count free at a shared time; genuine shortfalls still stagger via recovery. Verify against real teacher/cpw data.
+- **Class Schedules view** — BUILT (`renderClassSchedulesView`; Single Class `buildClassWeekGrid` + Compare Grade `buildGradeCompareGrid`).
+- **Export view** — BUILT (`exportXLSX` + `exportJSON`; per-day master tabs, Class Schedules, Specials, IA, School Info, Staff). Potential upgrade: switch to SheetJS **styled/paid build** for cell colors/centering/borders on the XLSX export (free build writes merges but no styles).
+- **Dismissal Duty (`bt_dis`)** — still appears in the Master Schedule palette (Arrival Duty was removed in v142); remove via `PALETTE_EXCLUDE` if it's non-paintable in the user's workflow.
+- **CICO** — re-QA the entry/students/settings/reports flows after the v-Jul-2026 CSP handler migration (see security table note); those interactions were dead in prod and are now fixed but need a real click-through.
 - **FERPA privacy policy page** — older pending item
 - **Teacher-level RLS** — on hold; needs product decisions
 
