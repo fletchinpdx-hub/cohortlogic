@@ -661,19 +661,26 @@ function computeRecessTimes(s) {
         return { start: st, end: st + Number(r.duration) };
       });
 
-      let best = null; // { t, overlaps }
+      let best    = null; // legal candidate: no forbidden overlaps { t, overlaps }
+      let bestAny = null; // least-bad fallback ignoring permissions { t, forbidden, overlaps }
       for (let t = Math.ceil(winStart / 5) * 5; t <= winEnd; t += 5) {
         const gapBad = ownIntervals.some(o => t < o.end + GAP && o.start - GAP < t + dur);
         if (gapBad) continue;
-        const others = placed.filter(p => p.g !== g && t < p.end && p.start < t + dur);
-        if (others.some(p => !_recessOverlapAllowed(s, g, p.g))) continue;
+        const others    = placed.filter(p => p.g !== g && t < p.end && p.start < t + dur);
+        const forbidden = others.filter(p => !_recessOverlapAllowed(s, g, p.g)).length;
+        if (!bestAny || forbidden < bestAny.forbidden ||
+            (forbidden === bestAny.forbidden && others.length < bestAny.overlaps)) {
+          bestAny = { t, forbidden, overlaps: others.length };
+        }
+        if (forbidden) continue;
         if (!others.length) { best = { t, overlaps: 0 }; break; } // clear slot — done
         if (!best || others.length < best.overlaps) best = { t, overlaps: others.length };
       }
 
-      // No legal start even with permitted overlaps — best-effort legacy placement;
-      // the recess warnings banner surfaces whatever this collides with.
+      // No legal start even with permitted overlaps — take the in-window candidate
+      // with the fewest forbidden overlaps (warned later), else the legacy clamp.
       const startMins = best ? best.t
+        : bestAny ? bestAny.t
         : Math.round(Math.max(Math.min(fbMins + 60, winEnd), fbMins + 30) / 5) * 5;
 
       result[g][i] = { id: sl.id, duration: sl.duration, start: toTime(startMins),
@@ -859,16 +866,26 @@ function saveSchoolAndContinue() {
   preFillFixedBlocks();
   updateSidebarStatus();
 
-  // Check for recess spacing and lunch errors; show warnings but don't block navigation
+  // Recess/lunch warnings pause navigation ONCE so they're seen — but never block.
+  // Everything is already saved at this point; "Continue anyway" proceeds as-is.
   const schoolWarnings = _computeSchoolInfoWarnings(s);
   if (schoolWarnings.length) {
     const warnEl = document.getElementById('school-warnings');
     if (warnEl) {
       warnEl.innerHTML = schoolWarnings.map(w =>
         `<div class="setup-banner setup-banner-error" style="margin-bottom:8px">${w}</div>`
-      ).join('');
+      ).join('') +
+      `<div class="setup-banner" style="margin-bottom:8px">
+        Your settings are <strong>saved</strong> — these are warnings, not blockers.
+        Fix them above and save again, or
+        <button class="btn-link" id="school-continue-anyway">continue to Staff Roster anyway →</button>
+      </div>`;
       warnEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      return; // Show warnings in-place; user must re-save or dismiss to continue
+      document.getElementById('school-continue-anyway').addEventListener('click', () => {
+        navigateTo('staff');
+        renderStaff();
+      });
+      return;
     }
   }
 
