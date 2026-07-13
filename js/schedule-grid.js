@@ -2279,6 +2279,16 @@ function buildSpecialsSchedule(force = false) {
   SchedState.specialsSchedule = {};
   if (!specials.length) return;
 
+  // Give specials FIRST PICK of the day. Clear every grade's instructional blocks
+  // before placing specials, so findGradeFixedTime can lock a clean, consistent
+  // time slot instead of squeezing specials into whatever gaps instruction left
+  // (which forced the scattered per-day fallback). Callers re-flow instruction
+  // around the placed specials afterward: autoPopulateIfEmpty / fillMissing-
+  // Requirements / saveSpecialsAndContinue all run _populateGradeData for every
+  // grade. Because this only runs on a genuine rebuild (empty specialsSchedule or
+  // force), it never wipes instruction on ordinary renders (those skip above).
+  gradesSorted().forEach(grade => _clearRequirementsForGrade(grade));
+
   const booked = {};
   // Mark every 5-min slot the teacher is occupied (not just the start) so
   // overlapping blocks across grades are correctly detected as conflicts.

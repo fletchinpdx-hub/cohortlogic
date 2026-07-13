@@ -1365,10 +1365,21 @@ function saveSpecialsAndContinue() {
       color:          row.querySelector('.sp-color-input').value,
     };
   }).filter(sp => sp.name);
-  // Specials config changed — clear the class-level schedule so the next Master
-  // Schedule visit rebuilds it fresh. (buildSpecialsSchedule skips rebuilding
-  // while entries exist, to preserve manual moves on the master grid.)
+  // Specials config changed — take a full fresh pass right now (data only) so the
+  // new schedule is ready no matter which view opens next, rather than waiting for
+  // a Master Schedule visit. buildSpecialsSchedule(true) clears specials + gives
+  // them first pick of the day (clearing instruction), then instruction re-flows
+  // around them. Only do this once a master schedule already exists.
   SchedState.specialsSchedule = {};
+  const built = SchedState.masterSchedule && Object.keys(SchedState.masterSchedule).length &&
+                gradesSorted().length;
+  if (built && typeof buildSpecialsSchedule === 'function') {
+    buildSpecialsSchedule(true);
+    if (typeof preFillFixedBlocks === 'function') preFillFixedBlocks();
+    if (typeof _populateGradeData === 'function') {
+      gradesSorted().forEach(g => _populateGradeData(g, false, null));
+    }
+  }
   saveToLocal();
   updateSidebarStatus();
   navigateTo('blocks');
