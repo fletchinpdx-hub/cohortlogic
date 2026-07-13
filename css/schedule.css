@@ -105,6 +105,9 @@
 }
 .palette-sub-item { padding-left: 22px; }
 
+.palette-move {
+  padding-top: 8px;
+}
 .palette-eraser {
   margin-bottom: 4px;
   border-bottom: 1px solid var(--gray-200);
@@ -117,6 +120,17 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+.palette-tool-icon {
+  width: 10px;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Erase tool: distinct cursor over filled cells so it reads differently from Move */
+.erase-tool .grid-cell.filled { cursor: crosshair; }
 
 .palette-name { flex: 1; }
 

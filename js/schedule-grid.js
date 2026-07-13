@@ -9,6 +9,12 @@ let currentGrades = [];
 const gridUI = {
   activeDay:     'Monday',
   activeBtId:    null,
+  tool:          'move',    // 'move' | 'erase' | btId — which palette tool is selected.
+                             // activeBtId mirrors this: null for move/erase, btId for paint.
+                             // Kept as a separate field (rather than just null) so
+                             // pointerdown can tell "no block selected because Move is
+                             // active" apart from "no block selected because Erase is
+                             // active" — those need different click behavior.
   visibleGrades: null,      // null = all; Set<grade> when filtered
   lockedGrades:  new Set(), // grades protected from any change
   undoStack:     [],        // array of masterSchedule snapshots
@@ -707,9 +713,13 @@ function renderMasterSchedule() {
       <!-- Palette -->
       <div class="palette-panel" id="palette-panel">
         <div class="palette-header">Block Types</div>
-        <div class="palette-hint">Select a type, then click or drag on the grid.</div>
+        <div class="palette-hint">Select a type to paint, or use Move to drag blocks. Press Esc to switch back to Move.</div>
 
-        <div class="palette-item palette-eraser ${gridUI.activeBtId === null ? 'active' : ''}" id="palette-eraser">
+        <div class="palette-item palette-move ${gridUI.tool === 'move' ? 'active' : ''}" id="palette-move" title="Drag blocks to reposition them (default)">
+          <span class="palette-tool-icon">&#9995;</span>
+          <span class="palette-name">Move</span>
+        </div>
+        <div class="palette-item palette-eraser ${gridUI.tool === 'erase' ? 'active' : ''}" id="palette-eraser" title="Click or drag to clear blocks">
           <span class="palette-dot" style="background:#d1d5db;border:1px solid #9ca3af"></span>
           <span class="palette-name">Eraser</span>
         </div>
@@ -895,21 +905,23 @@ function buildPaletteGroups() {
   }).join('');
 }
 
+function selectGridTool(tool) {
+  gridUI.tool       = tool;
+  gridUI.activeBtId = (tool === 'move' || tool === 'erase') ? null : tool;
+  syncPaletteHighlight();
+}
+
 function wirePalette() {
-  document.getElementById('palette-eraser').addEventListener('click', () => {
-    gridUI.activeBtId = null;
-    syncPaletteHighlight();
-  });
+  document.getElementById('palette-move').addEventListener('click', () => selectGridTool('move'));
+  document.getElementById('palette-eraser').addEventListener('click', () => selectGridTool('erase'));
   document.querySelectorAll('.palette-item[data-bt-id]').forEach(item => {
-    item.addEventListener('click', () => {
-      gridUI.activeBtId = item.dataset.btId;
-      syncPaletteHighlight();
-    });
+    item.addEventListener('click', () => selectGridTool(item.dataset.btId));
   });
 }
 
 function syncPaletteHighlight() {
-  document.getElementById('palette-eraser').classList.toggle('active', gridUI.activeBtId === null);
+  document.getElementById('palette-move')?.classList.toggle('active', gridUI.tool === 'move');
+  document.getElementById('palette-eraser')?.classList.toggle('active', gridUI.tool === 'erase');
   document.querySelectorAll('.palette-item[data-bt-id]').forEach(item => {
     const id = item.dataset.btId;
     const parentId = id.includes('|') ? id.split('|')[0] : id;
@@ -918,9 +930,12 @@ function syncPaletteHighlight() {
     item.classList.toggle('active', on);
     item.style.background = on && bt ? `${bt.color}22` : '';
   });
-  // Show grab cursor on filled cells when no block type is selected (move mode)
+  // Grab cursor in Move tool; crosshair in Erase tool
   const wrap = document.getElementById('grid-scroll-wrap');
-  if (wrap) wrap.classList.toggle('no-tool', gridUI.activeBtId === null);
+  if (wrap) {
+    wrap.classList.toggle('no-tool', gridUI.tool === 'move');
+    wrap.classList.toggle('erase-tool', gridUI.tool === 'erase');
+  }
 }
 
 // ── Grid row/cell builders ────────────────────────────────────────────────────
@@ -1083,15 +1098,16 @@ function wireGridPointer() {
   wrap.addEventListener('pointercancel', onPointerUp);
   wrap.addEventListener('contextmenu', onContextMenu);
 
-  // Cmd/Ctrl+Z — undo (registered once for the lifetime of the page)
+  // Cmd/Ctrl+Z — undo; Escape — back to Move tool (registered once for the page)
   if (!_gridKeydownWired) {
     _gridKeydownWired = true;
     document.addEventListener('keydown', e => {
+      if (!document.getElementById('view-master')?.classList.contains('active')) return;
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'z') {
-        if (document.getElementById('view-master')?.classList.contains('active')) {
-          e.preventDefault();
-          undoLastMove();
-        }
+        e.preventDefault();
+        undoLastMove();
+      } else if (e.key === 'Escape' && gridUI.tool !== 'move') {
+        selectGridTool('move');
       }
     });
   }
@@ -1185,8 +1201,12 @@ function onPointerDown(e) {
   const slot     = cell.dataset.time;
   const existing = getBlock(gridUI.activeDay, grade, slot);
 
-  // Move mode: no active paint tool + clicking a filled block
-  if (!gridUI.activeBtId && existing) {
+  // Move mode: Move tool selected + clicking a filled block. (Previously this
+  // fired whenever no paint color was active, which meant the Eraser tool — also
+  // "no color" — hijacked clicks into picking the block up to drag instead of
+  // erasing it; a plain click then did nothing at all. Gating on the tool
+  // explicitly fixes both: Move drags, Erase actually erases on click.)
+  if (gridUI.tool === 'move' && existing) {
     // Conflict split cell: the LEFT half is the primary block, the RIGHT half is
     // the displaced (conflict) block. Clicking the right half picks up the
     // conflict block so either side of a shared slot can be moved.
