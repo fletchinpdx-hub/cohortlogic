@@ -3184,7 +3184,7 @@ function renderIAScheduleView() {
       <div class="ia-view-top-bar">
         <div>
           <h1 class="grid-title">IA Schedules</h1>
-          <p class="grid-subtitle">View IA schedules here. To assign IAs, go to the Master Schedule and click a block.</p>
+          <p class="grid-subtitle">Click any assignment to edit or delete it. To add new assignments, go to the Master Schedule and click a block.</p>
         </div>
         <div class="ia-view-top-actions">
           <button class="btn btn-primary btn-sm" id="ia-go-master-btn">← Assign in Master Schedule</button>
@@ -3484,7 +3484,7 @@ function buildIAGrid(day, ias) {
         isEnd  ? `border-bottom:2px solid ${color}80` : '',
       ].filter(Boolean).join(';');
 
-      return `<td class="ia-cell filled${isCont ? ' cont' : ''}" data-ia="${ia.id}" data-slot="${slot}"
+      return `<td class="ia-cell filled ia-assign-cell${isCont ? ' cont' : ''}" data-ia="${ia.id}" data-slot="${slot}" data-day="${day}"
                style="${styleStr}" title="${escHtml(title)}">${inner}</td>`;
     }).join('');
 
@@ -4320,6 +4320,107 @@ function renderSpecialsScheduleView() {
     const entry = (SchedState.specialsSchedule[clsId] || {})[day];
     if (!entry) return;
     openSpecialsOverridePanel(cell, clsId, day, entry);
+  });
+}
+
+// ── IA assignment edit / delete ──────────────────────────────────────────────
+
+// The contiguous run of 5-min slots (same alloc + target) that form one visible
+// IA assignment block, containing `slot`. Walks by time so it's independent of
+// which slot list the grid rendered.
+function _iaAssignmentRun(day, iaId, slot) {
+  const map  = (SchedState.iaSchedule[day] || {})[iaId] || {};
+  const base = map[slot];
+  if (!base) return [];
+  const same = e => e && e.allocId === base.allocId &&
+    e.targetType === base.targetType && e.targetId === base.targetId;
+  const run = [slot];
+  for (let t = timeToMins(slot) - 5; same(map[minsToTime(t)]); t -= 5) run.unshift(minsToTime(t));
+  for (let t = timeToMins(slot) + 5; same(map[minsToTime(t)]); t += 5) run.push(minsToTime(t));
+  return run;
+}
+
+// Anchored popover to edit (budget category, note) or delete an IA assignment,
+// opened by clicking an assignment cell in either IA Schedule sub-view.
+function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
+  document.getElementById('ia-assign-editor')?.remove();
+  const map   = (SchedState.iaSchedule[day] || {})[iaId] || {};
+  const entry = map[slot];
+  if (!entry) return;
+
+  const run    = _iaAssignmentRun(day, iaId, slot);
+  const ia     = (SchedState.staff || []).find(s => s.id === iaId);
+  const allocs = SchedState.iaAllocations || [];
+  const target = _iaTargetLabel(entry);
+  const grade  = entry.targetType === 'grade' ? entry.targetId : null;
+  const btId   = grade ? getBlock(day, grade, slot) : null;
+  const btName = btId ? getBtName(btId) : '';
+  const startSlot = run[0];
+  const endMins   = timeToMins(run[run.length - 1]) + 5;
+  const timeStr   = `${fmtTime12(startSlot)} – ${fmtTime12(minsToTime(endMins))} · ${endMins - timeToMins(startSlot)} min`;
+
+  const allocOpts = allocs.map(a =>
+    `<option value="${escHtml(a.id)}"${a.id === entry.allocId ? ' selected' : ''}>${escHtml(a.name)}</option>`
+  ).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'ia-assign-editor';
+  panel.className = 'override-panel';
+  panel.innerHTML = `
+    <div class="override-panel-header">
+      <span class="override-panel-title">${escHtml(ia?.name || 'IA')} · ${escHtml(day.slice(0, 3))}</span>
+      <button class="override-panel-close" id="iae-close">&#x2715;</button>
+    </div>
+    <div class="override-panel-body">
+      <div class="ia-editor-meta">
+        <div><strong>${escHtml(target || '(assignment)')}</strong>${btName ? ' · ' + escHtml(btName) : ''}</div>
+        <div class="ia-editor-time">${escHtml(timeStr)}</div>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Budget category</label>
+        <select id="iae-alloc" class="override-select">${allocOpts || '<option value="">(no categories)</option>'}</select>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Note</label>
+        <textarea id="iae-note" class="override-select" rows="2" placeholder="Optional">${escHtml(entry.note || '')}</textarea>
+      </div>
+      <div class="override-actions">
+        <button class="btn btn-primary btn-sm" id="iae-save">Save</button>
+        <button class="btn btn-outline btn-sm" id="iae-cancel">Cancel</button>
+        <button class="btn-link ia-editor-delete" id="iae-delete">Delete assignment</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(panel);
+  const rect = anchorCell.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let top  = rect.bottom + window.scrollY + 4;
+  let left = rect.left   + window.scrollX;
+  if (left + 300 > vw) left = Math.max(8, vw - 308);
+  if (rect.bottom + 240 > vh) top = rect.top + window.scrollY - 244;
+  panel.style.top  = top  + 'px';
+  panel.style.left = left + 'px';
+
+  const close = () => panel.remove();
+  document.getElementById('iae-close').addEventListener('click', close);
+  document.getElementById('iae-cancel').addEventListener('click', close);
+  document.getElementById('iae-save').addEventListener('click', () => {
+    const newAlloc = document.getElementById('iae-alloc').value;
+    const newNote  = document.getElementById('iae-note').value.trim();
+    run.forEach(s => {
+      const e = map[s];
+      if (!e) return;
+      if (newAlloc) e.allocId = newAlloc;
+      if (newNote) e.note = newNote; else delete e.note;
+    });
+    saveToLocal();
+    renderIAScheduleView();
+  });
+  document.getElementById('iae-delete').addEventListener('click', () => {
+    if (!confirm('Delete this IA assignment? This removes it from the IA schedule.')) return;
+    run.forEach(s => { delete map[s]; });
+    saveToLocal();
+    renderIAScheduleView();
   });
 }
 
@@ -5389,7 +5490,7 @@ function buildIndividualIAGrid(iaId) {
         isCont ? 'border-top:1px solid transparent' : `border-top:2px solid ${color}80`,
         isEnd  ? `border-bottom:2px solid ${color}80` : '',
       ].filter(Boolean).join(';');
-      return `<td class="ia-ind-cell filled${isCont ? ' cont' : ''}" style="${styleStr}">${inner}</td>`;
+      return `<td class="ia-ind-cell filled ia-assign-cell${isCont ? ' cont' : ''}" data-day="${day}" data-slot="${slot}" style="${styleStr}">${inner}</td>`;
     }).join('');
 
     return `<tr class="sched-row${isMajor ? ' row-hour' : ''}">
@@ -5587,13 +5688,25 @@ function wireIAViewEvents(container, ias) {
     openDutyPanel(null, iaSchedUI.focusedIAId);
   });
 
-  // Click a duty cell to edit that duty
+  // Individual view: click a duty cell to edit the duty; click an assignment cell
+  // to edit or delete that assignment.
   container.querySelector('.ia-ind-grid-wrap')?.addEventListener('click', e => {
-    const cell = e.target.closest('.duty-cell');
-    if (!cell) return;
-    const dutyId = cell.dataset.dutyId;
-    const duty   = (SchedState.duties || []).find(d => d.id === dutyId);
-    if (duty) openDutyPanel(duty, iaSchedUI.focusedIAId);
+    const dutyCell = e.target.closest('.duty-cell');
+    if (dutyCell) {
+      const duty = (SchedState.duties || []).find(d => d.id === dutyCell.dataset.dutyId);
+      if (duty) openDutyPanel(duty, iaSchedUI.focusedIAId);
+      return;
+    }
+    const cell = e.target.closest('.ia-assign-cell');
+    if (cell?.dataset.slot) openIAAssignmentEditor(cell, cell.dataset.day, iaSchedUI.focusedIAId, cell.dataset.slot);
+  });
+
+  // All-IAs view: click an assignment cell to edit or delete it.
+  container.querySelector('.ia-all-grid-wrap')?.addEventListener('click', e => {
+    const cell = e.target.closest('.ia-assign-cell');
+    if (cell?.dataset.ia && cell?.dataset.slot) {
+      openIAAssignmentEditor(cell, cell.dataset.day || iaSchedUI.activeDay, cell.dataset.ia, cell.dataset.slot);
+    }
   });
 
   // Day tabs (All IAs view)

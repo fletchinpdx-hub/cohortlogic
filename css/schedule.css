@@ -3259,6 +3259,20 @@
   min-width: 280px;
   z-index: 500;
 }
+
+/* Clickable IA assignment cells + their edit popover */
+.ia-assign-cell { cursor: pointer; }
+.ia-assign-cell:hover { filter: brightness(0.95); }
+.ia-editor-meta {
+  font-size: 12.5px;
+  color: #334155;
+  padding: 2px 0 8px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 8px;
+}
+.ia-editor-time { font-size: 11.5px; color: #64748b; margin-top: 2px; }
+.ia-editor-delete { color: #dc2626; margin-left: auto; }
+.ia-editor-delete:hover { color: #b91c1c; }
 .override-panel-header {
   display: flex;
   justify-content: space-between;
