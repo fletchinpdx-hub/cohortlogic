@@ -2317,7 +2317,22 @@ function buildSpecialsSchedule(force = false) {
 
   const failedGrades = [];
   const allGrades = gradesSorted();
-  allGrades.forEach(grade => {
+
+  // Place HARDEST grades first: a grade with more classes needs more specials
+  // teachers free at the same instant, so it has the fewest workable shared-times.
+  // Letting it claim its carousel slot before easier grades consume teacher
+  // availability yields tighter consolidation. (gradeIdx below still uses the
+  // stable grade order so rotation offsets don't shift with placement order.)
+  const placementOrder = [...allGrades].sort((a, b) =>
+    getClassesForGrade(b).length - getClassesForGrade(a).length);
+
+  // Two phase: run every grade's carousel placement first (Phase 1), THEN every
+  // grade's straggler recovery (Phase 2). Recovery scatters off-carousel, so
+  // deferring it keeps recovery from stealing a clean shared-time slot that a
+  // later grade's carousel still needs.
+  const recoveryQueue = [];
+
+  placementOrder.forEach(grade => {
     const classes = getClassesForGrade(grade);
 
     if (!classes.length) {
@@ -2471,10 +2486,20 @@ function buildSpecialsSchedule(force = false) {
       }
     });
 
-    // Recovery pass: fill any cpw shortfall. Try the day's carousel time first,
-    // then any open slot off-carousel.
+    // Straggler recovery for this grade is deferred to Phase 2 (after every
+    // grade's carousel is placed), so recovery's off-carousel scatter can't steal
+    // a clean shared-time slot a later grade's carousel still needs.
+    recoveryQueue.push({ grade, classes, gradeTimesPerDay });
+  });
+
+  // ── Phase 2: straggler recovery ────────────────────────────────────────────
+  // For each grade (hardest first), fill any class/subject still short of its
+  // classes-per-week. Prefer the grade's own carousel time on another day; only
+  // then fall back to any open off-carousel slot.
+  recoveryQueue.forEach(({ grade, classes, gradeTimesPerDay }) => {
     classes.forEach(cls => {
       const ss = SchedState.specialsSchedule[cls.id];
+      if (!ss) return;
       specials.forEach(sp => {
         const needed = Math.min(sp.classesPerWeek || 1, 5);
         const placed = DAYS.filter(d => ss[d]?.subjectId === sp.id && ss[d]?.teacherId).length;
@@ -4997,24 +5022,36 @@ function getClassSlotEntry(slot, grade, day, classId) {
 
   if (btId.startsWith('bt_spec')) {
     const ss = SchedState.specialsSchedule?.[classId]?.[day];
-    if (!ss?.startTime) return null;
-    const specials = SchedState.school.specials || [];
-    const sp       = specials.find(s => s.id === ss.subjectId);
-    const teacher  = SchedState.staff.find(t => t.id === ss.teacherId);
-    const dur      = sp?.duration || 45;
     const daySlots = _autoFillSlots(day);
     const slotIdx  = daySlots.indexOf(slot);
-    const startIdx = daySlots.indexOf(ss.startTime);
-    if (startIdx < 0 || slotIdx < startIdx || slotIdx >= startIdx + Math.ceil(dur / 5)) return null;
+
+    // Does THIS class's special cover this slot? If so, render the real special.
+    if (ss?.startTime) {
+      const specials = SchedState.school.specials || [];
+      const sp       = specials.find(s => s.id === ss.subjectId);
+      const teacher  = SchedState.staff.find(t => t.id === ss.teacherId);
+      const dur      = sp?.duration || 45;
+      const startIdx = daySlots.indexOf(ss.startTime);
+      if (startIdx >= 0 && slotIdx >= startIdx && slotIdx < startIdx + Math.ceil(dur / 5)) {
+        return {
+          btId, isSpecials: true,
+          subjectName: sp?.name || 'Specials',
+          teacherName: teacher ? teacher.name.split(' ')[0] : '',
+          color:       sp?.color || '#f97316',
+          duration:    dur, slotIdx, startIdx,
+        };
+      }
+    }
+
+    // The grade is on specials here, but THIS class's session is at a different
+    // time (or not this day). Render a muted "specials period" placeholder — the
+    // class isn't deleted, its own special shows at its own time. Points to that
+    // time when known so the connection is obvious.
+    const elsewhere = ss?.startTime && ss.startTime !== slot ? ss.startTime : null;
     return {
-      btId,
-      isSpecials:  true,
-      subjectName: sp?.name || 'Specials',
-      teacherName: teacher ? teacher.name.split(' ')[0] : '',
-      color:       sp?.color || '#f97316',
-      duration:    dur,
-      slotIdx,
-      startIdx,
+      btId, isSpecials: false, isSpecialsHole: true,
+      displayName: elsewhere ? `Specials · at ${fmtTime12(elsewhere)}` : 'Specials period',
+      color: '#94a3b8',
     };
   }
 
@@ -5082,7 +5119,8 @@ function buildClassScheduleCell(slot, grade, day, classId, prevSlot, nextSlot) {
     }
   }
 
-  return `<td class="grid-cell filled${isCont ? ' cont' : ''}" data-time="${slot}" style="${style}">${inner}</td>`;
+  const holeCls = entry.isSpecialsHole ? ' cls-specials-hole' : '';
+  return `<td class="grid-cell filled${isCont ? ' cont' : ''}${holeCls}" data-time="${slot}" style="${style}">${inner}</td>`;
 }
 
 // Week-at-a-glance for a single class (all 5 days, all block types).

@@ -2704,6 +2704,13 @@
 .cls-gap {
   background: transparent;
 }
+/* Off-carousel specials placeholder: the grade is on specials, this class's own
+   session is elsewhere. Muted + dashed so it reads as "accounted for", not a block. */
+.cls-specials-hole {
+  background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 6px, #eef2f6 6px, #eef2f6 12px) !important;
+  border-left-style: dashed !important;
+}
+.cls-specials-hole .cell-label { color: #94a3b8 !important; font-weight: 500; font-style: italic; }
 .cls-compare-th {
   min-width: 120px;
 }
