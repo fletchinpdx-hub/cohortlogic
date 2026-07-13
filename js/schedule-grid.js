@@ -2687,7 +2687,10 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   if (allInSpecials) {
     const entry   = specInfo.all[0];
     const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
-    const color   = sp?.color || fallback;
+    // Master Schedule shows ALL specials in the uniform bt_spec color (the subject
+    // name still appears in the label). Per-subject colors are kept in the Specials
+    // Schedule and Class Schedule views, which use their own renderers.
+    const color   = fallback;
     const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
     const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
     const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
@@ -2707,10 +2710,10 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   }
 
   // Mixed split: some classes have specials, others have a different block.
-  // Each half is independently draggable.
+  // Each half is independently draggable. Specials half uses the uniform bt_spec
+  // color too (see note above).
   const entry   = specInfo.all[0];
-  const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
-  const color   = sp?.color || fallback;
+  const color   = fallback;
   const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
   const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
 
