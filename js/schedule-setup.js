@@ -86,8 +86,20 @@ function timeSlots15(start, end) {
   return slots;
 }
 
+// Snapshot of the recess/lunch inputs that affect fixed-block placement, taken
+// when School Info renders. Compared on save so a lunch/recess/overlap change can
+// force specials to rebuild (they slot around lunch & recess).
+let _recessLunchSnapshot = null;
+function _recessLunchFingerprint(s) {
+  return JSON.stringify({
+    l: s.lunchPeriods || [], r: s.gradeRecesses || {},
+    o: s.recessOverlapGrades || {}, fb: s.firstBell, dis: s.dismissal,
+  });
+}
+
 function renderSchoolInfo() {
   const s = SchedState.school;
+  _recessLunchSnapshot = _recessLunchFingerprint(s);
 
   document.getElementById('view-school').innerHTML = `
     <div class="view-header">
@@ -861,6 +873,16 @@ function saveSchoolAndContinue() {
   });
   s.earlyReleaseDays = s.altDays.filter(a => a.earlyRelease).map(a => a.day);
   s.earlyReleaseEnd  = s.altDays.find(a => a.earlyRelease)?.earlyRelease || '';
+
+  // If lunch, recess, overlap perms, or the day's bounds changed, the fixed-block
+  // layout shifts — clear specialsSchedule so specials rebuild and re-slot around
+  // the new lunch/recess positions on the next Master Schedule visit. (Otherwise
+  // buildSpecialsSchedule skips the rebuild and a moved lunch/recess could clobber
+  // a special with no re-placement.)
+  if (_recessLunchSnapshot !== null && _recessLunchFingerprint(s) !== _recessLunchSnapshot) {
+    SchedState.specialsSchedule = {};
+  }
+  _recessLunchSnapshot = _recessLunchFingerprint(s);
 
   saveToLocal();
   preFillFixedBlocks();

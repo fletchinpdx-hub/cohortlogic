@@ -211,6 +211,11 @@ function rebuildTable() {
 }
 
 // How many consecutive same-type slots starting at this one (in same grade/day)?
+// Duration of the block's SOLID, contiguous extent from `slot` — used for the
+// cell's time-range label. Stops at a conflict slot because those render as
+// split cells, not as part of the solid block; counting through them made the
+// label's end time overshoot the visible block (e.g. "· 20 min" on a block that
+// only looks 10 min tall because the rest is a conflict zone).
 function blockDuration(day, grade, slot) {
   const btId = getBlock(day, grade, slot);
   if (!btId) return 0;
@@ -218,8 +223,10 @@ function blockDuration(day, grade, slot) {
   if (start < 0) return 0;
   let count = 0;
   for (let i = start; i < currentSlots.length; i++) {
-    if (getBlock(day, grade, currentSlots[i]) === btId) count++;
-    else break;
+    const s = currentSlots[i];
+    if (getBlock(day, grade, s) !== btId) break;
+    if (getConflicts(day, grade, s).length) break;
+    count++;
   }
   return count * 5;
 }
