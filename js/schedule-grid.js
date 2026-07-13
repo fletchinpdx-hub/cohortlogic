@@ -845,8 +845,12 @@ function buildTbodyHtml() {
 
 function buildPaletteGroups() {
   const catOrder = ['instruction','specials','intervention','behavior','transition','admin'];
+  // Lunch & recess are auto-placed from School Info and protected from editing on
+  // the grid, so they don't belong in the paint palette. (Removing the only two
+  // 'transition' blocks also drops that now-empty category header.)
+  const PALETTE_EXCLUDE = new Set(['bt_lunch', 'bt_recess']);
   return catOrder.map(cat => {
-    const blocks = SchedState.blockTypes.filter(b => b.category === cat);
+    const blocks = SchedState.blockTypes.filter(b => b.category === cat && !PALETTE_EXCLUDE.has(b.id));
     if (!blocks.length) return '';
     return `
       <div class="palette-cat-label">${BLOCK_CATEGORIES[cat] || cat}</div>
