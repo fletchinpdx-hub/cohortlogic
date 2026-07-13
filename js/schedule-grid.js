@@ -141,6 +141,9 @@ function placeBlock(day, grade, slot, btId) {
   if (gridUI.lockedGrades.has(grade)) return;
   if (btId === null) { setBlock(day, grade, slot, null); return; }
   const existing = getBlock(day, grade, slot);
+  // Fixed blocks (lunch/recess/morning meeting) own their slot — a manual paint or
+  // move never overwrites them or splits them into a conflict half-cell.
+  if (existing && existing !== btId && isFixedBlock(existing) && !isFixedBlock(btId)) return;
   if (existing && existing !== btId) addConflict(day, grade, slot, existing);
   setBlock(day, grade, slot, btId);
 }
@@ -229,6 +232,56 @@ function blockDuration(day, grade, slot) {
     count++;
   }
   return count * 5;
+}
+
+// Given a bt_recess slot, returns { id, lunchAdjacent } for the matching recess in
+// the grade's recess config, or null. Used to tell a movable free-floating recess
+// from a hard-anchored lunch recess when the user tries to drag it.
+function _recessBlockInfo(day, grade, slot) {
+  const bt = getBlock(day, grade, slot);
+  if (!bt || bt.split('|')[0] !== 'bt_recess') return null;
+  if (typeof computeRecessTimes !== 'function') return null;
+  const map       = computeRecessTimes(SchedState.school)[grade] || [];
+  const startSlot = findBlockStart(day, grade, slot);
+  const startMins = timeToMins(startSlot);
+  const hit = map.find(r => {
+    const st = timeToMins(r.start);
+    return startMins >= st && startMins < st + Number(r.duration);
+  }) || map.find(r => r.start === startSlot);
+  return hit ? { id: hit.id, lunchAdjacent: !!hit.lunchAdjacent } : null;
+}
+
+// Drop of a free-floating recess: record a manual start-time override on its recess
+// config so computeRecessTimes honors the new position on every future render.
+function _commitRecessMove(destStartIdx) {
+  const newStart = currentSlots[destStartIdx];
+  const { grade, recessId } = drag.recessMove || {};
+  const cfg = ((SchedState.school.gradeRecesses || {})[grade] || []).find(x => x.id === recessId);
+  if (!newStart || !cfg) { rebuildTbody(); return; }
+  pushUndoSnapshot();
+  cfg.manualStart = newStart;
+  preFillFixedBlocks();
+  saveToLocal();
+  rebuildTbody();
+  showRecessSpacingWarning();
+}
+
+// Removes stale conflict data involving fixed blocks: any conflict that references a
+// fixed block, or that sits under a fixed-block primary. Cleans up "PE | Recess"
+// style splits left over from before fixed blocks were protected from drags.
+function _purgeFixedBlockConflicts() {
+  DAYS.forEach(day => {
+    const dayC = SchedState.conflicts?.[day];
+    if (!dayC) return;
+    Object.keys(dayC).forEach(grade => {
+      const gc = dayC[grade];
+      Object.keys(gc).forEach(slot => {
+        if (isFixedBlock(getBlock(day, grade, slot))) { delete gc[slot]; return; }
+        const kept = (gc[slot] || []).filter(b => !isFixedBlock(b));
+        if (kept.length) gc[slot] = kept; else delete gc[slot];
+      });
+    });
+  });
 }
 
 // Shows a red banner if any lunch period falls outside the school day,
@@ -1159,7 +1212,18 @@ function onPointerDown(e) {
       drag.moveSlots        = currentSlots.slice(startIdx, endIdx + 1);
       drag.moveGrade        = grade;
       drag.moveFromConflict = true;
+      drag.recessMove       = null;
       return;
+    }
+
+    // Fixed blocks: hard-time ones (lunch, morning meeting, lunch-anchored recess)
+    // are set in School Info and can't be dragged. A FREE-FLOATING recess can be
+    // moved — the drop records a manual start override so it sticks.
+    let recessMove = null;
+    if (isFixedBlock(existing)) {
+      const rInfo = _recessBlockInfo(gridUI.activeDay, grade, slot);
+      if (!rInfo || rInfo.lunchAdjacent) return; // hard-time — not movable
+      recessMove = { grade, recessId: rInfo.id };
     }
 
     const blockStart = findBlockStart(gridUI.activeDay, grade, slot);
@@ -1169,13 +1233,14 @@ function onPointerDown(e) {
     drag.hasMoved         = false;
     drag.mode             = 'move';
     drag.startGrade       = grade;
-    drag.startSlot        = slot;
+    drag.startSlot        = blockStart;
     drag.endGrade         = grade;
-    drag.endSlot          = slot;
+    drag.endSlot          = blockStart;
     drag.moveValue        = existing;
     drag.moveSlots        = currentSlots.slice(startIdx, startIdx + blockLen);
     drag.moveGrade        = grade;
     drag.moveFromConflict = false;
+    drag.recessMove       = recessMove;
     return;
   }
 
@@ -1522,12 +1587,28 @@ function clearMovePreview() {
 }
 
 function commitMove() {
-  pushUndoSnapshot();
   const day          = gridUI.activeDay;
   const srcGrade     = drag.moveGrade;
   const destGrade    = drag.endGrade;
   const destStartIdx = currentSlots.indexOf(drag.endSlot);
   const len          = drag.moveSlots.length;
+
+  // Free-floating recess move → record a manual time override (handled separately).
+  if (drag.recessMove) { _commitRecessMove(destStartIdx); return; }
+
+  // Protect fixed blocks: a normal move can't land on top of lunch/recess/MM.
+  // Reject the whole drop (snap back) so neither block is split into half-cells.
+  // (Same-value overlap and conflict-sourced moves are exempt.)
+  if (!drag.moveFromConflict) {
+    for (let i = 0; i < len; i++) {
+      const s = currentSlots[destStartIdx + i];
+      if (!s) continue;
+      const ex = getBlock(day, destGrade, s);
+      if (ex && ex !== drag.moveValue && isFixedBlock(ex)) { rebuildTbody(); return; }
+    }
+  }
+
+  pushUndoSnapshot();
 
   // Erase source. A conflict-sourced move (right half of a split cell) removes the
   // block from the conflicts list and leaves the primary block untouched. A normal
@@ -2795,6 +2876,7 @@ function autoPopulateIfEmpty() {
   // leaving and re-entering the view. Clearing and re-placing is reserved for the
   // explicit grade-header auto-fill click (autoPopulateGrade with clearFirst=true).
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
+  _purgeFixedBlockConflicts();
   _cleanupStaleIAAssignments();
   saveToLocal();
   rebuildTbody();

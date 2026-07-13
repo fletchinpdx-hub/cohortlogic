@@ -659,6 +659,18 @@ function computeRecessTimes(s) {
       const isMorning = freeIdx === 0;
       freeIdx++;
 
+      // Manual override: the user dragged this free-floating recess to a fixed
+      // time on the Master Schedule. Honor it exactly; any resulting overlap or
+      // spacing issue is surfaced by the warnings (never silently re-placed).
+      if (sl.manualStart && /^\d\d:\d\d$/.test(sl.manualStart)) {
+        const startMins = Math.round(timeToMins(sl.manualStart) / 5) * 5;
+        result[g][i] = { id: sl.id, duration: sl.duration, start: toTime(startMins),
+                         name: isMorning ? 'Morning Recess' : 'Afternoon Recess',
+                         lunchAdjacent: sl.lunchAdjacent };
+        placed.push({ g, start: startMins, end: startMins + dur });
+        return;
+      }
+
       let winStart, winEnd;
       if (isMorning) {
         winStart = fbMins + 60;
