@@ -4007,6 +4007,36 @@ async function importJSON(e) {
   e.target.value = '';
 }
 
+// Blend an exported grid to read like the app: for each given column, merge
+// contiguous runs of the same value into one vertical cell (the label stays in
+// the run's top row; continuation rows are blanked). So a 60-min Math block
+// becomes one merged "Math" cell instead of 12 rows each saying "Math". Blanks
+// the rows in place and returns the merge ranges for ws['!merges'].
+function _blendColumnRuns(rows, cols, firstRow, lastRow) {
+  const merges = [];
+  cols.forEach(col => {
+    let runStart = null, runVal = null;
+    const close = endRow => {
+      if (runVal != null && runVal !== '' && endRow > runStart) {
+        merges.push({ s: { r: runStart, c: col }, e: { r: endRow, c: col } });
+      }
+    };
+    for (let r = firstRow; r <= lastRow; r++) {
+      const v = (rows[r] || [])[col];
+      const nonEmpty = v != null && v !== '';
+      if (nonEmpty && v === runVal) {
+        rows[r][col] = ''; // continuation — blanked, covered by the merge
+      } else {
+        close(r - 1);
+        runStart = r;
+        runVal   = nonEmpty ? v : null;
+      }
+    }
+    close(lastRow);
+  });
+  return merges;
+}
+
 function exportXLSX() {
   const s      = SchedState.school;
   const grades = gradesSorted();
@@ -4052,7 +4082,10 @@ function exportXLSX() {
         return id ? cellLabel(id) : '';
       })
     ])];
+    // Merge vertical runs per grade column (cols 1..N), rows 1..slots.length.
+    const merges = _blendColumnRuns(rows, grades.map((_, i) => i + 1), 1, slots.length);
     const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!merges'] = merges;
     ws['!cols'] = [{ wch: 9 }, ...grades.map(() => ({ wch: 22 }))];
     XLSX.utils.book_append_sheet(wb, ws, day.slice(0, 3));
   });
@@ -4074,7 +4107,11 @@ function exportXLSX() {
       });
       rows.push([]); // blank row between classes
     });
+    // Merge vertical runs per day column (cols 2..N). The blank/class-name rows
+    // have empty day cells, so runs never merge across classes.
+    const merges = _blendColumnRuns(rows, days.map((_, i) => i + 2), 1, rows.length - 1);
     const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!merges'] = merges;
     ws['!cols'] = [{ wch: 22 }, { wch: 9 }, ...days.map(() => ({ wch: 18 }))];
     XLSX.utils.book_append_sheet(wb, ws, 'Class Schedules');
   }
