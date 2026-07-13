@@ -2787,14 +2787,15 @@ function _populateGradeData(grade, clearFirst, onlyDay) {
 
     allUnits.forEach(unit => {
       if (!clearFirst) {
+        // Fill-gaps pass: leave any block that ALREADY has slots exactly where it
+        // is. Re-placing a partially-placed block used to clear its remnant and
+        // re-lay it — which, on a tight day, fell through to the split fallback and
+        // cut the block into two pieces (a manual move could trigger this on the
+        // next render). Only completely-missing blocks are placed fresh below; the
+        // unplaced-blocks banner flags anything left short, and the grade-header
+        // "auto-fill" (clearFirst=true) is the explicit way to re-lay a grade.
         const existingCount = allSlots.filter(sl => sched[sl] === unit.id).length;
-        if (existingCount >= unit.slots) return;  // fully placed — skip
-        if (existingCount > 0) {
-          // Displaced or under-represented — clear remnant and re-place whole block.
-          allSlots.forEach(sl => {
-            if (sched[sl] === unit.id) { delete sched[sl]; occupied.delete(sl); }
-          });
-        }
+        if (existingCount > 0) return;
       }
       // Try single contiguous placement
       let placed = false;
