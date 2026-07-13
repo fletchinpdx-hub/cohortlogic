@@ -2380,16 +2380,27 @@ function buildSpecialsSchedule(force = false) {
       return;
     }
 
-    // Carousel model: find the best start time PER DAY (may differ across days)
-    // so that all classes in the grade share one time slot on each given day.
-    // Using per-day times (vs. one fixed time for all 5 days) avoids the gap where
-    // a teacher claimed by an earlier grade on one day blocks the entire week.
+    // Carousel model. FIRST try one FIXED time that works on every day, so the
+    // grade's specials land at the SAME clock-time all week (what schools expect
+    // and want to read at a glance). Only if no single time works across the week
+    // do we fall back to per-day times (which can differ Mon vs Tue). Hardest
+    // grades run first (placementOrder), so the tightest grade claims its fixed
+    // time before easier grades consume teacher availability.
     const gradeIdx = allGrades.indexOf(grade);
     const rotation = computeClassSpecialsRotation(classes, specials, gradeIdx);
-    let gradeTimesPerDay = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
+    const fixedToPerDay = () => {
+      const ft = findGradeFixedTime(grade, classes, rotation, specials, isFree);
+      if (!ft) return null;
+      const map = {};
+      DAYS.forEach(day => { if (classes.some(cls => rotation[cls.id]?.[day])) map[day] = ft; });
+      return map;
+    };
+    let gradeTimesPerDay = fixedToPerDay()
+      || findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     if (!Object.keys(gradeTimesPerDay).length) {
       _clearRequirementsForGrade(grade);
-      gradeTimesPerDay = findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
+      gradeTimesPerDay = fixedToPerDay()
+        || findGradeSpecialsTime(grade, classes, rotation, specials, isFree);
     }
     if (!Object.keys(gradeTimesPerDay).length) {
       // No carousel slot available on any day — schedule each class/session individually.
