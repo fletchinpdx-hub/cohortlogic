@@ -387,6 +387,17 @@ function showRecessSpacingWarning() {
     }
   });
 
+  // Cross-grade overlaps with no permission (typically forced by shared lunch waves)
+  if (typeof computeRecessOverlapViolations === 'function') {
+    computeRecessOverlapViolations(s, recessMap).forEach(({ a, b }) => {
+      items.push(
+        `<strong>${escHtml(GRADE_LABELS[a.g] || a.g)} + ${escHtml(GRADE_LABELS[b.g] || b.g)}:</strong> ` +
+        `${escHtml(a.name)} (${toTime12(a.start)}–${toTime12(a.end)}) overlaps ${escHtml(b.name)} ` +
+        `(${toTime12(b.start)}–${toTime12(b.end)}) and these grades aren't allowed to overlap. ` +
+        `Allow it under Recess → "May overlap with", or adjust the lunch waves.`);
+    });
+  }
+
   if (!items.length) return;
 
   const banner = document.createElement('div');

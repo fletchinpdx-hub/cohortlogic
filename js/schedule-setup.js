@@ -373,6 +373,19 @@ function renderGradeRecessItem(g, slots) {
     </div>
   `;
 
+  const s = SchedState.school;
+  const overlapChips = gradesSorted().filter(o => o !== g).map(o =>
+    `<button type="button" class="grade-chip-xs recess-ov-chip${_recessOverlapAllowed(s, g, o) ? ' active' : ''}"
+       data-grade="${g}" data-other="${o}">${gradeChipLabel(o)}</button>`
+  ).join('');
+  const overlapHTML = count === 0 ? '' : `
+    <div class="recess-overlap-row">
+      <span class="recess-overlap-label">May overlap with:</span>
+      ${overlapChips}
+      <span class="form-hint-sm">Recesses for allowed grades can share a time when space is tight — the schedule still prefers spreading them out.</span>
+    </div>
+  `;
+
   return `
     <div class="recess-grade-item" data-grade="${g}">
       <div class="recess-grade-header">
@@ -385,6 +398,7 @@ function renderGradeRecessItem(g, slots) {
         </div>
       </div>
       ${slotsHTML}
+      ${overlapHTML}
     </div>
   `;
 }
@@ -465,6 +479,28 @@ function wireRecessEvents() {
       if (slots[parseInt(idx)]) slots[parseInt(idx)].lunchSide = r.value;
     });
   });
+
+  // "May overlap with" chips — permission is symmetric, so a toggle updates both
+  // grades' lists and the mirror chip on the other grade's row.
+  document.querySelectorAll('.recess-ov-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const s = SchedState.school;
+      const { grade, other } = chip.dataset;
+      if (!s.recessOverlapGrades) s.recessOverlapGrades = {};
+      const m = s.recessOverlapGrades;
+      const nowAllowed = !_recessOverlapAllowed(s, grade, other);
+      if (nowAllowed) {
+        m[grade] = [...new Set([...(m[grade] || []), other])];
+        m[other] = [...new Set([...(m[other] || []), grade])];
+      } else {
+        m[grade] = (m[grade] || []).filter(x => x !== other);
+        m[other] = (m[other] || []).filter(x => x !== grade);
+      }
+      chip.classList.toggle('active', nowAllowed);
+      document.querySelector(`.recess-ov-chip[data-grade="${other}"][data-other="${grade}"]`)
+        ?.classList.toggle('active', nowAllowed);
+    });
+  });
 }
 
 function renderAltDayRow(ad) {
@@ -526,83 +562,126 @@ function wireAltDayRemove() {
 
 // ── Recess auto-scheduler ─────────────────────────────────────────────────────
 // Returns { gradeKey: [{ id, duration, start, name }] }
+// Symmetric overlap permission: either grade listing the other allows the pair.
+function _recessOverlapAllowed(s, a, b) {
+  const m = s.recessOverlapGrades || {};
+  return (m[a] || []).includes(b) || (m[b] || []).includes(a);
+}
+
+// Cross-grade recess overlaps that are NOT permitted — shared by the School Info
+// save warnings and the Master Schedule warnings panel. Pairs where BOTH recesses
+// are lunch-adjacent are exempt: they're anchored to lunch waves, so grades that
+// share a wave share the recess by deliberate config, not by scheduling accident.
+function computeRecessOverlapViolations(s, recessMap) {
+  const entries = [];
+  Object.keys(recessMap || {}).forEach(g => (recessMap[g] || []).forEach(r => {
+    const st = timeToMins(r.start);
+    entries.push({ g, name: r.name, start: st, end: st + Number(r.duration), lunchAdjacent: !!r.lunchAdjacent });
+  }));
+  const violations = [];
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const a = entries[i], b = entries[j];
+      if (a.g === b.g) continue;
+      if (a.lunchAdjacent && b.lunchAdjacent) continue;
+      if (a.start < b.end && b.start < a.end && !_recessOverlapAllowed(s, a.g, b.g)) {
+        violations.push({ a, b });
+      }
+    }
+  }
+  return violations;
+}
+
 function computeRecessTimes(s) {
   const result = {};
-  const grades = gradesSorted();
-  const fbMins = timeToMins(s.firstBell || '08:00');
-  const gr     = s.gradeRecesses || {};
+  const grades  = gradesSorted();
+  const fbMins  = timeToMins(s.firstBell  || '08:00');
+  const disMins = timeToMins(s.dismissal  || '14:30');
+  const gr      = s.gradeRecesses || {};
+  const GAP     = 60; // within-grade minimum gap between recesses
+  const toTime  = mins => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  const lunchFor = g => (s.lunchPeriods || []).find(x => (x.grades || []).includes(g))
+                     || (s.lunchPeriods || []).find(x => !(x.grades || []).length)
+                     || (s.lunchPeriods || [])[0];
 
-  // Collect grades that have a non-lunch-adjacent recess needing a morning slot
-  // Sort youngest first so they get priority
-  const morningQueue = [];
-  grades.forEach(g => {
-    const slots = gr[g] || [];
-    const extras = slots.filter(sl => !sl.lunchAdjacent);
-    extras.forEach((sl, i) => morningQueue.push({ g, sl, extraIdx: i }));
-  });
+  // Every placed recess interval, for cross-grade overlap checks.
+  const placed = []; // { g, start, end } in minutes
 
-  // Assign morning times: youngest grade starts at fb+60min, each subsequent grade
-  // shifts right by (prev recess duration + 10 min) to stagger playground use
-  let nextMorning = fbMins + 60;
-  const morningTimes = new Map(); // key = `${g}-${extraIdx}` → start mins
-  morningQueue.forEach(({ g, sl, extraIdx }) => {
-    const lp = (s.lunchPeriods || []).find(x => (x.grades || []).includes(g))
-            || (s.lunchPeriods || []).find(x => !(x.grades || []).length)
-            || (s.lunchPeriods || [])[0];
-    const lunchStart = lp ? timeToMins(lp.start) : fbMins + 4 * 60;
-    // Clamp: must end at least 30 min before lunch
-    const maxStart = lunchStart - sl.duration - 30;
-    const assigned = Math.min(nextMorning, maxStart);
-    const rounded  = Math.round(Math.max(assigned, fbMins + 30) / 5) * 5;
-    morningTimes.set(`${g}-${extraIdx}`, rounded);
-    nextMorning = rounded + Number(sl.duration) + 10;
-  });
-
+  // Pass 1 — anchor lunch-adjacent recesses. These follow the lunch waves and
+  // are immovable; overlaps they cause are surfaced as warnings, never "fixed".
   grades.forEach(g => {
     const slots = gr[g] || [];
     if (!slots.length) return;
+    result[g] = new Array(slots.length);
+    const lp = lunchFor(g);
+    if (!lp) return;
+    const lunchS = timeToMins(lp.start);
+    const lunchE = lunchS + Number(lp.duration);
+    slots.forEach((sl, i) => {
+      if (!sl.lunchAdjacent) return;
+      const side      = sl.lunchSide || 'after';
+      const startMins = Math.round((side === 'before' ? lunchS - sl.duration : lunchE) / 5) * 5;
+      result[g][i] = { id: sl.id, duration: sl.duration, start: toTime(startMins),
+                       name: side === 'before' ? 'Pre-Lunch Recess' : 'Lunch Recess', lunchAdjacent: true };
+      placed.push({ g, start: startMins, end: startMins + Number(sl.duration) });
+    });
+  });
 
-    const lp        = (s.lunchPeriods || []).find(x => (x.grades || []).includes(g))
-                   || (s.lunchPeriods || []).find(x => !(x.grades || []).length)
-                   || (s.lunchPeriods || [])[0];
-    const lunchS    = lp ? timeToMins(lp.start) : null;
-    const lunchE    = lp ? lunchS + lp.duration  : null;
-    let extraCount  = 0;
+  // Pass 2 — free-floating recesses, youngest grade first. Search 5-min steps for
+  // the first start that (a) keeps a 60-min gap from the grade's own recesses and
+  // (b) doesn't intersect another grade's recess — unless that pair is explicitly
+  // permitted to overlap (School Info → Recess → "May overlap with"). Even for
+  // permitted pairs, a fully clear time is preferred; overlap is a fallback, not
+  // a goal, so playground pile-ups stay rare.
+  grades.forEach(g => {
+    const slots = gr[g] || [];
+    if (!slots.length) return;
+    const lp     = lunchFor(g);
+    const lunchS = lp ? timeToMins(lp.start) : null;
+    const lunchE = lp ? lunchS + Number(lp.duration) : null;
 
-    result[g] = slots.map((sl, i) => {
-      let startMins;
-      let name;
+    let freeIdx = 0;
+    slots.forEach((sl, i) => {
+      if (result[g][i]) return; // anchored in pass 1
+      const dur       = Number(sl.duration);
+      const isMorning = freeIdx === 0;
+      freeIdx++;
 
-      if (sl.lunchAdjacent) {
-        const side = sl.lunchSide || 'after';
-        if (lunchS !== null) {
-          startMins = side === 'before' ? lunchS - sl.duration : lunchE;
-          name = side === 'before' ? 'Pre-Lunch Recess' : 'Lunch Recess';
-        } else {
-          // No lunch — put it in the morning with the rest
-          const key = `${g}-${extraCount}`;
-          startMins = morningTimes.get(key) || (fbMins + 90 + extraCount * 15);
-          name = 'Morning Recess';
-          extraCount++;
-        }
+      let winStart, winEnd;
+      if (isMorning) {
+        winStart = fbMins + 60;
+        winEnd   = (lunchS !== null ? lunchS - 30 : disMins - 30) - dur;
       } else {
-        const key = `${g}-${extraCount}`;
-        if (extraCount === 0) {
-          startMins = morningTimes.get(key) || (fbMins + 90);
-          name = 'Morning Recess';
-        } else {
-          // Second non-lunch recess → afternoon, ~45 min after lunch ends
-          startMins = lunchE ? Math.round((lunchE + 45) / 5) * 5 : (fbMins + 6 * 60);
-          name = 'Afternoon Recess';
-        }
-        extraCount++;
+        winStart = lunchE !== null ? lunchE + GAP : fbMins + 6 * 60;
+        winEnd   = disMins - 30 - dur;
       }
 
-      startMins = Math.round(startMins / 5) * 5;
-      const h = String(Math.floor(startMins / 60)).padStart(2, '0');
-      const m = String(startMins % 60).padStart(2, '0');
-      return { id: sl.id, duration: sl.duration, start: `${h}:${m}`, name, lunchAdjacent: sl.lunchAdjacent };
+      const ownIntervals = result[g].filter(Boolean).map(r => {
+        const st = timeToMins(r.start);
+        return { start: st, end: st + Number(r.duration) };
+      });
+
+      let best = null; // { t, overlaps }
+      for (let t = Math.ceil(winStart / 5) * 5; t <= winEnd; t += 5) {
+        const gapBad = ownIntervals.some(o => t < o.end + GAP && o.start - GAP < t + dur);
+        if (gapBad) continue;
+        const others = placed.filter(p => p.g !== g && t < p.end && p.start < t + dur);
+        if (others.some(p => !_recessOverlapAllowed(s, g, p.g))) continue;
+        if (!others.length) { best = { t, overlaps: 0 }; break; } // clear slot — done
+        if (!best || others.length < best.overlaps) best = { t, overlaps: others.length };
+      }
+
+      // No legal start even with permitted overlaps — best-effort legacy placement;
+      // the recess warnings banner surfaces whatever this collides with.
+      const startMins = best ? best.t
+        : Math.round(Math.max(Math.min(fbMins + 60, winEnd), fbMins + 30) / 5) * 5;
+
+      result[g][i] = { id: sl.id, duration: sl.duration, start: toTime(startMins),
+                       name: isMorning ? 'Morning Recess' : 'Afternoon Recess',
+                       lunchAdjacent: sl.lunchAdjacent };
+      placed.push({ g, start: startMins, end: startMins + dur });
     });
+    result[g] = result[g].filter(Boolean);
   });
 
   // Enforce 60-min minimum gap between consecutive recesses within each grade.
@@ -862,6 +941,17 @@ function _computeSchoolInfoWarnings(s) {
           `Move it earlier so it ends by ${fmtTime12(minsToTime(disMins - 30))}.`
         );
       }
+    });
+
+    // Cross-grade overlaps that no permission covers (usually forced by shared
+    // lunch waves — lunch anchors are never moved to avoid an overlap).
+    computeRecessOverlapViolations(s, recessMap).forEach(({ a, b }) => {
+      warnings.push(
+        `⚠ <strong>Recess overlap:</strong> ` +
+        `${escHtml(GRADE_LABELS[a.g] || a.g)} ${escHtml(a.name)} (${fmtTime12(minsToTime(a.start))}–${fmtTime12(minsToTime(a.end))}) overlaps ` +
+        `${escHtml(GRADE_LABELS[b.g] || b.g)} ${escHtml(b.name)} (${fmtTime12(minsToTime(b.start))}–${fmtTime12(minsToTime(b.end))}). ` +
+        `Allow it under Recess → "May overlap with", or adjust the lunch waves.`
+      );
     });
   }
 
@@ -1144,7 +1234,9 @@ function renderSpecialsView() {
 
       <div class="form-section">
         <h2 class="form-section-title">Weekly Rotation Mode</h2>
-        <p class="form-hint">Controls how a class cycles through specials across the week.</p>
+        <p class="form-hint">Controls how a class cycles through specials across the week.
+          The effect shows in each class's day-by-day rotation (see the Specials Schedule view) — the specials time block on the Master Schedule doesn't move.
+          Note: when every special meets once per week, Intermittent and Sequential produce the same rotation.</p>
         <div class="specials-rotation-opts">
           <label class="rotation-opt ${(SchedState.school.specialsRotationMode || 'intermittent') === 'intermittent' ? 'active' : ''}">
             <input type="radio" name="specials-rotation" value="intermittent"
