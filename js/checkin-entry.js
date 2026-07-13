@@ -207,8 +207,8 @@ function renderPeriodGrid() {
       [0, 1, 2].forEach(score => {
         const activeClass = currentScore === score ? `active-${score}` : '';
         html += `<button class="score-btn ${activeClass}"
-          onclick="toggleScore(${p}, '${cat.id}', ${score})"
-          title="${cat.name}: ${score}">${score}</button>`;
+          data-period="${p}" data-cat-id="${cat.id}" data-score="${score}"
+          title="${escHtml(cat.name)}: ${score}">${score}</button>`;
       });
       html += `</div></td>`;
     });
@@ -221,12 +221,12 @@ function renderPeriodGrid() {
       incidents.forEach((inc, idx) => {
         const minutesLabel = inc.minutes ? ` ${inc.minutes}m` : '';
         html += `<span class="incident-chip">${escHtml(inc.abbr)}${minutesLabel}
-          <button class="incident-chip-remove" onclick="removeIncident(${p}, ${idx})" title="Remove">×</button>
+          <button class="incident-chip-remove" data-period="${p}" data-idx="${idx}" title="Remove">×</button>
         </span>`;
       });
       html += `</div>`;
     }
-    html += `<button class="add-incident-btn" onclick="openIncidentModal(${p})">+ Incident</button>`;
+    html += `<button class="add-incident-btn" data-period="${p}">+ Incident</button>`;
     html += `</td>`;
 
     html += `</tr>`;
@@ -234,6 +234,15 @@ function renderPeriodGrid() {
 
   html += '</tbody></table>';
   grid.innerHTML = html;
+
+  grid.querySelectorAll('.score-btn').forEach(btn =>
+    btn.addEventListener('click', () =>
+      toggleScore(Number(btn.dataset.period), btn.dataset.catId, Number(btn.dataset.score))));
+  grid.querySelectorAll('.incident-chip-remove').forEach(btn =>
+    btn.addEventListener('click', () =>
+      removeIncident(Number(btn.dataset.period), Number(btn.dataset.idx))));
+  grid.querySelectorAll('.add-incident-btn').forEach(btn =>
+    btn.addEventListener('click', () => openIncidentModal(Number(btn.dataset.period))));
 }
 
 // ── Existing check-in rollup ───────────────────────────────────────────────

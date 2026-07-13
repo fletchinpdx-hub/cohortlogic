@@ -210,11 +210,15 @@ function renderCicoAccessDenied() {
         <p style="font-size:14px;color:#6b7280;margin:0 0 24px;line-height:1.5;">Your school administrator decides who can use this tool. Ask them to enable Check-in / Check-out for you, then sign back in.</p>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
           <a href="dashboard.html" style="background:#2a9d8f;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;">Back to Dashboard</a>
-          <button onclick="(async()=>{try{await SupabaseClient.auth.signOut();}catch(e){}window.location.replace('login.html');})()" style="background:#fff;border:1px solid #e5e7eb;color:#374151;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Sign Out</button>
+          <button id="cico-denied-signout" style="background:#fff;border:1px solid #e5e7eb;color:#374151;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Sign Out</button>
         </div>
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  overlay.querySelector('#cico-denied-signout').addEventListener('click', async () => {
+    try { await SupabaseClient.auth.signOut(); } catch (e) {}
+    window.location.replace('login.html');
+  });
 }
 
 // ── App bootstrap ──────────────────────────────────────────────────────────
@@ -263,13 +267,14 @@ if (document.readyState === 'loading') {
                 font-size:14px;font-family:inherit;box-shadow:0 4px 20px rgba(0,0,0,.3);
                 display:flex;align-items:center;gap:14px;z-index:9999;white-space:nowrap;">
       <span>⏱ You'll be logged out in 60 seconds due to inactivity.</span>
-      <button onclick="window._resetSessionTimer();"
+      <button id="session-stay-btn"
               style="background:#2a9d8f;border:none;color:#fff;padding:6px 14px;
                      border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">
         Stay logged in
       </button>
     </div>`;
   document.body.appendChild(banner);
+  banner.querySelector('#session-stay-btn').addEventListener('click', () => window._resetSessionTimer());
 
   let _warnTimer   = null;
   let _logoutTimer = null;

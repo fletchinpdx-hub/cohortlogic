@@ -37,12 +37,17 @@ function renderStudentList() {
       <td style="font-family:monospace;font-size:12px;">${escHtml(s.student_ref || '—')}</td>
       <td class="col-actions">
         <div class="row-actions">
-          <button class="action-btn" onclick="openEditStudentModal('${s.id}')" title="Edit">✏️</button>
-          <button class="action-btn danger" onclick="deleteStudent('${s.id}')" title="Remove">🗑</button>
+          <button class="action-btn student-edit-btn" data-student-id="${s.id}" title="Edit">✏️</button>
+          <button class="action-btn danger student-delete-btn" data-student-id="${s.id}" title="Remove">🗑</button>
         </div>
       </td>
     </tr>
   `).join('');
+
+  tbody.querySelectorAll('.student-edit-btn').forEach(btn =>
+    btn.addEventListener('click', () => openEditStudentModal(btn.dataset.studentId)));
+  tbody.querySelectorAll('.student-delete-btn').forEach(btn =>
+    btn.addEventListener('click', () => deleteStudent(btn.dataset.studentId)));
 }
 
 function filterStudentList() {

@@ -384,7 +384,7 @@ supabase/migrations/
 | Security headers via `_headers` | ✅ Done (CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) — applied by Cloudflare Workers |
 | Privacy policy page | ✅ Done (`privacy.html`) |
 | Google Sheets URL import removed | ✅ Done (privacy concern) |
-| CSP `script-src` without `unsafe-inline` | ✅ Done — all `onclick=`/`onchange=`/`oninput=` migrated to `addEventListener` |
+| CSP `script-src` without `unsafe-inline` | ✅ Done — all `onclick=`/`onchange=`/`oninput=` migrated to `addEventListener`. This regressed once (15 CICO handlers silently broken in prod until Jul 2026) — run `scripts/check-csp.sh` before every deploy; it exits 1 on violations. |
 | CSP `style-src` without `unsafe-inline` | ⚠️ Intentionally not done — 1,193 inline `style=""` attributes site-wide; no injection vector on a static site, so the security benefit is negligible. `unsafe-inline` stays in `style-src` permanently. |
 | Supabase DPA | ⏳ Pending (needed for formal FERPA) |
 | Demo access code in client JS | ⚠️ Known limitation (v1 intentional) |

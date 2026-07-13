@@ -40,10 +40,15 @@ function renderSchedulesList() {
       <span class="config-row-meta">${s.period_count} period${s.period_count !== 1 ? 's' : ''}</span>
       ${s.is_default
         ? '<span class="config-row-badge">Default</span>'
-        : `<button class="config-row-action" onclick="setDefaultSchedule('${s.id}')">Set default</button>`}
-      <button class="config-row-delete" onclick="deleteSchedule('${s.id}')" title="Remove">✕</button>
+        : `<button class="config-row-action schedule-default-btn" data-schedule-id="${s.id}">Set default</button>`}
+      <button class="config-row-delete schedule-delete-btn" data-schedule-id="${s.id}" title="Remove">✕</button>
     </div>
   `).join('');
+
+  list.querySelectorAll('.schedule-default-btn').forEach(btn =>
+    btn.addEventListener('click', () => setDefaultSchedule(btn.dataset.scheduleId)));
+  list.querySelectorAll('.schedule-delete-btn').forEach(btn =>
+    btn.addEventListener('click', () => deleteSchedule(btn.dataset.scheduleId)));
 }
 
 async function addSchedule() {
@@ -151,9 +156,12 @@ function renderCategoriesList() {
     <div class="config-row">
       <span class="config-row-name">${escHtml(cat.name)}</span>
       <span class="config-row-meta">Order ${cat.display_order}</span>
-      <button class="config-row-delete" onclick="deleteCategory('${cat.id}')" title="Remove">✕</button>
+      <button class="config-row-delete category-delete-btn" data-category-id="${cat.id}" title="Remove">✕</button>
     </div>
   `).join('');
+
+  list.querySelectorAll('.category-delete-btn').forEach(btn =>
+    btn.addEventListener('click', () => deleteCategory(btn.dataset.categoryId)));
 }
 
 async function addCategory() {
@@ -229,9 +237,12 @@ function renderIncidentTypesList() {
         <span style="font-weight:400;margin-left:6px;">${escHtml(t.description)}</span>
       </span>
       <span class="config-row-meta">${t.tracks_minutes ? '⏱ mins' : 'no mins'}</span>
-      <button class="config-row-delete" onclick="deleteIncidentType('${t.id}')" title="Remove">✕</button>
+      <button class="config-row-delete incident-type-delete-btn" data-incident-type-id="${t.id}" title="Remove">✕</button>
     </div>
   `).join('');
+
+  list.querySelectorAll('.incident-type-delete-btn').forEach(btn =>
+    btn.addEventListener('click', () => deleteIncidentType(btn.dataset.incidentTypeId)));
 }
 
 async function addIncidentType() {

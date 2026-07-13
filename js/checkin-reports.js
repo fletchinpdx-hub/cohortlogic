@@ -45,11 +45,28 @@ function switchReportTab(tab) {
 }
 
 // ── Initialize Reports View ────────────────────────────────────────────────
+let _reportsBodyWired = false;
 function initReportsView() {
   populateReportStudentSelect();
   populateReportTeacherSelect();
   populateReportGradeSelect();
   setDefaultReportDates();
+
+  // Report sections are re-rendered via innerHTML at many call sites, so the
+  // mode toggles use one delegated listener on the stable #reports-body container
+  // instead of per-render wiring (inline event handler attributes are CSP-blocked).
+  if (!_reportsBodyWired) {
+    const body = document.getElementById('reports-body');
+    if (body) {
+      body.addEventListener('click', e => {
+        const inc = e.target.closest('[data-inc-type]');
+        if (inc) { setIncidentMode(inc.dataset.incType, inc.dataset.incMode, inc); return; }
+        const bd = e.target.closest('[data-bd-type]');
+        if (bd) setBreakdownMode(bd.dataset.bdType, bd.dataset.bdMode, bd);
+      });
+      _reportsBodyWired = true;
+    }
+  }
 }
 
 function populateReportStudentSelect() {
@@ -520,8 +537,8 @@ function buildIncidentSectionHTML(type, title) {
       <div class="report-section-header">
         <h3>${title}</h3>
         <div class="breakdown-toggle">
-          <button class="breakdown-btn active" onclick="setIncidentMode('${type}','count',this)">Count</button>
-          <button class="breakdown-btn"        onclick="setIncidentMode('${type}','minutes',this)">Minutes</button>
+          <button class="breakdown-btn active" data-inc-type="${type}" data-inc-mode="count">Count</button>
+          <button class="breakdown-btn"        data-inc-type="${type}" data-inc-mode="minutes">Minutes</button>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="inc-${type}-chart"></canvas></div>
@@ -615,8 +632,8 @@ function renderIncidentSection(type) {
 function buildBreakdownSectionHTML(type, title, defaultMode = 'total') {
   const toggle = defaultMode === 'combined' ? '' : `
         <div class="breakdown-toggle">
-          <button class="breakdown-btn ${defaultMode === 'total' ? 'active' : ''}"    onclick="setBreakdownMode('${type}','total',this)">Total</button>
-          <button class="breakdown-btn ${defaultMode === 'category' ? 'active' : ''}" onclick="setBreakdownMode('${type}','category',this)">By Category</button>
+          <button class="breakdown-btn ${defaultMode === 'total' ? 'active' : ''}"    data-bd-type="${type}" data-bd-mode="total">Total</button>
+          <button class="breakdown-btn ${defaultMode === 'category' ? 'active' : ''}" data-bd-type="${type}" data-bd-mode="category">By Category</button>
         </div>`;
   return `
     <div class="report-section">
