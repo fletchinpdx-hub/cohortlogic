@@ -1314,6 +1314,10 @@ function saveSpecialsAndContinue() {
       color:          row.querySelector('.sp-color-input').value,
     };
   }).filter(sp => sp.name);
+  // Specials config changed — clear the class-level schedule so the next Master
+  // Schedule visit rebuilds it fresh. (buildSpecialsSchedule skips rebuilding
+  // while entries exist, to preserve manual moves on the master grid.)
+  SchedState.specialsSchedule = {};
   saveToLocal();
   updateSidebarStatus();
   navigateTo('blocks');

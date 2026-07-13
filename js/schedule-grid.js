@@ -1127,19 +1127,48 @@ function onPointerDown(e) {
 
   // Move mode: no active paint tool + clicking a filled block
   if (!gridUI.activeBtId && existing) {
+    // Conflict split cell: the LEFT half is the primary block, the RIGHT half is
+    // the displaced (conflict) block. Clicking the right half picks up the
+    // conflict block so either side of a shared slot can be moved.
+    const slotConflicts = getConflicts(gridUI.activeDay, grade, slot);
+    const half = e.target.closest('.split-half');
+    if (slotConflicts.length && half && half.parentElement &&
+        [...half.parentElement.children].indexOf(half) === 1) {
+      const cbtId = slotConflicts[0];
+      let startIdx = currentSlots.indexOf(slot);
+      let endIdx   = startIdx;
+      while (startIdx > 0 &&
+             getConflicts(gridUI.activeDay, grade, currentSlots[startIdx - 1]).includes(cbtId)) startIdx--;
+      while (endIdx < currentSlots.length - 1 &&
+             getConflicts(gridUI.activeDay, grade, currentSlots[endIdx + 1]).includes(cbtId)) endIdx++;
+      drag.active           = true;
+      drag.hasMoved         = false;
+      drag.mode             = 'move';
+      drag.startGrade       = grade;
+      drag.startSlot        = slot;
+      drag.endGrade         = grade;
+      drag.endSlot          = slot;
+      drag.moveValue        = cbtId;
+      drag.moveSlots        = currentSlots.slice(startIdx, endIdx + 1);
+      drag.moveGrade        = grade;
+      drag.moveFromConflict = true;
+      return;
+    }
+
     const blockStart = findBlockStart(gridUI.activeDay, grade, slot);
     const blockLen   = findBlockLength(gridUI.activeDay, grade, blockStart);
     const startIdx   = currentSlots.indexOf(blockStart);
-    drag.active     = true;
-    drag.hasMoved   = false;
-    drag.mode       = 'move';
-    drag.startGrade = grade;
-    drag.startSlot  = slot;
-    drag.endGrade   = grade;
-    drag.endSlot    = slot;
-    drag.moveValue  = existing;
-    drag.moveSlots  = currentSlots.slice(startIdx, startIdx + blockLen);
-    drag.moveGrade  = grade;
+    drag.active           = true;
+    drag.hasMoved         = false;
+    drag.mode             = 'move';
+    drag.startGrade       = grade;
+    drag.startSlot        = slot;
+    drag.endGrade         = grade;
+    drag.endSlot          = slot;
+    drag.moveValue        = existing;
+    drag.moveSlots        = currentSlots.slice(startIdx, startIdx + blockLen);
+    drag.moveGrade        = grade;
+    drag.moveFromConflict = false;
     return;
   }
 
@@ -1493,16 +1522,28 @@ function commitMove() {
   const destStartIdx = currentSlots.indexOf(drag.endSlot);
   const len          = drag.moveSlots.length;
 
-  // Erase source: if a slot has a displaced conflict, restore that block instead of deleting it
-  drag.moveSlots.forEach(s => {
-    const slotConflicts = getConflicts(day, srcGrade, s);
-    if (slotConflicts.length > 0) {
-      SchedState.masterSchedule[day][srcGrade][s] = slotConflicts[0];
-      clearConflict(day, srcGrade, s);
-    } else {
-      setBlock(day, srcGrade, s, null);
+  // Erase source. A conflict-sourced move (right half of a split cell) removes the
+  // block from the conflicts list and leaves the primary block untouched. A normal
+  // move restores any displaced conflict into the vacated slot instead of deleting it.
+  if (drag.moveFromConflict) {
+    if (!gridUI.lockedGrades.has(srcGrade)) {
+      drag.moveSlots.forEach(s => {
+        const rest = getConflicts(day, srcGrade, s).filter(b => b !== drag.moveValue);
+        if (rest.length) SchedState.conflicts[day][srcGrade][s] = rest;
+        else clearConflict(day, srcGrade, s);
+      });
     }
-  });
+  } else {
+    drag.moveSlots.forEach(s => {
+      const slotConflicts = getConflicts(day, srcGrade, s);
+      if (slotConflicts.length > 0) {
+        SchedState.masterSchedule[day][srcGrade][s] = slotConflicts[0];
+        clearConflict(day, srcGrade, s);
+      } else {
+        setBlock(day, srcGrade, s, null);
+      }
+    });
+  }
 
   // Write destination — use placeBlock so anything already there becomes a conflict
   for (let i = 0; i < len; i++) {
@@ -2099,8 +2140,21 @@ function findGradeFixedTime(grade, classes, rotation, specials, isFreeTeacher) {
 
 // Rebuilds SchedState.specialsSchedule from scratch for all grades, then writes
 // grade-level bt_spec blocks back into masterSchedule for auto-populate awareness.
-function buildSpecialsSchedule() {
+//
+// NOT run on every render: a full rebuild wipes manual specials moves the user
+// made on the master grid. Unforced calls skip the rebuild while every class
+// already has a specials entry; a rebuild happens when specialsSchedule is empty
+// (fresh schedule, or cleared by a Specials-tab config save) or a new class
+// appears. Pass force=true to rebuild unconditionally.
+function buildSpecialsSchedule(force = false) {
   const specials = SchedState.school.specials || [];
+
+  if (!force && specials.length) {
+    const ss = SchedState.specialsSchedule || {};
+    const classIds = (SchedState.staff || [])
+      .filter(t => t.role === 'classroom_teacher').map(t => t.id);
+    if (Object.keys(ss).length && !classIds.some(id => !ss[id])) return;
+  }
 
   // Clear all bt_spec from masterSchedule
   DAYS.forEach(day => {
@@ -2729,12 +2783,11 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
 function autoPopulateIfEmpty() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
-  // Use clearFirst=true for unlocked grades so every render produces the optimal
-  // placement. Fully-placed blocks in fragmented positions (e.g. from a prior
-  // corrupted state) would otherwise block contiguous runs for other blocks.
-  gradesSorted().forEach(grade =>
-    _populateGradeData(grade, !gridUI.lockedGrades.has(grade), null)
-  );
+  // Fill gaps only (clearFirst=false): fully-placed blocks — including ones the
+  // user moved by hand — are left exactly where they are, so manual edits survive
+  // leaving and re-entering the view. Clearing and re-placing is reserved for the
+  // explicit grade-header auto-fill click (autoPopulateGrade with clearFirst=true).
+  gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
   _cleanupStaleIAAssignments();
   saveToLocal();
   rebuildTbody();
