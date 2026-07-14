@@ -372,11 +372,27 @@ supabase/migrations/
 ---
 
 ## Deployment
-- **Always use `npx wrangler deploy`** from `/Users/michaelfletcher/Documents/cohortlogic/` — GitHub auto-deploy broke after v54 and is NOT reliable
+- **Always deploy via `bash scripts/deploy.sh`** from `/Users/michaelfletcher/Documents/cohortlogic/` — NOT raw `npx wrangler deploy`. `deploy.sh` runs the Tier 1 pre-deploy gate (`scripts/predeploy.sh`) first and aborts if any check fails; raw wrangler skips the gate. (`--skip-gate` exists for genuine emergencies only.) GitHub auto-deploy broke after v54 and is NOT reliable.
+- **The pre-deploy gate** (`scripts/predeploy.sh`, 5 checks, all sub-second, no browser): 1) CSP inline-handler scan, 2) cache-version consistency, 3) secret-exposure (.assetsignore), 4) Class Builder algorithm unit tests (`tests/algorithm.test.js`), 5) Schedule Builder reference check (`tests/check-refs.js` — every function/const referenced by a classic `<script>` must be defined somewhere in the loaded bundle; catches the #1 monolith-split failure mode). Each `check-*.sh` hard-fails if its scan target is missing (so a future restructure can't silently disarm it).
 - Live at: https://cohortlogic.com (DNS cutover complete — Cloudflare managing DNS)
-- `wrangler.toml` configures static asset deployment (no build step)
-- `_headers` file sets all security headers (supported by Cloudflare Workers static assets)
-- Hard refresh in browser (Cmd+Shift+R) needed after deploy to force re-download of cached HTML/JS
+- `wrangler.toml` configures static asset deployment from `public/` (no build step); `_headers` sets security headers
+- Hard refresh (Cmd+Shift+R) needed after deploy to force re-download of cached HTML/JS
+
+---
+
+## QA process
+
+Two tiers: the **static gate** (above, runs on every deploy) and **live post-deploy QA agents** (`.claude/agents/qa-*.md`) that log into cohortlogic.com and drive the real app in Chrome.
+
+**When the user says "run QA" / "run the QA process" / "smoke test" / "test the deploy" (without naming a specific product): run ALL `.claude/agents/qa-*.md` agents.** Launch them **in parallel** (one Agent tool call per agent, in a single message), let each produce its own pass/fail report, then **aggregate into one combined summary** (a per-agent overall line + a merged failures list). This is glob-based on purpose — any new `qa-*.md` added later is automatically part of "run QA," no wiring needed. To run just one, the user names it (e.g. "run schedule QA" → `qa-schedulebuilder` only).
+
+Current agents:
+- `qa-classbuilder` — Class Builder (`app.html`): access gate → sample data → mapping → generation → violation cards → grade filter → drag-to-move.
+- `qa-schedulebuilder` — Schedule Builder (`schedule-app.html`): login/gate → seed a minimal school → render + exercise Master Schedule (core) and each extracted feature view (IA, Specials view, Class view, Export), watching for the `ReferenceError`/CSP failures a bad classic-script split produces.
+
+Both log in with the QA test account (`.qa-credentials`, gitignored) and append a line to `qa-runs.log` (gitignored) — the only durable record of when QA last ran. **Note on credentials:** the agents type the QA test-account password into the live login form. That's a deliberate, user-owned QA automation with a dedicated throwaway account; if you'd rather perform the login step yourself and hand the session to the agent, say so and the agent will pause at login.
+
+**Adding a new product's QA:** drop a `qa-<product>.md` in `.claude/agents/` following the two existing files' structure (Chrome-tools setup → read `.qa-credentials` → login → per-feature checklist with console checks → log to `qa-runs.log` → report table). It joins "run QA" automatically.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: qa-classbuilder
-description: Post-deploy QA smoke test for the Cohort Logic Class Builder at cohortlogic.com. Run this after every `npx wrangler deploy` to verify the live site works end-to-end. Tests the full user flow: access gate → sample data → field mapping → class generation → violation detail cards → grade filter → drag-to-move. Reports pass/fail with screenshots on any failure. Use this skill whenever the user says "run QA", "test the deploy", "smoke test", or "qa-classbuilder".
+description: Post-deploy QA smoke test for the Cohort Logic Class Builder at cohortlogic.com/app.html. Run after every deploy to verify the live site works end-to-end. Tests the full user flow: access gate → sample data → field mapping → class generation → violation detail cards → grade filter → drag-to-move. Reports pass/fail with screenshots on any failure. Part of the full QA suite — see the "QA process" section in CLAUDE.md; running "QA" runs this AND every other qa-*.md agent. Use this whenever the user says "run QA", "run class builder QA", "test the deploy", "smoke test", or "qa-classbuilder".
 ---
 
 # QA Smoke Test — Cohort Logic Class Builder
@@ -210,10 +210,10 @@ This greps for `onclick=` / `onchange=` / etc. inside JS template strings. If it
 After completing all steps (pass or fail), append one line to `/Users/michaelfletcher/Documents/cohortlogic/qa-runs.log` (gitignored) recording the run. Use the Bash tool:
 
 ```bash
-printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
+printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "classbuilder" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
 ```
 
-Where `RESULT` is like `7/8 PASS` and `NOTES` is a short summary of any failures (or `all green`). This is the only durable record of when QA last ran — always write it.
+Where `RESULT` is like `7/8 PASS` and `NOTES` is a short summary of any failures (or `all green`). The `classbuilder` product tag keeps the shared log parseable now that multiple QA agents write to it. This is the only durable record of when QA last ran — always write it.
 
 ---
 
