@@ -18,3 +18,9 @@
 .env
 node_modules
 node_modules/**
+
+# Dev-only tooling — not secret, but no reason to serve publicly
+scripts
+scripts/**
+tests
+tests/**
