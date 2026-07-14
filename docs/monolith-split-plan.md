@@ -1,8 +1,40 @@
 # Monolith split plan — `public/js/schedule-grid.js`
 
-**Status:** not started. **Owner:** any model/session can resume from this file.
+**Status:** STEP 0 done (v145, uncommitted → see below). Extraction 1 (IA) not
+started yet. **Owner:** any model/session can resume from this file.
 **Goal:** carve the ~6,180-line `schedule-grid.js` into cohesive feature files
 WITHOUT changing behavior. Started at v145.
+
+### STEP 0 done — notes for whoever does extraction 1
+- `tests/check-refs.js` built, wired into `scripts/predeploy.sh` as 5/5.
+- Verified: passes clean on the current (unsplit) codebase (1050 names, 5
+  files); sanity-checked by deliberately renaming a real function definition
+  and confirming the checker caught all 16 now-broken call sites (exit 1),
+  then restoring and re-confirming a clean pass (exit 0).
+- One PRE-EXISTING (not introduced by this work) finding surfaced and is
+  reported as a non-blocking warning, not a failure: `downloadIAScheduleCSV`
+  is called at `schedule-grid.js:6164` behind a `typeof ... === 'function'`
+  guard but is never defined anywhere — looks like dead/orphaned code from an
+  earlier refactor (a working duplicate, `exportIASummaryCSV`, is wired to the
+  same `#ia-summary-csv-btn` element elsewhere, at `wireIAScheduleEvents`).
+  Harmless today (the guard no-ops it). NOT fixed here — out of scope for a
+  behavior-neutral split; flag to the user separately if you want it cleaned
+  up.
+- The checker is a **pragmatic bundle-wide check, not a real JS scope
+  resolver**: a local helper defined inside any function anywhere in the
+  bundle satisfies a same-named call anywhere else, even though real JS
+  scoping wouldn't allow that. This is intentional — the risk being guarded
+  against is "the definition doesn't exist ANYWHERE after a copy/paste split,"
+  not scope leakage. It also recognizes `typeof NAME === 'function'`/
+  `!== 'undefined'` guards and demotes those to non-blocking warnings.
+- Gotcha discovered while building it: naive string-literal tokenizing breaks
+  on regex literals containing quote characters (e.g. `escHtml`'s `/"/g`) — a
+  bare `/.../ ` scanner must distinguish regex-literal position from division
+  via a value-position heuristic, or it misreads a quote *inside* a regex as
+  opening a real string and blanks out everything up to the next stray quote
+  in the file. See the `regexContext` heuristic in `check-refs.js` if you need
+  to touch the tokenizer.
+- Run it standalone any time: `node tests/check-refs.js`.
 
 This is a **mechanical, one-feature-per-commit** refactor. The plan and the
 safety model are already decided (below) — execution is precise and verifiable.

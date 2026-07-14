@@ -7,6 +7,10 @@
 #   2. Cache-version consistency  — mismatched ?v= tags ship a half-stale app
 #   3. Secret-exposure check      — .git/.qa-credentials must not deploy publicly
 #   4. Algorithm unit tests       — silent class-assignment regressions
+#   5. Schedule Builder reference check — catches a function/const referenced by
+#      one classic <script> but not defined anywhere in the loaded bundle (the
+#      #1 risk when splitting schedule-grid.js into feature files — see
+#      docs/monolith-split-plan.md)
 #
 # All are sub-second and immune to UI churn. Exits non-zero if any fail, which
 # aborts scripts/deploy.sh before it calls wrangler.
@@ -29,10 +33,11 @@ run() {
   fi
 }
 
-run "1/4  CSP inline-handler check"   bash scripts/check-csp.sh
-run "2/4  Cache-version consistency"  bash scripts/check-versions.sh
-run "3/4  Secret-exposure check"      bash scripts/check-assetsignore.sh
-run "4/4  Algorithm unit tests"       node tests/algorithm.test.js
+run "1/5  CSP inline-handler check"      bash scripts/check-csp.sh
+run "2/5  Cache-version consistency"     bash scripts/check-versions.sh
+run "3/5  Secret-exposure check"         bash scripts/check-assetsignore.sh
+run "4/5  Algorithm unit tests"          node tests/algorithm.test.js
+run "5/5  Schedule Builder reference check" node tests/check-refs.js
 
 echo ""
 echo "═══════════════════════════════════════════════"
