@@ -332,6 +332,5 @@ After all four: `schedule-grid.js` should be ~2,900 lines of genuine core
       and green.
 - [x] No behavior change; gate green at every step; app boots clean at every
       step.
-- [ ] CLAUDE.md "Key JS files" list still needs updating with the 4 new
-      files (`schedule-ia.js`, `schedule-specials-view.js`,
-      `schedule-class-view.js`, `schedule-export.js`) — do this next.
+- [x] CLAUDE.md "Key JS files" list updated with the 4 new files, load order,
+      and a pointer to this doc.

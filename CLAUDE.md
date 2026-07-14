@@ -48,7 +48,7 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 ### 3. Building Schedule Builder (`schedule-app.html`)
 Master schedule builder for school administrators. Phase 1 complete; Phase 2 Specials Schedule view live.
 
-**Cache buster:** currently `?v=144` on all 5 script tags AND both CSS links in `public/schedule-app.html`. Bump ALL on every deploy. (Repo now serves from `public/` — all app files live under `public/`.)
+**Cache buster:** currently `?v=149` on all script tags AND both CSS links in `public/schedule-app.html`. Bump ALL on every deploy. (Repo now serves from `public/` — all app files live under `public/`; JS paths below are relative to `public/`.)
 
 **Data model — file-based, not Supabase:**
 - Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
@@ -73,11 +73,16 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - `iaAllocations[]` = `[{ id, name, color, hoursPerDay }]` — budget categories for IAs
 - `duties[]` = `[{ id, name, location, startTime, endTime, days[], iaIds[], allocId }]` — IA duty blocks (non-grade, e.g. "Morning Greeting"); not tied to master schedule
 
-**Key JS files:**
+**Key JS files** (load order in `schedule-app.html`; monolith split completed v146–v149, see `docs/monolith-split-plan.md` for full history — all extractions were behavior-neutral, verified by `tests/check-refs.js` + the pre-deploy gate + a clean browser boot at every step):
+- `js/supabase-config.js` — shared Supabase client (SupabaseClient), loaded first
 - `js/schedule-state.js` — SchedState, DEFAULT_BLOCK_TYPES, saveToLocal, loadFromLocal, downloadScheduleFile, loadScheduleFromFile, uid(), updateSidebarStatus()
 - `js/schedule-setup.js` — School Info, Staff Roster, Specials, Block Types views + save flows; SP_DEFAULT_COLORS
-- `js/schedule-grid.js` — Master Schedule grid, drag-to-move, auto-populate, conflict rendering, specials scheduling, Specials Schedule view, IA Schedule view (All IAs + Individual IA), duty blocks, XLSX export, coverage validation
-- `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring
+- `js/schedule-grid.js` (~3,323 lines, was ~6,177 pre-split) — CORE: Master Schedule grid render/cells, drag-to-move, resize, context menu, undo, the consolidated warnings panel, conflict rendering/banners, the placement algorithm (specials scheduling incl. `buildSpecialsSchedule`/`findGradeFixedTime`, grade pairings/`placePairedBlocks`, `_populateGradeData`, `rebuildPlacement()`), and `printScheduleGrid` (a shared print utility used by IA/specials/class views — intentionally NOT extracted, stays here)
+- `js/schedule-ia.js` (~1,678 lines, extraction 1) — IA Schedule view (All IAs + Individual IA), IA assignment edit/delete, IA assignment from the master schedule, duty blocks/panel. State: `iaSchedUI`, `iaDrag`, `iaMasterState`
+- `js/schedule-specials-view.js` (~571 lines, extraction 2) — Specials Schedule view (by-teacher grid), coverage validation/banner, the individual override panel. State: `specialsSchedUI`. (The specials *scheduling algorithm* stays in schedule-grid.js — this file is the view/UI layer only.)
+- `js/schedule-class-view.js` (~326 lines, extraction 3) — Class Schedules view (single class + grade compare). State: `classSchedUI`
+- `js/schedule-export.js` (~324 lines, extraction 4) — XLSX/JSON export (`exportXLSX`, `exportJSON`, `_blendColumnRuns`), Export view placeholder
+- `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring, loaded last
 
 **Key behaviors:**
 - `preFillFixedBlocks()` — auto-places lunch (from `lunchPeriods`) + recess (from `computeRecessTimes`) + morning meeting (only from the `bt_mm` block's uniformStart/End). Clears all fixed-block slots first, then re-places. Calls `ensureFixedBlockTypes()` at the top (v126) so bt_mm/bt_lunch/bt_recess type defs always exist — without them `buildCell()` renders those slots as **empty cells** and the palette's Transition group vanishes. `ensureFixedBlockTypes()` used to run only on load; running it here self-heals every build.
