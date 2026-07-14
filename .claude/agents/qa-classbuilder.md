@@ -88,17 +88,16 @@ rows.length + ' students loaded';
 
 ### 4. Class Generation
 
-Before generating, inject a separation rule so violation cards are testable in Step 6. Run this in `javascript_tool` **after** Field Mapping but **before** generating:
+Before generating, set 2 classes per grade so drag and violation tests have somewhere to move students. Run this in `javascript_tool` **after** Field Mapping but **before** generating:
 
 ```javascript
-// Force a separation between student 9001 (Alice Adams K) and 9002 (Ben Baker K)
-// then set up 2 classes per grade so they might end up in the same class
-AppState.separations = [{ a: 9001, b: 9002 }];
-// Set 2 classes for K so the algorithm has to split them (or may fail to)
+// Set 2 classes per grade
 if (AppState.gradeConfig['K']) AppState.gradeConfig['K'].classCount = 2;
 if (AppState.gradeConfig['1']) AppState.gradeConfig['1'].classCount = 2;
-'separation rule injected';
+JSON.stringify({ K: AppState.gradeConfig['K']?.classCount, one: AppState.gradeConfig['1']?.classCount });
 ```
+
+**IMPORTANT — student IDs:** The app assigns its own internal integer ids (`0, 1, 2, …`) in load order and **ignores the "Student ID" column**. Do NOT reference students by the 9001-style values from the sample CSV — they don't exist in `AppState`. Steps 6 and 7 below read the real ids straight off `AppState.results`, so they work regardless. If you inject a separation rule, use the internal ids (Alice Adams = 0, Ben Baker = 1).
 
 - Navigate to the **Students** tab
 - Click **Generate Balanced Classes** (the primary CTA button at the bottom of the student list)
@@ -135,64 +134,55 @@ sel.dispatchEvent(new Event('change'));
 
 ### 6. Violation Detail Cards
 
-With the injected separation rule, Alice Adams (9001) and Ben Baker (9002) may or may not end up in the same class — violations depend on the algorithm. Check the "Keep Apart Violations" stat card:
+The "Keep Apart Violations" card starts at 0 (the algorithm separates students on its own). Force a real violation by moving one student into another's class using **real internal ids** — Alice Adams = 0, Ben Baker = 1 (the app renumbers students 0,1,2,… in load order; it does NOT use the CSV's Student ID column). This reads the student straight off `AppState.results` so it's robust:
 
-- If count > 0: click the stat card
-  - **Pass:** A detail panel expands below the card showing the specific student pair (Alice Adams / Ben Baker)
-  - **Fail:** Card is not clickable, nothing expands, or console shows `Content-Security-Policy` error after click
-- If count = 0: the algorithm separated them successfully
-  - Force a visible violation by running in JS: inject them into the same class manually, then re-render:
-    ```javascript
-    // Move student 9002 into same class as 9001 (both into K class 0)
-    const kClasses = AppState.results['K'];
-    if (kClasses && kClasses.length >= 2) {
-      const s = kClasses[1].find(s => s.id === 9002);
-      if (s) {
-        kClasses[1] = kClasses[1].filter(s => s.id !== 9002);
-        kClasses[0].push(s);
-        if (typeof renderResults === 'function') renderResults();
-        else if (typeof renderResultsGrid === 'function') renderResultsGrid();
-      }
-    }
-    'done';
-    ```
-  - Then click the "Keep Apart Violations" stat card
-  - **Pass:** Detail panel expands with the pair listed
-  - **Fail:** CSP error, card not clickable, or panel doesn't expand
+```javascript
+AppState.separations = [{ a: 0, b: 1 }];   // real internal ids
+const kClasses = AppState.results['K'];
+let result = 'no-op';
+const s = kClasses[1].find(st => st.id === 1);   // Ben Baker in K class 2
+if (s) {
+  kClasses[1] = kClasses[1].filter(st => st.id !== 1);
+  kClasses[0].push(s);                             // into K class 1 with Alice
+  if (typeof renderResults === 'function') { renderResults(); result = 'moved'; }
+  else if (typeof renderResultsGrid === 'function') { renderResultsGrid(); result = 'moved'; }
+} else { result = 'Ben (id 1) not in K class 1 — inspect AppState.results to find him'; }
+result;
+```
+
+If the return is not `'moved'`, inspect where Ben actually is:
+`AppState.results['K'].map((c,i)=>c.filter(s=>s.id<2).map(s=>({i,id:s.id,name:s.firstName+' '+s.lastName})))` and adapt the source class index.
+
+- Then click the "Keep Apart Violations" stat card (it shows "click for details" and a red border once count ≥ 1)
+- **Pass:** Detail panel expands below the card listing "Alice Adams & Ben Baker — placed in the same class"
+- **Fail:** Card not clickable, nothing expands, or `read_console_messages` shows a `Content-Security-Policy` error after the click (this is the exact bug class that was fixed — a CSP regression here is a real failure)
 
 ---
 
-### 7. Drag-to-Move (JS unit test)
+### 7. Drag-to-Move (real drop-event test)
 
-Drag uses the native `dataTransfer` API which can't be reliably automated via synthetic mouse events. Instead, test the drop handler directly:
+Don't just replicate the handler's logic — fire the **actual `drop` event** with a populated `DataTransfer` so the real listener in `results.js` runs. Move a student between the two Grade-1 classes:
 
 ```javascript
-// Simulate a drop: move student 9003 (Clara Adams K) from K-class-1 to K-class-0
-const kClasses = AppState.results['K'];
-if (!kClasses || kClasses.length < 2) {
-  'SKIP: need 2 K classes';
-} else {
-  const student = kClasses[1].find(s => s.id === 9003);
-  if (!student) {
-    'SKIP: student 9003 not found in K class 1';
-  } else {
-    const before0 = kClasses[0].length;
-    const before1 = kClasses[1].length;
+const g1 = AppState.results['1'];
+const before0 = g1[0].length, before1 = g1[1].length;
+const moving = g1[1][0];                 // first student in G1 class 2
+const destCard = document.querySelector('.class-card[data-grade="1"][data-class="0"]');
+if (!destCard) { throw new Error('dest card not found — is the grade filter on All Grades?'); }
 
-    // Replicate exactly what the drop handler does
-    const idx = kClasses[1].findIndex(s => s.id === 9003);
-    const [moved] = kClasses[1].splice(idx, 1);
-    kClasses[0].push(moved);
-    renderResultsGrid();
+const dt = new DataTransfer();
+dt.setData('studentId', String(moving.id));
+dt.setData('fromGrade', '1');
+dt.setData('fromClass', '1');
+destCard.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
 
-    const after0 = AppState.results['K'][0].length;
-    const after1 = AppState.results['K'][1].length;
-    `moved: class0 ${before0}→${after0}, class1 ${before1}→${after1}`;
-  }
-}
+const after0 = AppState.results['1'][0].length, after1 = AppState.results['1'][1].length;
+JSON.stringify({ moved: moving.firstName+' '+moving.lastName, class0: before0+'→'+after0, class1: before1+'→'+after1 });
 ```
 
-- **Pass:** Returns a string like `"moved: class0 5→6, class1 5→4"` and the Results grid re-renders showing updated counts
+- **Pass:** class0 count goes up by 1, class1 down by 1 (e.g. `"class0":"5→6","class1":"5→4"`), and the grid re-renders to match (take a screenshot to confirm)
+- **Fail:** counts unchanged (the real drop handler didn't fire), JS error, or grid doesn't update
+- **Note:** if the grade filter is not on "All Grades", the dest card query may miss — reset the filter first (`document.getElementById('results-grade-filter').value=''; ...dispatchEvent(new Event('change'))`)
 - **Fail:** JS error, counts unchanged, or grid doesn't update
 
 ---
@@ -212,6 +202,18 @@ Before `npx wrangler deploy`, run:
 bash scripts/check-csp.sh
 ```
 This greps for `onclick=` / `onchange=` / etc. inside JS template strings. If it exits non-zero, fix the violations before deploying. (CICO files currently still have violations — known issue, tracked separately.)
+
+---
+
+## Log the run
+
+After completing all steps (pass or fail), append one line to `/Users/michaelfletcher/Documents/cohortlogic/qa-runs.log` (gitignored) recording the run. Use the Bash tool:
+
+```bash
+printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
+```
+
+Where `RESULT` is like `7/8 PASS` and `NOTES` is a short summary of any failures (or `all green`). This is the only durable record of when QA last ran — always write it.
 
 ---
 
