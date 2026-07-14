@@ -537,6 +537,67 @@ h4 { font-size: 15px; line-height: 1.3; }
   .footer-copy-links { gap: 16px; }
 }
 
+/* ── Mobile hardening: reach the INLINE layouts ──────────────────────────────
+   Most marketing sections set `grid-template-columns` inline, so class-based
+   media queries can't touch them. These rules target the inline patterns
+   directly (with !important to beat the inline style) and fix the remaining
+   small-screen overflow sources. If a new column ratio is added to a page,
+   add it to the collapse list below. */
+@media (max-width: 700px) {
+  /* Long status pills must wrap, not force the column wider than the screen */
+  .tag { white-space: normal; }
+
+  /* Inline flex rows (button groups, header rows) must wrap rather than
+     overflow — two nowrap buttons side-by-side otherwise force the column
+     wider than the phone. */
+  [style*="display:flex"] { flex-wrap: wrap; }
+
+  /* Collapse two-column section layouts to a single column.
+     Intentionally excludes: the 4-col comparison table (1.8fr 1fr 1fr 1fr),
+     the 5-col schedule viz (repeat(5,1fr)), the 3-col cohort cards, and the
+     small `1fr auto` / `Npx 1fr auto` label rows — all handled separately. */
+  [style*="grid-template-columns:1.4fr 1fr"],
+  [style*="grid-template-columns:1.6fr auto"],
+  [style*="grid-template-columns:1fr 1.2fr"],
+  [style*="grid-template-columns:1.2fr 1fr"],
+  [style*="grid-template-columns:1.1fr 1fr"],
+  [style*="grid-template-columns:1.15fr 1fr"],
+  [style*="grid-template-columns:1.05fr 1fr"],
+  [style*="grid-template-columns:1fr 1.1fr"],
+  [style*="grid-template-columns:1fr 1.5fr"],
+  [style*="grid-template-columns:1fr 1fr"],
+  [style*="grid-template-columns:160px 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 28px !important;
+  }
+
+  /* Oversized inline padding on hero/CTA/product cards → tighten so it fits */
+  [style*="padding:64px 56px"] { padding: 36px 22px !important; }
+  [style*="padding:36px"]      { padding: 24px !important; }
+  [style*="padding:40px"]      { padding: 24px !important; }
+
+  /* Decorative product visuals: let them shrink to the column instead of
+     forcing page-wide overflow (grid items floor at min-content otherwise). */
+  .cohort-viz { min-width: 0; }
+  .cohort-viz-header { flex-wrap: wrap; gap: 4px 10px; }
+  .cohort-viz-title, .cohort-viz-meta { white-space: normal; }
+  .cohort-cards { grid-template-columns: 1fr !important; }
+  .kid-chips { flex-wrap: wrap; }
+  .constraint-footer-head { flex-wrap: wrap; gap: 4px 10px; }
+  .cohort-viz [style*="repeat(5,1fr)"] {
+    grid-template-columns: 34px repeat(5, minmax(0, 1fr)) !important;
+  }
+  .sb-cell { min-width: 0; white-space: normal; font-size: 9px; padding: 5px 2px; }
+
+  /* Comparison table: keep 4 columns, shrink so the row fits ~360px */
+  [style*="grid-template-columns:1.8fr 1fr 1fr 1fr"] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    column-gap: 6px !important;
+    font-size: 12px !important;
+  }
+}
+
 /* ── auth pages (login / signup) ─────────────────────────────────────── */
 .auth-page {
   min-height: 100vh; display: flex; flex-direction: column;
