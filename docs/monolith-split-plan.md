@@ -1,9 +1,42 @@
 # Monolith split plan — `public/js/schedule-grid.js`
 
-**Status:** STEP 0 done (v145, uncommitted → see below). Extraction 1 (IA) not
-started yet. **Owner:** any model/session can resume from this file.
+**Status:** STEP 0 done (committed d62be5d). **Extraction 1 (IA) done (v146,
+deployed, commit below).** Extraction 2 (Specials Schedule view) not started.
+**Owner:** any model/session can resume from this file.
 **Goal:** carve the ~6,180-line `schedule-grid.js` into cohesive feature files
 WITHOUT changing behavior. Started at v145.
+
+### Extraction 1 (IA) done — notes for whoever does extraction 2
+- New file `public/js/schedule-ia.js` (~1,678 lines), loaded after
+  `schedule-grid.js` and before `schedule-init.js`. `schedule-grid.js` is now
+  ~4,512 lines (was ~6,177).
+- **The plan's line numbers had already drifted AND the section wasn't purely
+  IA** — the "IA Schedule" banner range (was 3281–4398) had Export functions
+  (`renderExportPlaceholder`, `exportJSON`, `_blendColumnRuns`, `exportXLSX`)
+  physically interleaved inside it, added later without their own banner.
+  Those four stayed in `schedule-grid.js` (core) — they belong to extraction 4
+  (Export), not IA. Verify actual section contents with
+  `awk 'NR>=X && NR<=Y && /^function |^const |^let /{print NR": "$0}'`
+  before cutting a range — don't trust banner ranges alone.
+- `exportIASummaryCSV` (IA's own CSV export, distinct from the multi-tab
+  `exportXLSX`) DID move to schedule-ia.js — it's IA-specific, wired to
+  `#ia-summary-csv-btn` in `wireIAScheduleEvents`.
+- Three contiguous ranges actually moved (original schedule-grid.js line
+  numbers, now historical): 3281–4078 (IA Schedule view, iaSchedUI/iaDrag/
+  iaMasterState), 4672–4772 (IA assignment edit/delete), 5409–6177 (IA
+  assignment from master schedule + Individual IA grid + Duty panel, ran to
+  EOF).
+- `_cleanupStaleIAAssignments` and `_purgeFixedBlockConflicts` were NOT in the
+  IA banner ranges at all (they live in the "Save"/"Conflict helpers" core
+  sections) — no special handling needed, they stayed in core automatically.
+- `iaMasterState` is referenced from core (`onPointerDown`, `switchDay`, the
+  wireGridPointer area) — confirmed safe because every reference is inside a
+  function body (runtime-only), never at load time.
+- Verified: `check-refs.js` reports the identical defined-name count (1050)
+  before and after — confirms a lossless move, nothing duplicated or dropped.
+  Full gate green. Browser boot clean (schedule-ia.js?v=146 → 200, zero
+  console errors, page reached the sign-in screen normally).
+- Deployed via `scripts/deploy.sh` (gate-checked), not raw wrangler.
 
 ### STEP 0 done — notes for whoever does extraction 1
 - `tests/check-refs.js` built, wired into `scripts/predeploy.sh` as 5/5.
@@ -148,6 +181,9 @@ Move WITH it: `classSchedUI`.
 ### 4. Export → `public/js/schedule-export.js`  (~250 lines)
 - `exportXLSX`, `exportJSON`, `_blendColumnRuns`, `renderExportPlaceholder`
   and their local helpers. Read-only over state — lowest risk.
+- Confirmed post-extraction-1: these four functions currently sit physically
+  right after the (now-moved) IA Schedule view functions in `schedule-grid.js`
+  — search `^function renderExportPlaceholder` to find the start of this block.
 
 After all four: `schedule-grid.js` should be ~2,900 lines of genuine core
 (grid render + interaction + placement algorithm).
