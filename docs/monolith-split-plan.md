@@ -1,7 +1,8 @@
 # Monolith split plan — `public/js/schedule-grid.js`
 
-**Status:** STEP 0 done (committed d62be5d). **Extraction 1 (IA) done (v146,
-deployed, commit below).** Extraction 2 (Specials Schedule view) not started.
+**Status:** STEP 0 done (d62be5d). Extraction 1 (IA) done (v146, 510663d).
+**Extraction 2 (Specials Schedule view) done (v147, commit below).**
+Extraction 3 (Class Schedules view) not started.
 **Owner:** any model/session can resume from this file.
 **Goal:** carve the ~6,180-line `schedule-grid.js` into cohesive feature files
 WITHOUT changing behavior. Started at v145.
@@ -37,6 +38,46 @@ WITHOUT changing behavior. Started at v145.
   Full gate green. Browser boot clean (schedule-ia.js?v=146 → 200, zero
   console errors, page reached the sign-in screen normally).
 - Deployed via `scripts/deploy.sh` (gate-checked), not raw wrangler.
+
+### Extraction 2 (Specials Schedule view) done — notes for whoever does extraction 3
+- New file `public/js/schedule-specials-view.js` (~571 lines), loaded after
+  `schedule-ia.js` and before `schedule-init.js`. `schedule-grid.js` is now
+  ~3,958 lines (was ~4,512).
+- **The "Specials Schedule View" banner range was interleaved with THREE
+  different things, not one** — this section had more surprises than
+  extraction 1, not fewer. Do not assume a banner range is homogeneous; map
+  every declaration in the range with `awk` before cutting anything, every
+  time:
+  - `classSchedUI` (extraction-3 material) was declared immediately adjacent
+    to `specialsSchedUI` inside the SAME banner block — had to split them
+    apart (specialsSchedUI moved, classSchedUI stayed in core for extraction 3).
+  - `printScheduleGrid` sits physically between "Specials individual override"
+    and `renderClassSchedulesView`. It's a SHARED print utility called from
+    core (master grid print button), the specials view, the class-schedules
+    view, AND schedule-ia.js. It stays in `schedule-grid.js` (core) — do not
+    move it into any single feature file, extraction 3 included.
+  - `renderClassSchedulesView` itself (extraction-3 material) was physically
+    sandwiched between specials-view functions. Left in core, untouched, for
+    extraction 3 to pick up.
+  - Net result: extraction 2 was FIVE non-contiguous cuts from
+    `schedule-grid.js`, not one contiguous block like extraction 1. That's
+    fine — cut/paste each piece independently, same verification either way.
+- Also noted (not fixed, out of scope — same treatment as the
+  `downloadIAScheduleCSV` finding from extraction 1): `renderSpecialsPlaceholder`
+  (in the earlier "Placeholder views" section, before this range) is defined
+  but never called anywhere in the bundle. Dead code, left in core.
+- Moved: `getSpecialsCoverageReport`, `showSpecialsCoverageBanner`
+  ("Specials coverage validation"), `specialsSchedUI`,
+  `renderSpecialsScheduleView` ("Specials Schedule View"),
+  `openSpecialsOverridePanel`, `applySpecialsOverride` ("Specials individual
+  override"), `buildSpecialsTeacherGrid`. The specials scheduling ALGORITHM
+  (`buildSpecialsSchedule`, `findGradeFixedTime`, rotation,
+  `getSpecialsAtSlot`, `buildSpecialsCell`) correctly stayed in core per the
+  original plan — confirmed none of it was inside these banner ranges.
+- Verified: `check-refs.js` reports the identical 1050 defined names before
+  and after (7 files now). Full gate green. Browser boot clean
+  (schedule-specials-view.js?v=147 → 200, zero console errors).
+- Deployed via `scripts/deploy.sh` v147.
 
 ### STEP 0 done — notes for whoever does extraction 1
 - `tests/check-refs.js` built, wired into `scripts/predeploy.sh` as 5/5.
@@ -176,7 +217,11 @@ are core placement/render and stay in `schedule-grid.js`.
 
 ### 3. Class Schedules view → `public/js/schedule-class-view.js`  (~175 lines)
 - `// ── Class Schedules view helpers ──` + `renderClassSchedulesView`.
-Move WITH it: `classSchedUI`.
+Move WITH it: `classSchedUI` (currently sits in `schedule-grid.js` right where
+extraction 2 left it — search `^const classSchedUI`).
+Do NOT move `printScheduleGrid` (right next to `renderClassSchedulesView` in
+the file) — it's a shared print utility used by core, IA, and the specials
+view too; confirmed during extraction 2 that it must stay in core.
 
 ### 4. Export → `public/js/schedule-export.js`  (~250 lines)
 - `exportXLSX`, `exportJSON`, `_blendColumnRuns`, `renderExportPlaceholder`
