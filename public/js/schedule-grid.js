@@ -2966,29 +2966,42 @@ function _pairingActiveInfo(p) {
   return info;
 }
 
-// A pairing is satisfied when, on every day, every active grade has the unit
-// present (≥ its slot count) and starting at the SAME time as the others.
-function _pairingSatisfied(unitId, info) {
+// If the pairing is "aligned" — on every day, every active grade has the unit
+// present (≥ its slot count) and starting at the SAME time — return the shared
+// start times as { day: 'HH:MM' }; otherwise null. (The start times are needed
+// for the same-unit non-overlap math, not just a yes/no.)
+function _pairingCurrentTimes(unitId, info) {
+  const times = {};
   for (const day of DAYS) {
     const daySlots = _autoFillSlots(day);
     let common = null;
     for (const { grade, slots } of info) {
       const sched = SchedState.masterSchedule[day]?.[grade] || {};
       const start = daySlots.find(sl => sched[sl] === unitId);
-      if (!start) return false;
-      if (daySlots.filter(sl => sched[sl] === unitId).length < slots) return false;
+      if (!start) return null;
+      if (daySlots.filter(sl => sched[sl] === unitId).length < slots) return null;
       if (common === null) common = start;
-      else if (start !== common) return false;
+      else if (start !== common) return null;
     }
+    times[day] = common;
   }
-  return true;
+  return times;
+}
+
+function _pairingSatisfied(unitId, info) {
+  return !!_pairingCurrentTimes(unitId, info);
 }
 
 // Find a start time that fits EVERY active grade's block (avoiding fixed blocks &
 // specials — those slots are occupied; empty/instruction slots are fine because
 // this runs on a fresh build where instruction was cleared by buildSpecialsSchedule).
 // Prefer ONE fixed time across all days; fall back to per-day. Returns { day: 'HH:MM' } or {}.
-function _findPairingTimes(unitId, info) {
+// avoidByDay: { day: [{ s, e }] } — minute-windows already claimed by OTHER
+// pairings of the SAME unit this pass. A candidate time is rejected if this
+// pairing's window [T, T + maxSlots*5) overlaps any of them, so two groups doing
+// the same block (e.g. two WIN groups) never land at the same time.
+function _findPairingTimes(unitId, info, avoidByDay = {}) {
+  const maxSlots = Math.max(...info.map(i => i.slots));
   const fits = (grade, slotsN, day, startIdx, daySlots) => {
     if (startIdx < 0 || startIdx + slotsN > daySlots.length) return false;
     const sched = SchedState.masterSchedule[day]?.[grade] || {};
@@ -2998,6 +3011,12 @@ function _findPairingTimes(unitId, info) {
     }
     return true;
   };
+  // The pairing occupies [T, T + maxSlots*5) on a day (longest grade's block);
+  // that window must not overlap a same-unit window already claimed.
+  const clearOfSameUnit = (day, T) => {
+    const s = timeToMins(T), e = s + maxSlots * 5;
+    return !(avoidByDay[day] || []).some(w => s < w.e && w.s < e);
+  };
   const ref = _autoFillSlots('Monday');
   for (let i = 0; i < ref.length; i++) {
     const T = ref[i];
@@ -3005,6 +3024,7 @@ function _findPairingTimes(unitId, info) {
     for (const day of DAYS) {
       const daySlots = _autoFillSlots(day);
       const idx = daySlots.indexOf(T);
+      if (!clearOfSameUnit(day, T)) { ok = false; break; }
       for (const { grade, slots } of info) {
         if (!fits(grade, slots, day, idx, daySlots)) { ok = false; break; }
       }
@@ -3016,11 +3036,13 @@ function _findPairingTimes(unitId, info) {
   DAYS.forEach(day => {
     const daySlots = _autoFillSlots(day);
     for (let i = 0; i < daySlots.length; i++) {
+      const T = daySlots[i];
+      if (!clearOfSameUnit(day, T)) continue;
       let ok = true;
       for (const { grade, slots } of info) {
         if (!fits(grade, slots, day, i, daySlots)) { ok = false; break; }
       }
-      if (ok) { perDay[day] = daySlots[i]; any = true; break; }
+      if (ok) { perDay[day] = T; any = true; break; }
     }
   });
   return any ? perDay : {};
@@ -3038,21 +3060,63 @@ function _placePairingUnit(day, grade, unitId, start, slotsN) {
   for (let j = 0; j < slotsN && si + j < daySlots.length; j++) sched[daySlots[si + j]] = unitId;
 }
 
-// Place all synchronized blocks. Idempotent: a pairing that's already satisfied is
-// left as-is (preserves prior/manual placement); an unsatisfied one is (re)placed
-// at a shared time if open space allows, else left for showPairingWarning to flag.
+// Place all synchronized blocks. Idempotent: a pairing already aligned AND not
+// colliding with another same-unit group is left as-is; otherwise it's (re)placed
+// at a shared time. Two pairings of the SAME unit (e.g. WIN for 2/3 and WIN for
+// 4/5) are kept in fully non-overlapping windows — a shared intervention
+// specialist can't cover both at once. Anything that can't fit is left for
+// showPairingWarning to flag.
 function placePairedBlocks() {
   const pairings = SchedState.school.blockPairings || [];
-  pairings.forEach(p => {
+  if (!pairings.length) return;
+  const gradeRank = g => (GRADE_ORDER[g] !== undefined ? GRADE_ORDER[g] : 99);
+
+  // Precompute; drop pairings with <2 active grades.
+  const items = pairings.map((p, idx) => {
     const info = _pairingActiveInfo(p);
-    if (info.length < 2) return;
-    const unitId = p.subId ? `${p.blockId}|${p.subId}` : p.blockId;
-    if (_pairingSatisfied(unitId, info)) return;
-    const times = _findPairingTimes(unitId, info);
-    if (!Object.keys(times).length) return;
+    if (info.length < 2) return null;
+    return {
+      idx, info,
+      unitId:   p.subId ? `${p.blockId}|${p.subId}` : p.blockId,
+      maxSlots: Math.max(...info.map(i => i.slots)),
+      minRank:  Math.min(...info.map(i => gradeRank(i.grade))),
+    };
+  }).filter(Boolean);
+
+  // Deterministic order so staggering is stable across renders: lower grades
+  // claim earlier slots within a unit, then config order.
+  items.sort((a, b) => a.minRank - b.minRank || a.idx - b.idx);
+
+  // Windows claimed so far, per unit: { unitId: { day: [{ s, e }] } }.
+  const claimed = {};
+  const record = (unitId, times, maxSlots) => {
+    const byDay = (claimed[unitId] = claimed[unitId] || {});
+    DAYS.forEach(day => {
+      const T = times[day];
+      if (!T) return;
+      const s = timeToMins(T);
+      (byDay[day] = byDay[day] || []).push({ s, e: s + maxSlots * 5 });
+    });
+  };
+  const conflicts = (times, maxSlots, avoidByDay) => DAYS.some(day => {
+    const T = times[day];
+    if (!T) return false;
+    const s = timeToMins(T), e = s + maxSlots * 5;
+    return (avoidByDay[day] || []).some(w => s < w.e && w.s < e);
+  });
+
+  items.forEach(({ info, unitId, maxSlots }) => {
+    const avoidByDay = claimed[unitId] || {};
+    // Keep an already-aligned, non-colliding placement as-is (idempotent).
+    const cur = _pairingCurrentTimes(unitId, info);
+    if (cur && !conflicts(cur, maxSlots, avoidByDay)) { record(unitId, cur, maxSlots); return; }
+    // (Re)place at a shared time that avoids earlier same-unit windows.
+    const times = _findPairingTimes(unitId, info, avoidByDay);
+    if (!Object.keys(times).length) return; // showPairingWarning flags it
     info.forEach(({ grade, slots }) => {
       DAYS.forEach(day => { if (times[day]) _placePairingUnit(day, grade, unitId, times[day], slots); });
     });
+    record(unitId, times, maxSlots);
   });
 }
 
@@ -3061,20 +3125,49 @@ function showPairingWarning() {
   if (existing) existing.remove();
   const pairings = SchedState.school.blockPairings || [];
   const issues = [];
+  const placedByUnit = {}; // unitId -> [{ name, label, times, maxSlots }]
+
   pairings.forEach(p => {
     const info = _pairingActiveInfo(p);
     if (info.length < 2) return;
     const unitId = p.subId ? `${p.blockId}|${p.subId}` : p.blockId;
-    if (!_pairingSatisfied(unitId, info)) {
-      issues.push(`${escHtml(getBtName(unitId))} (${info.map(i => escHtml(GRADE_LABELS[i.grade] || i.grade)).join(', ')})`);
+    const label  = info.map(i => GRADE_LABELS[i.grade] || i.grade).join(', ');
+    const times  = _pairingCurrentTimes(unitId, info);
+    if (!times) {
+      issues.push(`<strong>${escHtml(getBtName(unitId))}</strong> (${escHtml(label)}) — couldn't be placed at one shared time for all grades`);
+      return;
+    }
+    (placedByUnit[unitId] = placedByUnit[unitId] || []).push({
+      name: getBtName(unitId), label, times, maxSlots: Math.max(...info.map(i => i.slots)),
+    });
+  });
+
+  // Same-unit non-overlap rule: two groups doing the same block must not share time.
+  Object.values(placedByUnit).forEach(list => {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const overlaps = DAYS.some(day => {
+          const ta = a.times[day], tb = b.times[day];
+          if (!ta || !tb) return false;
+          const as = timeToMins(ta), ae = as + a.maxSlots * 5;
+          const bs = timeToMins(tb), be = bs + b.maxSlots * 5;
+          return as < be && bs < ae;
+        });
+        if (overlaps) {
+          issues.push(`<strong>${escHtml(a.name)}</strong> — ${escHtml(a.label)} and ${escHtml(b.label)} are scheduled at the same time (paired groups for the same block must not overlap)`);
+        }
+      }
     }
   });
+
   if (!issues.length) return;
   const banner = document.createElement('div');
   banner.id = 'pairing-banner';
   banner.className = 'setup-banner setup-banner-error';
-  banner.innerHTML = `⚠ <strong>Synchronized blocks not aligned:</strong> ${issues.join('; ')}. ` +
-    `Couldn't place them at one shared time for all grades — free up space (lunch/recess/specials) or reduce minutes.`;
+  banner.innerHTML = `⚠ <strong>Synchronized blocks:</strong>` +
+    `<ul style="margin:4px 0 0 16px;padding:0">${issues.map(t => `<li>${t}</li>`).join('')}</ul>` +
+    `<div style="font-size:12px;margin-top:4px">Free up space (lunch/recess/specials) or reduce minutes so each group can get its own time.</div>`;
   _mountWarning(banner);
 }
 
