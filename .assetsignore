@@ -1,0 +1,20 @@
+# Files that must NEVER be deployed as public static assets.
+# Cloudflare Workers Assets uploads everything in `directory` except these.
+.assetsignore
+.DS_Store
+
+# Git internals (contains the push token in .git/config + full history)
+.git
+.git/**
+.gitignore
+
+# Local tooling / caches / secrets
+.claude
+.claude/**
+.wrangler
+.wrangler/**
+.qa-credentials
+.dev.vars
+.env
+node_modules
+node_modules/**

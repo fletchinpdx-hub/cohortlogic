@@ -311,6 +311,14 @@ h4 { font-size: 15px; line-height: 1.3; }
   font-family: var(--font-mono); font-size: 11px; color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
+/* Schedule Builder weekly-grid viz cells */
+.sb-cell {
+  font-size: 10.5px; padding: 6px 4px; border-radius: 6px; text-align: center;
+  font-weight: 600; letter-spacing: .02em; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-mini { background: var(--gold-soft); color: #8a6a18; padding: 5px 2px; }
+
 .cohort-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
 .cohort-card {
   background: #fff; border: 1px solid var(--hairline);
