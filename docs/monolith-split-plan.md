@@ -1,9 +1,8 @@
 # Monolith split plan — `public/js/schedule-grid.js`
 
-**Status:** STEP 0 done (d62be5d). Extraction 1 (IA) done (v146, 510663d).
-Extraction 2 (Specials Schedule view) done (v147, 323ae97).
-**Extraction 3 (Class Schedules view) done (v148, commit below).**
-Extraction 4 (Export) not started — last one.
+**Status: DONE.** STEP 0 (d62be5d) + all 4 extractions complete: IA (v146,
+510663d), Specials Schedule view (v147, 323ae97), Class Schedules view
+(v148, 2753a28), Export (v149, commit below).
 **Owner:** any model/session can resume from this file.
 **Goal:** carve the ~6,180-line `schedule-grid.js` into cohesive feature files
 WITHOUT changing behavior. Started at v145.
@@ -107,6 +106,46 @@ WITHOUT changing behavior. Started at v145.
   and after (8 files now). Full gate green. Browser boot clean
   (schedule-class-view.js?v=148 → 200, zero console errors).
 - Deployed via `scripts/deploy.sh` v148.
+
+### Extraction 4 (Export) done — last one, plan complete
+- New file `public/js/schedule-export.js` (~324 lines), loaded after
+  `schedule-class-view.js` and before `schedule-init.js`.
+  `schedule-grid.js` is now ~3,323 lines (was ~3,641; ~6,177 originally).
+- Simplest cut of the four: one contiguous range (`renderExportPlaceholder`
+  through the end of `exportXLSX`), no interlopers — this was exactly the
+  block extraction 1 found and correctly left behind, so its location was
+  already known going in.
+- One easy off-by-one: `awk` had shown a section banner appearing right
+  AFTER `exportXLSX`'s definition line, which was `printScheduleGrid` — but
+  the naive "last line before the next declaration" read initially missed
+  that `exportXLSX`'s own closing `}` was the line right before
+  `printScheduleGrid`, not the line before that. Caught immediately by
+  counting `{`/`}` balance on the cut piece before assembling the new file
+  (77/77) — would also have been caught by `node --check` in check-refs.js
+  either way, since an unbalanced cut is a parse error. Worth doing the
+  brace-count sanity check on any cut before running the full verification
+  chain — cheaper and faster to catch locally.
+- Verified: `check-refs.js` reports the identical 1050 defined names before
+  and after (9 files now). Full gate green. Browser boot clean
+  (schedule-export.js?v=149 → 200, zero console errors).
+- Deployed via `scripts/deploy.sh` v149.
+
+### Final numbers
+`schedule-grid.js`: 6,177 → 4,512 (IA) → 3,958 (Specials view) → 3,641
+(Class view) → **3,323 lines** (Export). Four new feature files:
+`schedule-ia.js` (~1,678), `schedule-specials-view.js` (~571),
+`schedule-class-view.js` (~326), `schedule-export.js` (~324). Total lines
+across all schedule-*.js grew slightly (~6,177 → ~6,222) from added file
+headers/breadcrumbs — expected for a pure reorganization, not a regression.
+
+### Two pre-existing dead-code findings surfaced along the way (NOT fixed —
+### out of scope for this behavior-neutral split; flag to the user separately
+### if cleanup is wanted)
+- `downloadIAScheduleCSV` — called behind a `typeof ... === 'function'` guard
+  in `schedule-ia.js`, never defined anywhere. Harmless no-op; a working
+  duplicate (`exportIASummaryCSV`) is wired to the same button elsewhere.
+- `renderSpecialsPlaceholder` — defined in `schedule-grid.js`, never called
+  anywhere in the bundle.
 
 ### STEP 0 done — notes for whoever does extraction 1
 - `tests/check-refs.js` built, wired into `scripts/predeploy.sh` as 5/5.
@@ -284,8 +323,15 @@ After all four: `schedule-grid.js` should be ~2,900 lines of genuine core
    One feature per commit.
 9. Update this file's Status line for the completed step.
 
-## Definition of done
-- All 4 features extracted; `schedule-grid.js` ~2,900 lines.
-- `scripts/check-refs.sh` in the gate and green.
-- No behavior change; gate green; app boots clean.
-- CLAUDE.md "Key JS files" list updated with the new files.
+## Definition of done — ALL COMPLETE
+- [x] All 4 features extracted; `schedule-grid.js` is 3,323 lines (the
+      ~2,900 estimate was approximate — actual core turned out to include a
+      bit more shared/interaction code than originally guessed; not a
+      problem, just noting the estimate vs. actual).
+- [x] `tests/check-refs.js` in the gate (`scripts/predeploy.sh` check 5/5)
+      and green.
+- [x] No behavior change; gate green at every step; app boots clean at every
+      step.
+- [ ] CLAUDE.md "Key JS files" list still needs updating with the 4 new
+      files (`schedule-ia.js`, `schedule-specials-view.js`,
+      `schedule-class-view.js`, `schedule-export.js`) — do this next.
