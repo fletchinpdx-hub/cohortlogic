@@ -31,9 +31,8 @@ When compacting this conversation, preserve:
 
 ### 1. Class Builder (`app.html`)
 Generates balanced, equitable classroom assignments for school admins.
-- **Demo access code:** democlass (hardcoded in client JS — known limitation, security theater only)
-- **No backend** — everything runs in the browser. Data never sent to a server.
-- Session-based auth via `sessionStorage`.
+- **Auth:** real Supabase email/password login + admin approval. `app.html` loads `js/auth-gate.js` in `<head>`, which requires a Supabase session and `profiles.approved` (no session → `login.html`; not approved → `dashboard.html`). `login.js` uses `signInWithPassword` — no OAuth. (The old hardcoded `democlass` demo code is GONE — removed from the repo; do not reference it.)
+- **No backend for roster data** — all balancing runs in the browser and the student roster is never uploaded or stored server-side. Supabase is used only for auth + anonymous usage analytics (`sessions`/`events`), never student records.
 - File import: Excel (.xlsx/.xls) and CSV — drag/drop or browse
 - Google Sheets: users export as CSV/Excel from Google Sheets, then upload (URL import removed — privacy concern)
 - Usage analytics tracked to `sessions` + `events` Supabase tables (anon + authenticated INSERT allowed)
@@ -394,7 +393,7 @@ supabase/migrations/
 | CSP `script-src` without `unsafe-inline` | ✅ Done — all `onclick=`/`onchange=`/`oninput=` migrated to `addEventListener`. This regressed once (15 CICO handlers silently broken in prod until Jul 2026) — run `scripts/check-csp.sh` before every deploy; it exits 1 on violations. |
 | CSP `style-src` without `unsafe-inline` | ⚠️ Intentionally not done — 1,193 inline `style=""` attributes site-wide; no injection vector on a static site, so the security benefit is negligible. `unsafe-inline` stays in `style-src` permanently. |
 | Supabase DPA | ⏳ Pending (needed for formal FERPA) |
-| Demo access code in client JS | ⚠️ Known limitation (v1 intentional) |
+| Class Builder auth | ✅ Real Supabase email/password + admin approval (`js/auth-gate.js` gates `app.html`); legacy `democlass` demo code removed |
 
 ---
 
