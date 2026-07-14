@@ -6,7 +6,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-JS_DIR="$ROOT/js"
+JS_DIR="$ROOT/public/js"
+
+# Fail loudly if the scan target is missing (e.g. a repo restructure moved it),
+# rather than scanning nothing and reporting a false pass.
+if [ ! -d "$JS_DIR" ]; then
+  echo "‼ CSP check: scan directory not found: $JS_DIR"
+  exit 1
+fi
 
 # Patterns that are CSP violations when used inside template literals / innerHTML strings.
 # We look for the attribute name followed by = inside a JS string context (after a backtick or quote).

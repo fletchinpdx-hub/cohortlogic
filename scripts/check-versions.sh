@@ -13,15 +13,21 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# HTML files that carry versioned asset tags.
-FILES=(app.html schedule-app.html checkin-app.html referral-app.html dashboard.html login.html)
+# HTML files that carry versioned asset tags (served from public/).
+FILES=(public/app.html public/schedule-app.html public/checkin-app.html public/referral-app.html public/dashboard.html public/login.html)
 
 echo "=== Cache-version consistency check ==="
 
 fail=0
 for rel in "${FILES[@]}"; do
   f="$ROOT/$rel"
-  [ -f "$f" ] || continue
+  # Fail loudly on a missing expected file (e.g. a restructure moved it) instead
+  # of silently skipping and reporting a false pass.
+  if [ ! -f "$f" ]; then
+    echo "  ‼  $rel — expected file not found"
+    fail=1
+    continue
+  fi
 
   # Extract every ?v=VALUE from src=/href= attributes.
   versions=$(grep -oE '(src|href)="[^"]*\?v=[^"&]+' "$f" 2>/dev/null \

@@ -3086,15 +3086,22 @@ function showPairingWarning() {
 // • Blocks displaced by lunch/recess overwriting get re-placed in free space.
 // _populateGradeData with clearFirst=false is a no-op for blocks already fully placed
 // within the day's slot range, so this is safe to run on every render.
-function autoPopulateIfEmpty() {
+// Canonical placement order for a full (all-grades, all-days) pass. The order is
+// load-bearing: specials first (they clear instruction on rebuild and get first
+// pick), then fixed blocks, then synchronized pairings, then instruction fills the
+// gaps (clearFirst=false leaves fully-placed blocks — including manual moves — as
+// is). Keep this the ONE place the sequence lives so a new step (like pairings)
+// can't be added to some paths and forgotten in others. switchDay/autoPopulateGrade
+// use scoped variants (single day / single grade) and intentionally differ.
+function rebuildPlacement() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
-  placePairedBlocks();   // synchronized blocks after specials, before instruction fill
-  // Fill gaps only (clearFirst=false): fully-placed blocks — including ones the
-  // user moved by hand — are left exactly where they are, so manual edits survive
-  // leaving and re-entering the view. Clearing and re-placing is reserved for the
-  // explicit grade-header auto-fill click (autoPopulateGrade with clearFirst=true).
+  placePairedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
+}
+
+function autoPopulateIfEmpty() {
+  rebuildPlacement();
   _purgeFixedBlockConflicts();
   _cleanupStaleIAAssignments();
   saveToLocal();
@@ -3108,10 +3115,7 @@ function autoPopulateIfEmpty() {
 // Called after Block Types is saved: fills any required blocks that aren't
 // placed yet without touching blocks that already exist.
 function fillMissingRequirements() {
-  buildSpecialsSchedule();
-  preFillFixedBlocks();
-  placePairedBlocks();
-  gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
+  rebuildPlacement();
   _cleanupStaleIAAssignments();
   saveToLocal();
   rebuildTbody();

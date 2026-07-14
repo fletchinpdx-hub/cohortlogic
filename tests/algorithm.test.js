@@ -19,7 +19,7 @@ const path = require('path');
 const vm = require('vm');
 
 // ── Load algorithm.js into a sandbox with a mock AppState ──────────────────────
-const algoSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'algorithm.js'), 'utf8');
+const algoSrc = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'algorithm.js'), 'utf8');
 
 // A fresh sandbox per scenario so tests never leak state into each other.
 function makeSandbox(appState) {
