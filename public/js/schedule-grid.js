@@ -2927,12 +2927,155 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
   }
   pushUndoSnapshot();
   buildSpecialsSchedule();
-  _populateGradeData(grade, clearFirst, null);
+  // Clear this grade first (if requested) so paired blocks re-sync to the shared
+  // time before instruction fills the gaps around them.
+  if (clearFirst) _clearRequirementsForGrade(grade);
+  placePairedBlocks();
+  _populateGradeData(grade, false, null);
   saveToLocal();
   rebuildTbody();
   showSpecialsCoverageBanner();
   showUnplacedBlocksBanner();
+  showPairingWarning();
   renderGradeSummaryRow();
+}
+
+// ── Grade pairings: synchronized instructional blocks ─────────────────────────
+// A pairing forces one block/sub-block to start at the SAME time across a set of
+// grades, every day (independent of grade bands). Placed AFTER specials + fixed
+// blocks and BEFORE instruction fill, so specials keep priority and instruction
+// flows around the synchronized windows.
+
+// Active grades for a pairing: in the school, in a band, with >0 minutes for the
+// unit. Returns [{ grade, slots }] (slots = the grade's own duration; may differ).
+function _pairingActiveInfo(p) {
+  const bands = SchedState.school.gradeBands || [];
+  const schoolGrades = new Set(gradesSorted());
+  const req = SchedState.blockTypes.find(bt => bt.id === p.blockId);
+  if (!req) return [];
+  const info = [];
+  (p.grades || []).forEach(g => {
+    if (!schoolGrades.has(g)) return;
+    const band = bands.find(b => b.grades.includes(g));
+    if (!band) return;
+    const mins = p.subId
+      ? (((req.subBandMinutes || {})[p.subId] || {})[band.id] || 0)
+      : ((req.bandMinutes || {})[band.id] || 0);
+    if (mins > 0) info.push({ grade: g, slots: Math.ceil(mins / 5) });
+  });
+  return info;
+}
+
+// A pairing is satisfied when, on every day, every active grade has the unit
+// present (≥ its slot count) and starting at the SAME time as the others.
+function _pairingSatisfied(unitId, info) {
+  for (const day of DAYS) {
+    const daySlots = _autoFillSlots(day);
+    let common = null;
+    for (const { grade, slots } of info) {
+      const sched = SchedState.masterSchedule[day]?.[grade] || {};
+      const start = daySlots.find(sl => sched[sl] === unitId);
+      if (!start) return false;
+      if (daySlots.filter(sl => sched[sl] === unitId).length < slots) return false;
+      if (common === null) common = start;
+      else if (start !== common) return false;
+    }
+  }
+  return true;
+}
+
+// Find a start time that fits EVERY active grade's block (avoiding fixed blocks &
+// specials — those slots are occupied; empty/instruction slots are fine because
+// this runs on a fresh build where instruction was cleared by buildSpecialsSchedule).
+// Prefer ONE fixed time across all days; fall back to per-day. Returns { day: 'HH:MM' } or {}.
+function _findPairingTimes(unitId, info) {
+  const fits = (grade, slotsN, day, startIdx, daySlots) => {
+    if (startIdx < 0 || startIdx + slotsN > daySlots.length) return false;
+    const sched = SchedState.masterSchedule[day]?.[grade] || {};
+    for (let j = 0; j < slotsN; j++) {
+      const v = sched[daySlots[startIdx + j]];
+      if (v && v !== unitId) return false; // occupied by a different block
+    }
+    return true;
+  };
+  const ref = _autoFillSlots('Monday');
+  for (let i = 0; i < ref.length; i++) {
+    const T = ref[i];
+    let ok = true;
+    for (const day of DAYS) {
+      const daySlots = _autoFillSlots(day);
+      const idx = daySlots.indexOf(T);
+      for (const { grade, slots } of info) {
+        if (!fits(grade, slots, day, idx, daySlots)) { ok = false; break; }
+      }
+      if (!ok) break;
+    }
+    if (ok) { const m = {}; DAYS.forEach(d => m[d] = T); return m; }
+  }
+  const perDay = {}; let any = false;
+  DAYS.forEach(day => {
+    const daySlots = _autoFillSlots(day);
+    for (let i = 0; i < daySlots.length; i++) {
+      let ok = true;
+      for (const { grade, slots } of info) {
+        if (!fits(grade, slots, day, i, daySlots)) { ok = false; break; }
+      }
+      if (ok) { perDay[day] = daySlots[i]; any = true; break; }
+    }
+  });
+  return any ? perDay : {};
+}
+
+function _placePairingUnit(day, grade, unitId, start, slotsN) {
+  if (gridUI.lockedGrades.has(grade)) return;
+  if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day] = {};
+  if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
+  const sched    = SchedState.masterSchedule[day][grade];
+  const daySlots = _autoFillSlots(day);
+  daySlots.forEach(sl => { if (sched[sl] === unitId) delete sched[sl]; }); // drop any scattered copies
+  const si = daySlots.indexOf(start);
+  if (si < 0) return;
+  for (let j = 0; j < slotsN && si + j < daySlots.length; j++) sched[daySlots[si + j]] = unitId;
+}
+
+// Place all synchronized blocks. Idempotent: a pairing that's already satisfied is
+// left as-is (preserves prior/manual placement); an unsatisfied one is (re)placed
+// at a shared time if open space allows, else left for showPairingWarning to flag.
+function placePairedBlocks() {
+  const pairings = SchedState.school.blockPairings || [];
+  pairings.forEach(p => {
+    const info = _pairingActiveInfo(p);
+    if (info.length < 2) return;
+    const unitId = p.subId ? `${p.blockId}|${p.subId}` : p.blockId;
+    if (_pairingSatisfied(unitId, info)) return;
+    const times = _findPairingTimes(unitId, info);
+    if (!Object.keys(times).length) return;
+    info.forEach(({ grade, slots }) => {
+      DAYS.forEach(day => { if (times[day]) _placePairingUnit(day, grade, unitId, times[day], slots); });
+    });
+  });
+}
+
+function showPairingWarning() {
+  const existing = document.getElementById('pairing-banner');
+  if (existing) existing.remove();
+  const pairings = SchedState.school.blockPairings || [];
+  const issues = [];
+  pairings.forEach(p => {
+    const info = _pairingActiveInfo(p);
+    if (info.length < 2) return;
+    const unitId = p.subId ? `${p.blockId}|${p.subId}` : p.blockId;
+    if (!_pairingSatisfied(unitId, info)) {
+      issues.push(`${escHtml(getBtName(unitId))} (${info.map(i => escHtml(GRADE_LABELS[i.grade] || i.grade)).join(', ')})`);
+    }
+  });
+  if (!issues.length) return;
+  const banner = document.createElement('div');
+  banner.id = 'pairing-banner';
+  banner.className = 'setup-banner setup-banner-error';
+  banner.innerHTML = `⚠ <strong>Synchronized blocks not aligned:</strong> ${issues.join('; ')}. ` +
+    `Couldn't place them at one shared time for all grades — free up space (lunch/recess/specials) or reduce minutes.`;
+  _mountWarning(banner);
 }
 
 // Called from renderMasterSchedule. Runs _populateGradeData for every grade so that:
@@ -2946,6 +3089,7 @@ function autoPopulateGrade(grade, silent = false, clearFirst = false) {
 function autoPopulateIfEmpty() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
+  placePairedBlocks();   // synchronized blocks after specials, before instruction fill
   // Fill gaps only (clearFirst=false): fully-placed blocks — including ones the
   // user moved by hand — are left exactly where they are, so manual edits survive
   // leaving and re-entering the view. Clearing and re-placing is reserved for the
@@ -2957,6 +3101,7 @@ function autoPopulateIfEmpty() {
   rebuildTbody();
   showSpecialsConflictWarning();
   showUnplacedBlocksBanner();
+  showPairingWarning();
   renderGradeSummaryRow();
 }
 
@@ -2965,6 +3110,7 @@ function autoPopulateIfEmpty() {
 function fillMissingRequirements() {
   buildSpecialsSchedule();
   preFillFixedBlocks();
+  placePairedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, null));
   _cleanupStaleIAAssignments();
   saveToLocal();
@@ -2976,6 +3122,7 @@ function fillMissingRequirements() {
   showSpecialsConflictWarning();
   showConflictBanner();
   showUnplacedBlocksBanner();
+  showPairingWarning();
   renderGradeSummaryRow();
 }
 
@@ -2997,6 +3144,7 @@ function switchDay(day) {
   // Re-populate grades for this specific day using the updated currentSlots dismissal.
   // This handles alt days where saved blocks may fall outside the shortened slot range.
   buildSpecialsSchedule();
+  placePairedBlocks();
   gradesSorted().forEach(grade => _populateGradeData(grade, false, day));
   saveToLocal();
   document.querySelectorAll('.day-tab').forEach(t =>

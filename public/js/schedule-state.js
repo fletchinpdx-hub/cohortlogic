@@ -25,6 +25,12 @@ const SchedState = {
     // Grade bands for instructional requirements: [{ id, name, grades[] }]
     gradeBands: [],
 
+    // Grade pairings — sync an instructional block/sub-block to the SAME start
+    // time across a set of grades (independent of gradeBands). Same start time
+    // across grades AND every day; each grade keeps its own duration.
+    // [{ id, blockId, subId|null, grades[] }]
+    blockPairings: [],
+
     // School day time boundaries
     teacherContractStart: '07:30',
     teacherContractEnd:   '15:00',
@@ -304,6 +310,7 @@ function loadFromLocal() {
       if (!SchedState.school.altDays)        SchedState.school.altDays        = [];
       if (!SchedState.school.gradeRecesses)  SchedState.school.gradeRecesses  = {};
       if (!SchedState.school.gradeBands)     SchedState.school.gradeBands     = [];
+      if (!SchedState.school.blockPairings)  SchedState.school.blockPairings  = [];
       // Migrate legacy single-meeting → morningMeetings array
       if (!SchedState.school.morningMeetings) {
         const s = SchedState.school;
@@ -529,6 +536,7 @@ function loadScheduleFromFile(file) {
         if (!SchedState.school.lunchPeriods)    SchedState.school.lunchPeriods    = [];
         if (!SchedState.school.gradeRecesses)   SchedState.school.gradeRecesses   = {};
         if (!SchedState.school.gradeBands)      SchedState.school.gradeBands      = [];
+        if (!SchedState.school.blockPairings)   SchedState.school.blockPairings   = [];
         if (!SchedState.school.morningMeetings) SchedState.school.morningMeetings = [];
         if (!SchedState.school.altDays)         SchedState.school.altDays         = [];
         if (!SchedState.school.district)        SchedState.school.district        = '';

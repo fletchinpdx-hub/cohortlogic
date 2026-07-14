@@ -1477,6 +1477,84 @@ function renderBandRow(band) {
   `;
 }
 
+// ── Synchronized blocks (grade pairings) ──────────────────────────────────────
+// Options for the block/sub-block picker: every required block, plus each of its
+// sub-blocks. Value is `blockId` or `blockId|subId`.
+function _pairingBlockOptions(reqBTs, selVal) {
+  let opts = '<option value="">— Select a block —</option>';
+  reqBTs.forEach(bt => {
+    const subs = bt.subBlocks || [];
+    if (subs.length) {
+      opts += `<option value="${bt.id}"${selVal === bt.id ? ' selected' : ''}>${escHtml(bt.name)} (whole)</option>`;
+      subs.forEach(sub => {
+        const v = `${bt.id}|${sub.id}`;
+        opts += `<option value="${v}"${selVal === v ? ' selected' : ''}>${escHtml(bt.name)} – ${escHtml(sub.name)}</option>`;
+      });
+    } else {
+      opts += `<option value="${bt.id}"${selVal === bt.id ? ' selected' : ''}>${escHtml(bt.name)}</option>`;
+    }
+  });
+  return opts;
+}
+
+function renderPairingRow(p, reqBTs, grades) {
+  const selVal = p.subId ? `${p.blockId}|${p.subId}` : (p.blockId || '');
+  return `
+    <div class="pairing-row" data-pairing-id="${p.id}">
+      <select class="input input-sm pairing-block">${_pairingBlockOptions(reqBTs, selVal)}</select>
+      <div class="pairing-grade-chips">
+        ${grades.map(g => `<span class="grade-chip-xs ${(p.grades || []).includes(g) ? 'active' : ''}" data-grade="${g}">${gradeChipLabel(g)}</span>`).join('')}
+      </div>
+      <button class="btn-icon remove-pairing-btn" title="Remove">×</button>
+    </div>`;
+}
+
+function wirePairingsSection() {
+  const reqBTs = SchedState.blockTypes.filter(bt => bt.required && bt.id !== 'bt_spec');
+  const addBtn = document.getElementById('add-pairing-btn');
+  if (addBtn && !addBtn.disabled) {
+    addBtn.addEventListener('click', () => {
+      SchedState.school.blockPairings = SchedState.school.blockPairings || [];
+      const p = { id: uid(), blockId: '', subId: null, grades: [] };
+      SchedState.school.blockPairings.push(p);
+      const list = document.getElementById('pairings-list');
+      const placeholder = list.querySelector('.text-muted');
+      if (placeholder) placeholder.remove();
+      list.insertAdjacentHTML('beforeend', renderPairingRow(p, reqBTs, SchedState.school.grades || []));
+      wirePairingRowEvents();
+    });
+  }
+  wirePairingRowEvents();
+}
+
+function wirePairingRowEvents() {
+  document.querySelectorAll('#pairings-list .pairing-grade-chips .grade-chip-xs').forEach(chip => {
+    if (chip._wired) return; chip._wired = true;
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+  document.querySelectorAll('#pairings-list .remove-pairing-btn').forEach(btn => {
+    if (btn._wired) return; btn._wired = true;
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.pairing-row');
+      const id  = row?.dataset.pairingId;
+      SchedState.school.blockPairings = (SchedState.school.blockPairings || []).filter(p => p.id !== id);
+      row?.remove();
+    });
+  });
+}
+
+// A valid pairing needs a block and at least 2 grades (syncing 1 grade is a no-op).
+function collectPairingsFromDOM() {
+  const rows = document.querySelectorAll('#pairings-list .pairing-row');
+  if (!rows.length) { SchedState.school.blockPairings = []; return; }
+  SchedState.school.blockPairings = [...rows].map(row => {
+    const val = row.querySelector('.pairing-block').value;
+    const [blockId, subId] = val.includes('|') ? val.split('|') : [val, null];
+    const grades = [...row.querySelectorAll('.grade-chip-xs.active')].map(c => c.dataset.grade);
+    return { id: row.dataset.pairingId, blockId, subId: subId || null, grades };
+  }).filter(p => p.blockId && p.grades.length >= 2);
+}
+
 function renderSubTable(bt, bands) {
   const subs = bt.subBlocks || [];
   return `
@@ -1693,6 +1771,17 @@ function renderBlocks() {
       <div id="budget-panel"></div>
     </div>` : ''}
 
+    <div class="form-section">
+      <h2 class="form-section-title">Synchronized Blocks <span class="form-hint-sm">(same time across grades)</span></h2>
+      <p class="form-hint">Require an instructional block (or sub-block) to start at the <strong>same time of day for a set of grades</strong>, every day — e.g. a shared intervention window. The scheduler places these right after specials; each grade keeps its own duration.</p>
+      <div id="pairings-list">
+        ${(s.blockPairings || []).length
+          ? (s.blockPairings).map(p => renderPairingRow(p, reqBTs, s.grades || [])).join('')
+          : '<p class="text-muted" style="margin:0 0 12px">No synchronized blocks yet.</p>'}
+      </div>
+      <button class="btn btn-outline btn-sm mt-8" id="add-pairing-btn"${reqBTs.length ? '' : ' disabled title="Add required blocks first"'}>+ Add Synchronized Block</button>
+    </div>
+
     <div class="view-actions">
       <button class="btn btn-outline" id="blocks-back-btn">← Back to Specials</button>
       <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Master Schedule →</button>
@@ -1703,6 +1792,7 @@ function renderBlocks() {
   wireBandsSection();
   wireReqTable();
   wireOtherBlocks();
+  wirePairingsSection();
 
   document.querySelectorAll('.sp-color-input-bt').forEach(input => {
     input.addEventListener('input', () => {
@@ -2178,6 +2268,10 @@ function saveBlocksAndContinue() {
   collectBandsFromDOM();
   collectReqFromDOM();
   collectUniformFromDOM();
+  collectPairingsFromDOM();
+  // Pairings can change which time slots blocks occupy — rebuild specials so their
+  // placement re-flows around the synchronized blocks on the next Master Schedule pass.
+  SchedState.specialsSchedule = {};
   preFillFixedBlocks();
   saveToLocal();
   updateSidebarStatus();
