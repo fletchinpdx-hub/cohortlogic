@@ -6,8 +6,8 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 **Live site:** cohortlogic.com  
 **GitHub:** github.com/fletchinpdx-hub/cohortlogic  
 **Supabase project:** dlqnzlwuzktcljxxxlit  
-**Local dev:** http://localhost:3456 (run via `npx serve -l 3456 .`)  
-**Hosting:** Cloudflare Workers (static assets via `wrangler.toml`). Deploy with `npx wrangler deploy` from `/Users/michaelfletcher/Documents/cohortlogic/`. GitHub push auto-deploys via Cloudflare Pages integration — but wrangler is the reliable fallback. Netlify site should be deleted.
+**Local dev:** http://localhost:3456 (run via `npx serve -l 3456 public`)  
+**Hosting:** Cloudflare Workers (static assets via `wrangler.toml`, `directory = "public"` — only files inside `public/` are ever served; this is an allowlist, not the old `.` denylist model). Deploy with `npx wrangler deploy` from `/Users/michaelfletcher/Documents/cohortlogic/`. GitHub push auto-deploys via Cloudflare Pages integration — but wrangler is the reliable fallback. Netlify site should be deleted.
 
 ## Compact Instructions
 When compacting this conversation, preserve:
