@@ -1,8 +1,9 @@
 # Monolith split plan — `public/js/schedule-grid.js`
 
 **Status:** STEP 0 done (d62be5d). Extraction 1 (IA) done (v146, 510663d).
-**Extraction 2 (Specials Schedule view) done (v147, commit below).**
-Extraction 3 (Class Schedules view) not started.
+Extraction 2 (Specials Schedule view) done (v147, 323ae97).
+**Extraction 3 (Class Schedules view) done (v148, commit below).**
+Extraction 4 (Export) not started — last one.
 **Owner:** any model/session can resume from this file.
 **Goal:** carve the ~6,180-line `schedule-grid.js` into cohesive feature files
 WITHOUT changing behavior. Started at v145.
@@ -78,6 +79,34 @@ WITHOUT changing behavior. Started at v145.
   and after (7 files now). Full gate green. Browser boot clean
   (schedule-specials-view.js?v=147 → 200, zero console errors).
 - Deployed via `scripts/deploy.sh` v147.
+
+### Extraction 3 (Class Schedules view) done — notes for whoever does extraction 4
+- New file `public/js/schedule-class-view.js` (~326 lines), loaded after
+  `schedule-specials-view.js` and before `schedule-init.js`.
+  `schedule-grid.js` is now ~3,641 lines (was ~3,958).
+- Cleanest extraction so far — no interlopers this time. Only two pieces:
+  `classSchedUI` (6 lines, right where extraction 2's notes said it would be)
+  and `renderClassSchedulesView` through the rest of the file to EOF
+  (`getClassSlotEntry`, `buildClassScheduleCell`, `buildClassWeekGrid`,
+  `buildGradeCompareGrid` — all genuinely Class-Schedules-only). Confirmed
+  with the same `awk 'NR>=X && /^function |^const |^let /'` scan before
+  cutting — came back clean.
+- `printScheduleGrid` sat physically between the two pieces (right after
+  `classSchedUI`, right before `renderClassSchedulesView`) and correctly
+  stayed in core, per extraction 2's note.
+- One easy-to-miss detail: the tail of the "move to EOF" range included a
+  stray leftover breadcrumb from extraction 1 (`// IA assignment... moved to
+  schedule-ia.js`, which had become the literal last line of the file after
+  that earlier cut). Moving it along with this cut would have wrongly implied
+  IA content once lived in schedule-class-view.js. Excluded it from the moved
+  range; it stays in schedule-grid.js as-is — when a "move to end of file"
+  range ends in an existing breadcrumb comment, check whether that comment
+  describes THIS extraction's content or a different, earlier one before
+  including it.
+- Verified: `check-refs.js` reports the identical 1050 defined names before
+  and after (8 files now). Full gate green. Browser boot clean
+  (schedule-class-view.js?v=148 → 200, zero console errors).
+- Deployed via `scripts/deploy.sh` v148.
 
 ### STEP 0 done — notes for whoever does extraction 1
 - `tests/check-refs.js` built, wired into `scripts/predeploy.sh` as 5/5.
