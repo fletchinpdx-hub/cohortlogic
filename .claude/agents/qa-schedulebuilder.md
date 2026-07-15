@@ -130,7 +130,68 @@ saveToLocal();
 
 ---
 
-### 8. Final console check
+### 8. Synchronized Blocks — same-block non-overlap rule (v150)
+
+Two paired groups for the **same** block must land at **non-overlapping** times (a shared intervention specialist can't cover both at once); two groups for **different** blocks may overlap. This step sets up both cases and checks placement.
+
+Run in `javascript_tool` to configure 4 grades in 2 bands, a WIN block paired two ways (2/3 and 4/5), and a Math block paired the other two (to prove different blocks are allowed to coincide), then force a fresh rebuild:
+
+```javascript
+SchedState.school.grades = ['2','3','4','5'];
+SchedState.school.gradeBands = [
+  { id: 'b23', name: '2-3', grades: ['2','3'] },
+  { id: 'b45', name: '4-5', grades: ['4','5'] },
+];
+SchedState.school.gradeRecesses = {};              // keep the day open so WIN fits
+if (typeof ensureFixedBlockTypes === 'function') ensureFixedBlockTypes();
+const upsert = (id, name, color, cat, mins) => {
+  let b = SchedState.blockTypes.find(x => x.id === id);
+  if (!b) { b = { id, name, color, category: cat, required: true, subBandMinutes: {}, subBlocks: [] }; SchedState.blockTypes.push(b); }
+  b.required = true; b.bandMinutes = mins;
+};
+upsert('bt_win',  'WIN',  '#22c55e', 'intervention', { b23: 30, b45: 30 });
+upsert('bt_math', 'Math', '#a855f7', 'instruction',  { b23: 30, b45: 30 });
+SchedState.school.blockPairings = [
+  { id: 'win23',  blockId: 'bt_win',  subId: null, grades: ['2','3'] },
+  { id: 'win45',  blockId: 'bt_win',  subId: null, grades: ['4','5'] },
+  { id: 'math23', blockId: 'bt_math', subId: null, grades: ['2','3'] },
+  { id: 'math45', blockId: 'bt_math', subId: null, grades: ['4','5'] },
+];
+SchedState.specialsSchedule = {};   // force a fresh full rebuild so pairings place cleanly
+saveToLocal();
+navigateTo('master'); renderMasterSchedule();
+'pairing test configured';
+```
+
+Then read back the placed start times:
+
+```javascript
+const t2m = s => { const [h,m] = s.split(':').map(Number); return h*60+m; };
+const startOf = (grade, unit) => {
+  const sched = (SchedState.masterSchedule.Monday || {})[grade] || {};
+  const keys = Object.keys(sched).filter(k => sched[k] === unit).sort();
+  return keys[0] || null;
+};
+const win = { g2: startOf('2','bt_win'),  g3: startOf('3','bt_win'),  g4: startOf('4','bt_win'),  g5: startOf('5','bt_win') };
+const math = { g2: startOf('2','bt_math'), g4: startOf('4','bt_math') };
+const winA = win.g2, winB = win.g4;
+const nonOverlap = (winA && winB) ? Math.abs(t2m(winA) - t2m(winB)) >= 30 : false; // both 30-min blocks
+JSON.stringify({ win, math, winGroupsDiffer: winA !== winB, winNonOverlap: nonOverlap, mathMayCoincide: math.g2 && math.g4 });
+```
+
+- **Pass — all of:**
+  - `win.g2 === win.g3` and `win.g4 === win.g5` (each group is internally synced)
+  - `winGroupsDiffer` is `true` (the two WIN groups are at **different** times)
+  - `winNonOverlap` is `true` (≥ 30 min apart — the windows don't overlap)
+  - `mathMayCoincide` is truthy (the Math groups placed; they're **allowed** to share a time — different block)
+- **Fail:** the two WIN groups share a start, or their windows overlap (< 30 min apart), or a `ReferenceError` (`placePairedBlocks`, `_findPairingTimes`, `_pairingCurrentTimes` not defined — a split/deploy regression)
+- Then check the warnings panel: `document.getElementById('pairing-banner')?.textContent || 'no pairing warning'`. With this setup there's plenty of room, so **Pass = no pairing-overlap warning**. (If the day were too tight, a warning here would be correct behavior, not a bug — note it rather than failing.)
+- `read_console_messages` — **Fail** on any error.
+- **Cleanup (so it doesn't bleed into the console step):** `SchedState.school.blockPairings = []; saveToLocal();`
+
+---
+
+### 9. Final console check
 - `read_console_messages` with pattern `error|Error|CSP|Content-Security|Refused|Uncaught|is not defined`
 - Any `Content-Security-Policy` error → **Fail** (exact message).
 - Any `Uncaught ReferenceError`/`TypeError` → **Fail** — for a `ReferenceError`, the missing name tells you exactly which function didn't get moved or which file loaded out of order.
@@ -152,7 +213,7 @@ After all steps, append one line to `/Users/michaelfletcher/Documents/cohortlogi
 printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "schedulebuilder" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
 ```
 
-`RESULT` like `7/8 PASS`, `NOTES` a short summary (or `all green`). Always write it.
+`RESULT` like `8/9 PASS`, `NOTES` a short summary (or `all green`). Always write it.
 
 ---
 
@@ -164,16 +225,17 @@ Date: [today]
 
 | Step | Result | Notes |
 |------|--------|-------|
-| 1. Login + gate + boot     | ✅ PASS / ❌ FAIL | |
-| 2. Seed schedule           | ✅ PASS / ❌ FAIL | |
-| 3. Master Schedule (core)  | ✅ PASS / ❌ FAIL | |
-| 4. IA Schedule view        | ✅ PASS / ❌ FAIL | |
-| 5. Specials Schedule view  | ✅ PASS / ❌ FAIL | |
-| 6. Class Schedules view    | ✅ PASS / ❌ FAIL | |
-| 7. Export                  | ✅ PASS / ❌ FAIL | |
-| 8. Console errors          | ✅ PASS / ❌ FAIL | |
+| 1. Login + gate + boot       | ✅ PASS / ❌ FAIL | |
+| 2. Seed schedule             | ✅ PASS / ❌ FAIL | |
+| 3. Master Schedule (core)    | ✅ PASS / ❌ FAIL | |
+| 4. IA Schedule view          | ✅ PASS / ❌ FAIL | |
+| 5. Specials Schedule view    | ✅ PASS / ❌ FAIL | |
+| 6. Class Schedules view      | ✅ PASS / ❌ FAIL | |
+| 7. Export                    | ✅ PASS / ❌ FAIL | |
+| 8. Synced-block non-overlap  | ✅ PASS / ❌ FAIL | |
+| 9. Console errors            | ✅ PASS / ❌ FAIL | |
 
-**Overall: X/8 steps passed**
+**Overall: X/9 steps passed**
 ```
 
 For any ❌ FAIL: what was expected, what happened, the exact console error text (especially any `is not defined` name), and a screenshot.
