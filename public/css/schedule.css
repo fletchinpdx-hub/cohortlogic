@@ -233,7 +233,12 @@
 /* ── Schedule table ────────────────────────────────────────────── */
 .sched-table {
   border-collapse: collapse;
-  min-width: 100%;
+  /* width:100% + table-layout:fixed makes the grade columns share the available
+     width (so N grades fit the viewport instead of running off the page). A
+     per-render inline min-width (grade count × ~120px) is the floor: when there
+     are too many grades to fit at a readable width, the table exceeds 100% and
+     grid-scroll-wrap scrolls, rather than squeezing columns to nothing. */
+  width: 100%;
   table-layout: fixed;
   user-select: none;
 }

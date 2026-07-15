@@ -769,7 +769,7 @@ function renderMasterSchedule() {
         ${setupWarning}
 
         <div class="grid-scroll-wrap" id="grid-scroll-wrap">
-          <table class="sched-table" id="sched-table" cellspacing="0">
+          <table class="sched-table" id="sched-table" cellspacing="0" style="min-width:${currentGrades.length * 120 + 54}px">
             <thead>
               <tr class="sched-head-row">
                 <th class="th-time"></th>
