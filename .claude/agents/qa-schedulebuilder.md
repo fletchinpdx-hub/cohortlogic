@@ -35,6 +35,7 @@ Open a fresh tab and navigate to `https://cohortlogic.com/login.html`.
 - **Pass:** the Schedule Builder loads — sidebar shows School Info, Staff Roster, Specials, Block Types, Master Schedule, Specials Schedule, Class Schedules, IA Schedule, Export
 - **Fail (prerequisite, not a code bug — flag it clearly):** an access-denied / locked screen means the QA account lacks `schedule_builder` in its school's `enabled_products`. Note this and stop — the rest can't run until the account is granted access.
 - Run `read_console_messages` — any CSP error (`Refused to execute inline script`, `Content-Security-Policy`) or uncaught exception at boot is a **Fail**. A boot-time `ReferenceError` here would mean a script failed to load or a top-level `const` is used before its file — the split's worst case.
+- **Shared Send Feedback widget** (`js/feedback.js`, on every product): confirm it injected and works. `JSON.stringify({ btn: !!document.getElementById('cf-fb-btn') })` → **Pass** if `btn:true`. Then `document.getElementById('cf-fb-btn').click(); JSON.stringify({ open: !document.getElementById('cf-fb-overlay').classList.contains('cf-fb-hidden') })` → **Pass** if `open:true`. Close it: `document.querySelector('.cf-fb-close').click();`. (The widget wires via addEventListener — if it were CSP-broken like the old inline-onclick version, the button would exist but not open.)
 
 ---
 

@@ -301,51 +301,18 @@ if (document.readyState === 'loading') {
   window._resetSessionTimer();
 })();
 
-// ── Feedback modal ──
-function openCicoFeedbackModal() {
-  document.getElementById('cico-feedback-overlay').classList.remove('hidden');
-  document.getElementById('cico-feedback-form').classList.remove('hidden');
-  document.getElementById('cico-feedback-thanks').classList.add('hidden');
-  document.getElementById('cico-fb-error').classList.add('hidden');
-  // Pre-fill name and email from the logged-in user's profile
-  if (CicoState.profile) {
-    const nameEl  = document.getElementById('cico-fb-name');
-    const emailEl = document.getElementById('cico-fb-email');
-    if (!nameEl.value)  nameEl.value  = CicoState.profile.full_name  || '';
-    if (!emailEl.value) emailEl.value = CicoState.profile.email      || '';
-  }
-}
-function closeCicoFeedbackModal() {
-  document.getElementById('cico-feedback-overlay').classList.add('hidden');
-}
-async function submitCicoFeedback() {
-  const message = document.getElementById('cico-fb-message').value.trim();
-  const errEl   = document.getElementById('cico-fb-error');
-  if (!message) {
-    errEl.textContent = 'Please enter your feedback before submitting.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  errEl.classList.add('hidden');
-  const btn = document.querySelector('#cico-feedback-form .feedback-submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Submitting…';
-  const { data: { user } } = await SupabaseClient.auth.getUser();
-  const { error } = await SupabaseClient.from('feedback').insert({
-    product:     'cico',
-    user_id:     user?.id   || null,
-    name:        document.getElementById('cico-fb-name').value.trim()  || null,
-    email:       document.getElementById('cico-fb-email').value.trim() || null,
-    school_name: CicoState.profile?.school_name || null,
-    message,
-  });
-  btn.disabled = false;
-  btn.textContent = 'Submit Feedback';
-  if (error) {
-    errEl.textContent = 'Something went wrong. Please try again.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  document.getElementById('cico-feedback-form').classList.add('hidden');
-  document.getElementById('cico-feedback-thanks').classList.remove('hidden');
-}
+// Feedback uses the shared js/feedback.js widget. This hook enriches it with the
+// logged-in user's identity (pre-fills name/email; attaches user_id + school_name
+// to the feedback row) — preserving what the old CICO-specific modal captured.
+// CicoState.profile.id is the auth user id (profiles.id = auth.users.id).
+window.getFeedbackContext = function () {
+  const p = CicoState.profile || {};
+  return {
+    name:  p.full_name || '',
+    email: p.email || '',
+    fields: {
+      user_id:     p.id || null,
+      school_name: p.school_name || null,
+    },
+  };
+};

@@ -160,6 +160,40 @@ Tier 1 behavior / office-discipline referral tracker, modeled on PBISApps/SWIS. 
 
 ---
 
+## Shared components
+
+### Send Feedback (`public/js/feedback.js`) — standard on every product
+One self-contained, CSP-safe widget used across all products. Drop-in: add ONE
+line after `supabase-config.js`:
+```html
+<script src="js/feedback.js?v=NN" data-product="Schedule Builder" data-key="schedule_builder"></script>
+```
+- **Self-injecting:** creates its own floating "💬 Send Feedback" button (fixed
+  bottom-right), modal, and `<style>` (namespaced `cf-fb-*`) — no per-product
+  HTML/CSS. Guards against double-include (`window.__cohortFeedbackLoaded`).
+- **CSP-safe:** every handler is `addEventListener` (NO inline `onclick`).
+  **Why it exists:** the old per-product feedback (Class Builder `openFeedbackModal`,
+  CICO `openCicoFeedbackModal`) used inline `onclick=` in the HTML, which the site
+  CSP (`script-src 'self'`, no `unsafe-inline`) **silently blocks** — those buttons
+  were broken in prod. `check-csp.sh` only scans JS, not static HTML `onclick`, so
+  it never caught them. The shared widget replaced both.
+- **Config:** `data-product` = human label in the modal; `data-key` = value in the
+  `feedback.product` column (`class_builder`, `cico`, `schedule_builder`,
+  `referrals`, `dashboard`). Keep `data-key` stable — it buckets feedback per product.
+- **`SupabaseClient` gotcha:** it's a top-level `const` from supabase-config.js — a
+  global lexical binding, NOT a window property — so the widget guards with
+  `typeof SupabaseClient === 'undefined'`, never `!window.SupabaseClient` (which is
+  always undefined and would break every submit).
+- **Optional enrichment hook:** a product may define
+  `window.getFeedbackContext()` → `{ name, email, fields }` to pre-fill name/email
+  and merge extra columns into the insert. CICO uses this (checkin-state.js) to
+  keep the `user_id` + `school_name` capture the old modal had.
+- Inserts `{ product, name, email, message, ...fields }` into Supabase `feedback`.
+- Dead CSS for the old buttons/modals (`#feedback-btn`, `.feedback-overlay` in
+  styles.css/checkin.css) is now unused — harmless, pending cleanup.
+
+---
+
 ## Infrastructure
 
 ### Supabase (free tier)

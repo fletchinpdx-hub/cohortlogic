@@ -54,35 +54,9 @@
       </div>
       <div id="sidebar-footer">
         <a href="dashboard.html" id="back-to-dashboard">← Dashboard</a>
-        <button id="feedback-btn" onclick="openFeedbackModal()">💬 Send Feedback</button>
       </div>
     </aside>
-
-    <!-- Feedback modal -->
-    <div id="feedback-overlay" class="feedback-overlay hidden" onclick="if(event.target===this)closeFeedbackModal()">
-      <div class="feedback-modal">
-        <div class="feedback-modal-header">
-          <h2>Send Feedback</h2>
-          <button class="feedback-close-btn" onclick="closeFeedbackModal()">✕</button>
-        </div>
-        <p class="feedback-intro">Help us improve Class Builder. All feedback is read by the Cohort Logic team.</p>
-        <div id="feedback-form">
-          <label class="feedback-label">Name</label>
-          <input type="text" id="fb-name" class="feedback-input" placeholder="Your name" />
-          <label class="feedback-label">Email</label>
-          <input type="email" id="fb-email" class="feedback-input" placeholder="your@email.com" />
-          <label class="feedback-label">Feedback <span style="color:#ef4444">*</span></label>
-          <textarea id="fb-message" class="feedback-textarea" placeholder="Tell us what's working, what's not, or what you'd love to see…"></textarea>
-          <div id="fb-error" class="feedback-error hidden"></div>
-          <button class="feedback-submit-btn" onclick="submitFeedback()">Submit Feedback</button>
-        </div>
-        <div id="feedback-thanks" class="feedback-thanks hidden">
-          <div class="feedback-thanks-icon">✅</div>
-          <h3>Thank you!</h3>
-          <p>Your feedback helps us make Class Builder better for everyone. We appreciate you taking the time.</p>
-        </div>
-      </div>
-    </div>
+    <!-- Send Feedback: shared floating widget, injected by js/feedback.js -->
 
     <!-- Main content -->
     <main id="main">
@@ -395,14 +369,15 @@
     </main>
   </div>
 
-  <script src="js/app.js?v=20260709"></script>
-  <script src="js/import.js?v=20260709"></script>
-  <script src="js/fieldMapping.js?v=20260709"></script>
-  <script src="js/students.js?v=20260709"></script>
-  <script src="js/classes.js?v=20260709"></script>
-  <script src="js/algorithm.js?v=20260709"></script>
-  <script src="js/results.js?v=20260709"></script>
-  <script src="js/sample.js?v=20260709"></script>
-  <script src="js/session.js?v=20260709"></script>
+  <script src="js/app.js?v=20260715"></script>
+  <script src="js/import.js?v=20260715"></script>
+  <script src="js/fieldMapping.js?v=20260715"></script>
+  <script src="js/students.js?v=20260715"></script>
+  <script src="js/classes.js?v=20260715"></script>
+  <script src="js/algorithm.js?v=20260715"></script>
+  <script src="js/results.js?v=20260715"></script>
+  <script src="js/sample.js?v=20260715"></script>
+  <script src="js/session.js?v=20260715"></script>
+  <script src="js/feedback.js?v=20260715" data-product="Class Builder" data-key="class_builder"></script>
 </body>
 </html>

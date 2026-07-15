@@ -46,7 +46,10 @@ const HTML_PATH = path.join(PUBLIC, 'schedule-app.html');
 
 // ── 1. Extract script load order from the HTML ─────────────────────────────
 const html = fs.readFileSync(HTML_PATH, 'utf8');
-const scriptRe = /<script\s+src="(js\/[^"?]+)(?:\?[^"]*)?"\s*><\/script>/g;
+// Match a local <script src="js/…"> tag regardless of extra attributes after src
+// (e.g. feedback.js carries data-product / data-key). Without the `[^>]*`, any
+// script with attributes after src would be silently skipped by the ref check.
+const scriptRe = /<script\s+src="(js\/[^"?]+)(?:\?[^"]*)?"[^>]*><\/script>/g;
 const relPaths = [];
 let m;
 while ((m = scriptRe.exec(html))) relPaths.push(m[1]);
