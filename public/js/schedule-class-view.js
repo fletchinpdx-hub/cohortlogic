@@ -153,36 +153,38 @@ function renderClassSchedulesView() {
 
 // Returns display data for one slot in a class's schedule, or null if empty.
 function getClassSlotEntry(slot, grade, day, classId) {
+  const daySlots = _autoFillSlots(day);
+  const slotIdx  = daySlots.indexOf(slot);
+  const ss       = SchedState.specialsSchedule?.[classId]?.[day];
+
+  // 1) THIS class's own special takes precedence. It may be OFF-CAROUSEL — placed
+  //    at a slot where the grade's master block is instruction (only this class is
+  //    on a special there) — so check the class's own session before the grade
+  //    block, not only when the grade block is bt_spec.
+  if (ss?.startTime) {
+    const specials = SchedState.school.specials || [];
+    const sp       = specials.find(s => s.id === ss.subjectId);
+    const teacher  = SchedState.staff.find(t => t.id === ss.teacherId);
+    const dur      = sp?.duration || 45;
+    const startIdx = daySlots.indexOf(ss.startTime);
+    if (startIdx >= 0 && slotIdx >= startIdx && slotIdx < startIdx + Math.ceil(dur / 5)) {
+      return {
+        btId: `bt_spec|${ss.subjectId}`, isSpecials: true,
+        subjectName: sp?.name || 'Specials',
+        teacherName: teacher ? teacher.name.split(' ')[0] : '',
+        color:       sp?.color || '#f97316',
+        duration:    dur, slotIdx, startIdx,
+      };
+    }
+  }
+
   const btId = SchedState.masterSchedule[day]?.[grade]?.[slot];
   if (!btId) return null;
 
   if (btId.startsWith('bt_spec')) {
-    const ss = SchedState.specialsSchedule?.[classId]?.[day];
-    const daySlots = _autoFillSlots(day);
-    const slotIdx  = daySlots.indexOf(slot);
-
-    // Does THIS class's special cover this slot? If so, render the real special.
-    if (ss?.startTime) {
-      const specials = SchedState.school.specials || [];
-      const sp       = specials.find(s => s.id === ss.subjectId);
-      const teacher  = SchedState.staff.find(t => t.id === ss.teacherId);
-      const dur      = sp?.duration || 45;
-      const startIdx = daySlots.indexOf(ss.startTime);
-      if (startIdx >= 0 && slotIdx >= startIdx && slotIdx < startIdx + Math.ceil(dur / 5)) {
-        return {
-          btId, isSpecials: true,
-          subjectName: sp?.name || 'Specials',
-          teacherName: teacher ? teacher.name.split(' ')[0] : '',
-          color:       sp?.color || '#f97316',
-          duration:    dur, slotIdx, startIdx,
-        };
-      }
-    }
-
-    // The grade is on specials here, but THIS class's session is at a different
-    // time (or not this day). Render a muted "specials period" placeholder — the
-    // class isn't deleted, its own special shows at its own time. Points to that
-    // time when known so the connection is obvious.
+    // The grade is on the carousel here, but THIS class's own special is at a
+    // different time (handled above). Muted placeholder pointing to that time —
+    // the class isn't deleted, its special shows at its own slot.
     const elsewhere = ss?.startTime && ss.startTime !== slot ? ss.startTime : null;
     return {
       btId, isSpecials: false, isSpecialsHole: true,

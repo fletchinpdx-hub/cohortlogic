@@ -1027,8 +1027,11 @@ function buildCell(slot, grade, prevSlot) {
       `</div></td>`;
   }
 
-  // For specials slots, delegate to class-level rendering
-  if (btId && btId.startsWith('bt_spec')) {
+  // Specials — delegate to the class-aware renderer. Triggers when the grade
+  // block is bt_spec (carousel) OR when the grade is on instruction but SOME class
+  // has an off-carousel special here (partial split). getSpecialsAtSlot returns
+  // null when no class is on a special at this slot, so normal cells fall through.
+  {
     const specInfo = getSpecialsAtSlot(day, grade, slot);
     if (specInfo) return buildSpecialsCell(slot, grade, specInfo, isCont, isEnd);
   }
@@ -2446,14 +2449,11 @@ function buildSpecialsSchedule(force = false) {
               if (!ok) continue;
               const tid = leastBusyFree(pool, day, daySlots[i], dur);
               if (!tid) continue;
+              // Per-class only (see the recovery pass note): no grade-wide reserve,
+              // so instruction fills the slot for the other classes and the master
+              // grid renders a partial-specials split via getSpecialsAtSlot.
               SchedState.specialsSchedule[cls.id][day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
               book(tid, day, daySlots[i], dur);
-              if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
-              if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
-              const gSched = SchedState.masterSchedule[day][grade];
-              for (let j = 0; j < numSl && i + j < daySlots.length; j++) {
-                gSched[daySlots[i + j]] = `bt_spec|${sp.id}`;
-              }
               anyFallbackPlaced = true;
               fill--;
               break;
@@ -2576,14 +2576,14 @@ function buildSpecialsSchedule(force = false) {
             if (!ok) continue;
             const tid = leastBusyFree(pool, day, daySlots[i], dur);
             if (!tid) continue;
+            // Off-carousel: record the special PER-CLASS only. Do NOT reserve the
+            // grade-wide master slot — only THIS class is on a special here; the
+            // other classes keep the instruction that _populateGradeData fills into
+            // this (still-empty) slot afterward. The master grid recombines the two
+            // via getSpecialsAtSlot (a partial-specials split), and the class view
+            // shows each class's real block (its special, or the instruction).
             ss[day] = { subjectId: sp.id, teacherId: tid, startTime: daySlots[i] };
             book(tid, day, daySlots[i], dur);
-            if (!SchedState.masterSchedule[day])        SchedState.masterSchedule[day]        = {};
-            if (!SchedState.masterSchedule[day][grade]) SchedState.masterSchedule[day][grade] = {};
-            const gSched = SchedState.masterSchedule[day][grade];
-            for (let j = 0; j < numSl && i + j < daySlots.length; j++) {
-              gSched[daySlots[i + j]] = `bt_spec|${sp.id}`;
-            }
             fill--;
             break;
           }
@@ -2731,13 +2731,19 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   const masterColor = masterBt?.color || '#94a3b8';
   const masterName  = masterBtId ? getBtName(masterBtId) : '';
 
+  // Show how the grade splits: M classes on specials, the rest on the master block.
+  const inSpec  = specInfo.all.length;
+  const inClass = Math.max(specInfo.totalClasses - inSpec, 0);
+  const cls = n => `${n} ${n === 1 ? 'class' : 'classes'}`;
+  const splitTitle = `${cls(inSpec)} on Specials · ${cls(inClass)} on ${masterName || 'class'}`;
+
   let leftInner = '', rightInner = '';
   if (specInfo.isStart) {
-    leftInner  = `<span class="split-label" style="color:${color}">Specials</span>`;
-    rightInner = `<span class="split-label" style="color:${masterColor}">${escHtml(masterName)}</span>`;
+    leftInner  = `<span class="split-label" style="color:${color}">Specials · ${inSpec}</span>`;
+    rightInner = `<span class="split-label" style="color:${masterColor}">${escHtml(masterName)} · ${inClass}</span>`;
   }
 
-  return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
+  return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" title="${escHtml(splitTitle)}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
     `<div class="split-block-wrap">` +
     `<div class="split-half split-half-specials" style="background:${color}18;border-left:3px solid ${color};" data-spec-start="${entry.startTime}" data-spec-grade="${grade}">${leftInner}</div>` +
     `<div class="split-half split-half-regular" style="background:${masterColor}18;border-left:3px solid ${masterColor};">${rightInner}</div>` +
