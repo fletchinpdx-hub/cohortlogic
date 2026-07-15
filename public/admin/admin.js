@@ -153,6 +153,11 @@ document.getElementById('clear-audit-filters-btn').addEventListener('click', cle
 // ── Schools ──
 document.getElementById('add-school-btn').addEventListener('click', addSchool);
 
+// ── User search (Schools & Users tab) ──
+document.getElementById('user-search-input').addEventListener('input', (e) => {
+  renderUserSearch(e.target.value.trim());
+});
+
 // ── Audit detail modal ──
 const _auditOverlay = document.getElementById('audit-detail-modal');
 _auditOverlay.addEventListener('click', closeAuditModal);
@@ -216,6 +221,101 @@ document.getElementById('save-pw-btn').addEventListener('click', async () => {
   document.getElementById('pw-confirm').value = '';
   _pwRecoveryMode = false;
 });
+
+// ── Tab navigation / router ─────────────────────────────────────────────────
+
+const ADMIN_VIEWS  = ['overview', 'approvals', 'schools', 'analytics', 'logs', 'feedback'];
+const _loadedViews = new Set();
+
+function gotoView(_, el) { showView(el.dataset.view); }
+
+function showView(view) {
+  if (!ADMIN_VIEWS.includes(view)) view = 'overview';
+  document.querySelectorAll('.admin-view').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  const el = document.getElementById(`view-${view}`);
+  if (el) el.classList.remove('hidden');
+  location.hash = view;
+  loadViewData(view);
+}
+
+function loadViewData(view) {
+  if (view === 'overview') { loadOverview(); return; } // always refresh — it's a live summary
+  if (_loadedViews.has(view)) return;
+  _loadedViews.add(view);
+  switch (view) {
+    case 'schools':   loadSchoolsAndUsers(); break;
+    case 'analytics': loadAnalytics(); loadCicoStats(); break;
+    case 'logs':      loadAuditLog();  loadErrors();    break;
+    case 'feedback':  loadFeedback();  break;
+    // 'approvals' is loaded eagerly in loadDashboard() so its tab badge is always current
+  }
+}
+
+function gotoSubtab(_, el) {
+  const group = el.dataset.group;
+  const sub   = el.dataset.sub;
+  document.querySelectorAll(`.subtab-btn[data-group="${group}"]`).forEach(b => b.classList.toggle('active', b === el));
+  document.querySelectorAll(`.admin-subview[data-group="${group}"]`).forEach(v => v.classList.add('hidden'));
+  const target = document.getElementById(`${group}-${sub}`);
+  if (target) target.classList.remove('hidden');
+}
+
+// Overview attention cards can deep-link straight into a specific sub-tab.
+function gotoSubtabView(_, el) {
+  showView(el.dataset.view);
+  const btn = document.querySelector(`.subtab-btn[data-group="${el.dataset.view}"][data-sub="${el.dataset.sub}"]`);
+  if (btn) gotoSubtab(null, btn);
+}
+
+window.addEventListener('hashchange', () => {
+  const v = location.hash.replace('#', '');
+  if (ADMIN_VIEWS.includes(v)) showView(v);
+});
+
+// ── Overview ─────────────────────────────────────────────────────────────
+
+async function loadOverview() {
+  const attnEl  = document.getElementById('overview-attention');
+  const statsEl = document.getElementById('overview-stats');
+  attnEl.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [pendingRes, errorsRes, feedbackRes, schoolsRes, usersRes, cbSessionsRes, cicoWeekRes] = await Promise.all([
+    db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', false),
+    db.from('error_logs').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+    db.from('feedback').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+    db.from('schools').select('id', { count: 'exact', head: true }),
+    db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', true),
+    db.from('sessions').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+    db.from('cico_checkins').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+  ]);
+
+  const pending  = pendingRes.count  ?? 0;
+  const errors7d = errorsRes.count   ?? 0;
+  const fb7d     = feedbackRes.count ?? 0;
+
+  attnEl.innerHTML = `
+    <div class="attention-card ${pending ? 'attention-hot' : ''}" data-act="gotoView" data-view="approvals">
+      <div class="attention-value">${pending}</div>
+      <div class="attention-label">Pending approvals</div>
+    </div>
+    <div class="attention-card ${errors7d ? 'attention-warn' : ''}" data-act="gotoSubtabView" data-view="logs" data-sub="errors">
+      <div class="attention-value">${errors7d}</div>
+      <div class="attention-label">New errors (7d)</div>
+    </div>
+    <div class="attention-card" data-act="gotoView" data-view="feedback">
+      <div class="attention-value">${fb7d}</div>
+      <div class="attention-label">New feedback (7d)</div>
+    </div>`;
+
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total Schools</div><div class="stat-value">${schoolsRes.count ?? 0}</div></div>
+    <div class="stat-card"><div class="stat-label">Active Users</div><div class="stat-value">${usersRes.count ?? 0}</div></div>
+    <div class="stat-card"><div class="stat-label">CB Sessions (7d)</div><div class="stat-value">${cbSessionsRes.count ?? 0}</div></div>
+    <div class="stat-card"><div class="stat-label">CICO Check-ins (7d)</div><div class="stat-value">${cicoWeekRes.count ?? 0}</div></div>`;
+}
 
 // ── Audit Log ────────────────────────────────────────────────────────────
 
@@ -431,10 +531,11 @@ function formatJson(obj, highlightKeys = []) {
   }
 }
 
-// ── Schools ──────────────────────────────────────────────────────────────
+// ── Schools & Users ──────────────────────────────────────────────────────
 
-let _schools = [];  // cached list for selects
-let _userNameById = {};  // id -> name, keeps user-controlled names out of inline onclick (XSS)
+let _schools       = [];  // cached list for selects
+let _allUsersCache = [];  // flat list of all approved users, for cross-school search
+let _userNameById  = {};  // id -> name, keeps user-controlled names out of inline onclick (XSS)
 
 // Backend-gated products that can be switched per school (Class Builder is never gated).
 const ADMIN_PRODUCTS = [
@@ -443,42 +544,272 @@ const ADMIN_PRODUCTS = [
   { key: 'schedule_builder', short: 'Schedule' },
 ];
 
+// Lightweight cache refresh — no rendering. Used at bootstrap and anywhere the
+// schools list must be fresh before rendering something else (e.g. dropdowns).
 async function loadSchools() {
-  const container = document.getElementById('schools-list');
   const { data, error } = await db.from('schools').select('*').order('name');
-  if (error) {
-    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load schools: ${error.message}</p>`;
+  if (error) { console.error('loadSchools error:', error.message); return; }
+  _schools = data || [];
+}
+
+function _schoolUserCount(id) {
+  return _allUsersCache.filter(u => u.school_id === id).length;
+}
+
+async function loadSchoolsAndUsers() {
+  const container = document.getElementById('schools-users-list');
+  container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+
+  const [schoolsRes, usersRes] = await Promise.all([
+    db.from('schools').select('*').order('name'),
+    db.from('profiles')
+      .select('id, full_name, email, school_id, approved, role, created_at')
+      .eq('approved', true)
+      .order('full_name', { ascending: true }),
+  ]);
+
+  if (schoolsRes.error) {
+    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load schools: ${escAdmin(schoolsRes.error.message)}</p>`;
     return;
   }
-  _schools = data || [];
-  if (!_schools.length) {
+  _schools = schoolsRes.data || [];
+
+  if (usersRes.error) {
+    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load users: ${escAdmin(usersRes.error.message)}</p>`;
+    return;
+  }
+  _allUsersCache = usersRes.data || [];
+  _allUsersCache.forEach(u => { _userNameById[u.id] = u.full_name || 'this user'; });
+
+  renderSchoolsUsersView();
+}
+
+function renderSchoolsUsersView() {
+  const container = document.getElementById('schools-users-list');
+
+  const byId = {};
+  _allUsersCache.forEach(u => {
+    const key = u.school_id || '__unassigned__';
+    (byId[key] = byId[key] || []).push(u);
+  });
+
+  const unassigned = byId['__unassigned__'] || [];
+  let html = '';
+  if (unassigned.length) {
+    html += schoolCardHtml({ id: '__unassigned__', name: 'Unassigned' }, unassigned, true);
+  }
+  if (!_schools.length && !unassigned.length) {
     container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools yet. Add one below.</p>';
     return;
   }
-  container.innerHTML = _schools.map(s => schoolRowHtml(s)).join('');
+  html += _schools.map(s => schoolCardHtml(s, byId[s.id] || [], false)).join('');
+  container.innerHTML = html;
+
+  // Pre-select reassign dropdowns
+  _allUsersCache.forEach(u => {
+    const sel = document.getElementById(`reassign-sel-${u.id}`);
+    if (sel && u.school_id) sel.value = u.school_id;
+  });
 }
 
-function schoolRowHtml(s) {
-  const meta = [s.district, s.state].filter(Boolean).join(' · ') || 'No district / state set';
+function schoolCardHeaderHtml(s, userCount, isUnassignedGroup) {
+  const meta = [s.district, s.state].filter(Boolean).join(' · ');
+  const metaLine = (meta ? meta + ' · ' : '') + `${userCount} user${userCount !== 1 ? 's' : ''}`;
   const ep = s.enabled_products || [];
-  const toggles = ADMIN_PRODUCTS.map(p => `
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#374151;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" data-change="toggleSchoolProductAdmin" data-id="${s.id}" data-product="${p.key}" ${ep.includes(p.key) ? 'checked' : ''} style="cursor:pointer;" />
+  const toggles = isUnassignedGroup ? '' : ADMIN_PRODUCTS.map(p => `
+        <label class="product-toggle-label">
+          <input type="checkbox" data-change="toggleSchoolProductAdmin" data-id="${s.id}" data-product="${p.key}" ${ep.includes(p.key) ? 'checked' : ''} />
           ${p.short}
         </label>`).join('');
+  const actions = isUnassignedGroup ? '' : `
+        <button class="reassign-btn" data-act="startEditSchool" data-id="${s.id}">Edit</button>
+        <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deleteSchool" data-id="${s.id}">Delete</button>`;
+
   return `
-    <div class="school-row" id="school-row-${s.id}">
+    <div class="school-card-header-main" data-act="toggleSchoolCard" data-id="${s.id}">
+      <span class="school-card-chevron">▸</span>
       <div>
         <div class="school-name">${escAdmin(s.name)}</div>
-        <div class="school-meta">${escAdmin(meta)}</div>
+        <div class="school-meta">${escAdmin(metaLine)}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:12px;">${toggles}</div>
-        <span style="font-family:monospace;font-size:11px;color:#9ca3af;">${s.id.slice(0,8)}…</span>
-        <button class="reassign-btn" data-act="startEditSchool" data-id="${s.id}">Edit</button>
-        <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deleteSchool" data-id="${s.id}">Delete</button>
+    </div>
+    <div class="school-card-header-actions">
+      ${toggles ? `<div class="product-toggle-row">${toggles}</div>` : ''}
+      ${actions}
+    </div>`;
+}
+
+function schoolCardHtml(s, users, isUnassignedGroup) {
+  const rows = users.map(u => userRowHtml(u)).join('')
+    || `<tr><td colspan="5" class="empty-row" style="padding:16px;">No users${isUnassignedGroup ? '' : ' assigned to this school'} yet.</td></tr>`;
+
+  return `
+    <div class="school-card" id="school-card-${s.id}">
+      <div class="school-card-header" id="school-card-header-${s.id}">
+        ${schoolCardHeaderHtml(s, users.length, isUnassignedGroup)}
+      </div>
+      <div class="school-card-body collapsed" id="school-card-body-${s.id}">
+        <div style="overflow-x:auto;">
+          <table class="users-table">
+            <thead><tr><th>Name</th><th>Reassign</th><th>Role</th><th>Joined</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       </div>
     </div>`;
+}
+
+function userRowHtml(u) {
+  const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const schoolOptions = _schools.map(s => `<option value="${s.id}">${escAdmin(s.name)}</option>`).join('');
+  return `
+    <tr id="user-row-${u.id}">
+      <td>
+        <strong>${escAdmin(u.full_name || '(no name)')}</strong>
+        ${u.email ? `<br><a href="mailto:${escAdmin(u.email)}" style="font-size:11px;color:#6b7280;">${escAdmin(u.email)}</a>` : ''}
+      </td>
+      <td>
+        <div class="school-assign-row">
+          <select class="school-sel" id="reassign-sel-${u.id}">
+            <option value="">— None —</option>
+            ${schoolOptions}
+          </select>
+          <button class="reassign-btn" id="reassign-btn-${u.id}" data-act="reassignUserSchool" data-id="${u.id}">Save</button>
+        </div>
+      </td>
+      <td>${roleControlHtml(u)}</td>
+      <td style="font-size:11px;color:#9ca3af;">${date}</td>
+      <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deactivateUser" data-id="${u.id}">Deactivate</button></td>
+    </tr>`;
+}
+
+function toggleSchoolCard(id) {
+  const body = document.getElementById(`school-card-body-${id}`);
+  if (!body) return;
+  const collapsed = body.classList.toggle('collapsed');
+  const chevron = document.querySelector(`#school-card-header-${id} .school-card-chevron`);
+  if (chevron) chevron.textContent = collapsed ? '▸' : '▾';
+}
+
+// Role control. Super admins are shown as a badge only (demote a super admin
+// via SQL, deliberately not via the panel). A plain user can only be promoted
+// once they have a school assigned, since school admins operate on their own school.
+function roleControlHtml(u) {
+  if (u.role === 'super_admin') {
+    return `<span class="role-badge" style="background:#1e3a5f;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">Super Admin</span>`;
+  }
+  if (u.role === 'school_admin') {
+    return `<span class="role-badge" style="background:#0e7490;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">School Admin</span>
+      <button class="reassign-btn" style="margin-left:6px;" data-act="setUserRole" data-id="${u.id}" data-role="user">Revoke</button>`;
+  }
+  // plain user
+  if (!u.school_id) {
+    return `<span style="color:#9ca3af;font-size:12px;">User</span>
+      <div style="font-size:11px;color:#9ca3af;">assign a school to promote</div>`;
+  }
+  return `<span style="color:#6b7280;font-size:12px;">User</span>
+    <button class="reassign-btn" style="margin-left:6px;" data-act="setUserRole" data-id="${u.id}" data-role="school_admin">Make school admin</button>`;
+}
+
+async function setUserRole(userId, el) {
+  const role = el.dataset.role;
+  const { error } = await db.from('profiles').update({ role }).eq('id', userId);
+  if (error) { alert('Error changing role: ' + error.message); return; }
+  loadSchoolsAndUsers();
+}
+
+async function reassignUserSchool(userId) {
+  const sel      = document.getElementById(`reassign-sel-${userId}`);
+  const btn      = document.getElementById(`reassign-btn-${userId}`);
+  const schoolId = sel ? (sel.value || null) : null;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const { error } = await db.from('profiles').update({ school_id: schoolId }).eq('id', userId);
+
+  if (error) {
+    alert('Error updating school: ' + error.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+    return;
+  }
+
+  loadSchoolsAndUsers();
+}
+
+function deactivateUser(id) {
+  const row = document.getElementById(`user-row-${id}`);
+  if (!row) return;
+  const name = _userNameById[id] || 'this user';
+  row.innerHTML = `
+    <td colspan="5">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
+        <span style="font-size:13px;">Deactivate <strong>${escAdmin(name)}</strong>? They'll lose access immediately.</span>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDeactivateUser" data-id="${id}">Yes, deactivate</button>
+          <button class="reassign-btn" data-act="cancelDeactivateUser" data-id="${id}">Cancel</button>
+        </div>
+      </div>
+    </td>`;
+}
+
+async function confirmDeactivateUser(id) {
+  const { error } = await db.from('profiles').update({ approved: false }).eq('id', id);
+  if (error) { alert('Error: ' + error.message); return; }
+  loadSchoolsAndUsers();
+}
+
+function cancelDeactivateUser(id) { loadSchoolsAndUsers(); }
+
+// ── Cross-school user search ─────────────────────────────────────────────
+
+function renderUserSearch(query) {
+  const resultsEl = document.getElementById('user-search-results');
+  const listEl    = document.getElementById('schools-users-list');
+  if (!query) {
+    resultsEl.classList.add('hidden');
+    resultsEl.innerHTML = '';
+    listEl.classList.remove('hidden');
+    return;
+  }
+  const q = query.toLowerCase();
+  const matches = _allUsersCache.filter(u =>
+    (u.full_name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q)
+  );
+  listEl.classList.add('hidden');
+  resultsEl.classList.remove('hidden');
+  if (!matches.length) {
+    resultsEl.innerHTML = '<p style="color:#9ca3af;font-size:13px;padding:12px 0;">No users match your search.</p>';
+    return;
+  }
+  resultsEl.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="users-table">
+        <thead><tr><th>Name</th><th>School</th><th>Role</th><th></th></tr></thead>
+        <tbody>${matches.map(u => {
+          const school = _schools.find(s => s.id === u.school_id);
+          return `<tr>
+            <td>
+              <strong>${escAdmin(u.full_name || '(no name)')}</strong>
+              ${u.email ? `<br><a href="mailto:${escAdmin(u.email)}" style="font-size:11px;color:#6b7280;">${escAdmin(u.email)}</a>` : ''}
+            </td>
+            <td>${school ? escAdmin(school.name) : '<span style="color:#9ca3af;">— unassigned —</span>'}</td>
+            <td>${roleControlHtml(u)}</td>
+            <td>${school ? `<button class="reassign-btn" data-act="jumpToSchoolCard" data-id="${school.id}">Open school →</button>` : ''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function jumpToSchoolCard(schoolId) {
+  document.getElementById('user-search-input').value = '';
+  renderUserSearch('');
+  const card   = document.getElementById(`school-card-${schoolId}`);
+  const body   = document.getElementById(`school-card-body-${schoolId}`);
+  const chevron = document.querySelector(`#school-card-header-${schoolId} .school-card-chevron`);
+  if (body) body.classList.remove('collapsed');
+  if (chevron) chevron.textContent = '▾';
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Super-admin per-school product master switch. Writes enabled_products
@@ -506,9 +837,9 @@ async function toggleSchoolProductAdmin(id, el) {
 function startEditSchool(id) {
   const school = _schools.find(s => s.id === id);
   if (!school) return;
-  const row = document.getElementById(`school-row-${id}`);
-  if (!row) return;
-  row.innerHTML = `
+  const header = document.getElementById(`school-card-header-${id}`);
+  if (!header) return;
+  header.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;">
       <input id="edit-name-${id}"     value="${escAdmin(school.name)}"           placeholder="School name *"   style="padding:7px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;outline:none;flex:1;min-width:140px;" />
       <input id="edit-district-${id}" value="${escAdmin(school.district || '')}" placeholder="District"        style="padding:7px 10px;border:1px solid var(--gray-300);border-radius:7px;font-size:13px;font-family:inherit;outline:none;flex:1;min-width:120px;" />
@@ -524,8 +855,8 @@ function startEditSchool(id) {
 function cancelEditSchool(id) {
   const school = _schools.find(s => s.id === id);
   if (!school) return;
-  const row = document.getElementById(`school-row-${id}`);
-  if (row) row.outerHTML = schoolRowHtml(school);
+  const header = document.getElementById(`school-card-header-${id}`);
+  if (header) header.innerHTML = schoolCardHeaderHtml(school, _schoolUserCount(id), false);
 }
 
 async function saveEditSchool(id) {
@@ -554,17 +885,17 @@ async function saveEditSchool(id) {
   // Update all dropdowns that list this school
   document.querySelectorAll(`.school-sel option[value="${id}"]`).forEach(opt => { opt.textContent = name; });
 
-  // Re-render the row
-  const row = document.getElementById(`school-row-${id}`);
-  if (row) row.outerHTML = schoolRowHtml(_schools[idx]);
+  // Re-render the header
+  const header = document.getElementById(`school-card-header-${id}`);
+  if (header && idx !== -1) header.innerHTML = schoolCardHeaderHtml(_schools[idx], _schoolUserCount(id), false);
 }
 
 function deleteSchool(id) {
   const school = _schools.find(s => s.id === id);
   if (!school) return;
-  const row = document.getElementById(`school-row-${id}`);
-  if (!row) return;
-  row.innerHTML = `
+  const header = document.getElementById(`school-card-header-${id}`);
+  if (!header) return;
+  header.innerHTML = `
     <div>
       <div class="school-name">${escAdmin(school.name)}</div>
       <div class="school-meta" style="color:var(--red);">Delete this school? This cannot be undone.</div>
@@ -578,13 +909,13 @@ function deleteSchool(id) {
 function cancelDeleteSchool(id) {
   const school = _schools.find(s => s.id === id);
   if (!school) return;
-  const row = document.getElementById(`school-row-${id}`);
-  if (row) row.outerHTML = schoolRowHtml(school);
+  const header = document.getElementById(`school-card-header-${id}`);
+  if (header) header.innerHTML = schoolCardHeaderHtml(school, _schoolUserCount(id), false);
 }
 
 async function confirmDeleteSchool(id) {
   const school = _schools.find(s => s.id === id);
-  const row    = document.getElementById(`school-row-${id}`);
+  const card   = document.getElementById(`school-card-${id}`);
 
   // Check for assigned users first
   const { data: assigned, error: checkErr } = await db
@@ -593,7 +924,8 @@ async function confirmDeleteSchool(id) {
   if (checkErr) { alert('Error: ' + checkErr.message); return; }
 
   if (assigned && assigned.length) {
-    if (row) row.innerHTML = `
+    const header = document.getElementById(`school-card-header-${id}`);
+    if (header) header.innerHTML = `
       <div>
         <div class="school-name">${escAdmin(school?.name || '')}</div>
         <div class="school-meta" style="color:var(--red);">
@@ -605,16 +937,16 @@ async function confirmDeleteSchool(id) {
   }
 
   const { error } = await db.from('schools').delete().eq('id', id);
-  if (error) { alert('Error deleting: ' + error.message); loadSchools(); return; }
+  if (error) { alert('Error deleting: ' + error.message); loadSchoolsAndUsers(); return; }
 
   // Remove from cache and all dropdowns
   _schools = _schools.filter(s => s.id !== id);
   document.querySelectorAll(`.school-sel option[value="${id}"]`).forEach(opt => opt.remove());
 
-  // Remove the row; show empty state if none left
-  if (row) row.remove();
-  const container = document.getElementById('schools-list');
-  if (container && !container.querySelector('.school-row')) {
+  // Remove the card; show empty state if none left
+  if (card) card.remove();
+  const container = document.getElementById('schools-users-list');
+  if (container && !container.querySelector('.school-card')) {
     container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools yet. Add one below.</p>';
   }
 }
@@ -658,10 +990,11 @@ async function addSchool() {
   document.getElementById('new-school-name').value     = '';
   document.getElementById('new-school-district').value = '';
   document.getElementById('new-school-state').value    = '';
-  await loadSchools();
-  // Inject the new school into every existing dropdown immediately — no re-query needed
+  await loadSchoolsAndUsers();
+  // Inject the new school into dropdowns outside this view (Approvals) — the
+  // Schools & Users view was just fully re-rendered above and already has it.
   const newOpt = `<option value="${escAdmin(data.id)}">${escAdmin(data.name)}</option>`;
-  document.querySelectorAll('.school-sel').forEach(sel => sel.insertAdjacentHTML('beforeend', newOpt));
+  document.querySelectorAll('#view-approvals .school-sel').forEach(sel => sel.insertAdjacentHTML('beforeend', newOpt));
 }
 
 function escAdmin(str) {
@@ -679,6 +1012,12 @@ function dismissPendingRow(id) {
   if (r) r.remove();
   _updatePendingBadge();
 }
+function toggleAuditFilters() {
+  document.getElementById('audit-filters-panel').classList.toggle('hidden');
+}
+function toggleErrorFilters() {
+  document.getElementById('error-filters-panel').classList.toggle('hidden');
+}
 
 const ADMIN_ACTIONS = {
   openAuditDetail, auditLoadMore, errorLoadMore, loadErrors, clearErrorFilters, loadCicoStats,
@@ -686,6 +1025,8 @@ const ADMIN_ACTIONS = {
   reassignUserSchool, deactivateUser, setUserRole, confirmDeactivateUser, cancelDeactivateUser,
   approveUser, assignPendingSchool, dismissPendingRow,
   wipeSchoolData, confirmWipeSchoolData,
+  gotoView, gotoSubtab, gotoSubtabView, toggleSchoolCard, jumpToSchoolCard,
+  toggleAuditFilters, toggleErrorFilters,
 };
 
 document.addEventListener('click', (e) => {
@@ -702,181 +1043,6 @@ document.addEventListener('change', (e) => {
   const fn = ADMIN_CHANGE_ACTIONS[t.dataset.change];
   if (fn) fn(t.dataset.id, t);
 });
-
-// ── All Users ─────────────────────────────────────────────────────────────
-
-async function loadAllUsers() {
-  const container = document.getElementById('all-users-list');
-
-  const { data: users, error } = await db
-    .from('profiles')
-    .select('id, full_name, email, school_id, school_name, approved, role, created_at')
-    .eq('approved', true)
-    .order('full_name', { ascending: true });
-
-  if (error) {
-    container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load users: ${escAdmin(error.message)}</p>`;
-    return;
-  }
-
-  if (!users || !users.length) {
-    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No approved users yet.</p>';
-    return;
-  }
-
-  const schoolOptions = _schools.map(s =>
-    `<option value="${s.id}">${escAdmin(s.name)}</option>`
-  ).join('');
-
-  // id -> name lookup so user-controlled names never enter inline onclick (XSS)
-  users.forEach(u => { _userNameById[u.id] = u.full_name || 'this user'; });
-
-  const rows = users.map(u => {
-    const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const assignedSchool = _schools.find(s => s.id === u.school_id);
-    const schoolLabel = assignedSchool ? escAdmin(assignedSchool.name) : '<span style="color:#9ca3af;">— unassigned —</span>';
-    return `
-      <tr id="user-row-${u.id}">
-        <td>
-          <strong>${escAdmin(u.full_name || '(no name)')}</strong>
-          ${u.email ? `<br><a href="mailto:${escAdmin(u.email)}" style="font-size:11px;color:#6b7280;">${escAdmin(u.email)}</a>` : ''}
-        </td>
-        <td style="color:#6b7280;">${escAdmin(u.school_name || '—')}</td>
-        <td>${schoolLabel}</td>
-        <td>
-          <div class="school-assign-row">
-            <select class="school-sel" id="reassign-sel-${u.id}">
-              <option value="">— None —</option>
-              ${schoolOptions}
-            </select>
-            <button class="reassign-btn" id="reassign-btn-${u.id}" data-act="reassignUserSchool" data-id="${u.id}">Save</button>
-          </div>
-        </td>
-        <td>${roleControlHtml(u)}</td>
-        <td style="font-size:11px;color:#9ca3af;">${date}</td>
-        <td><button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="deactivateUser" data-id="${u.id}">Deactivate</button></td>
-      </tr>`;
-  }).join('');
-
-  container.innerHTML = `
-    <div style="overflow-x:auto;">
-      <table class="users-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>School (at signup)</th>
-            <th>Assigned School</th>
-            <th>Reassign</th>
-            <th>Role</th>
-            <th>Joined</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-
-  // Pre-select current school in each dropdown
-  users.forEach(u => {
-    if (u.school_id) {
-      const sel = document.getElementById(`reassign-sel-${u.id}`);
-      if (sel) sel.value = u.school_id;
-    }
-  });
-}
-
-// Role control for the All Users table. Super admins are shown as a badge only
-// (demote a super admin via SQL, deliberately not via the panel). A plain user
-// can only be promoted once they have a school assigned, since school admins
-// operate on their own school.
-function roleControlHtml(u) {
-  if (u.role === 'super_admin') {
-    return `<span class="role-badge" style="background:#1e3a5f;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">Super Admin</span>`;
-  }
-  if (u.role === 'school_admin') {
-    return `<span class="role-badge" style="background:#0e7490;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">School Admin</span>
-      <button class="reassign-btn" style="margin-left:6px;" data-act="setUserRole" data-id="${u.id}" data-role="user">Revoke</button>`;
-  }
-  // plain user
-  if (!u.school_id) {
-    return `<span style="color:#9ca3af;font-size:12px;">User</span>
-      <div style="font-size:11px;color:#9ca3af;">assign a school to promote</div>`;
-  }
-  return `<span style="color:#6b7280;font-size:12px;">User</span>
-    <button class="reassign-btn" style="margin-left:6px;" data-act="setUserRole" data-id="${u.id}" data-role="school_admin">Make school admin</button>`;
-}
-
-async function setUserRole(userId, el) {
-  const role = el.dataset.role;
-  const { error } = await db.from('profiles').update({ role }).eq('id', userId);
-  if (error) { alert('Error changing role: ' + error.message); return; }
-  loadAllUsers();
-}
-
-async function reassignUserSchool(userId) {
-  const sel     = document.getElementById(`reassign-sel-${userId}`);
-  const btn     = document.getElementById(`reassign-btn-${userId}`);
-  const schoolId = sel ? (sel.value || null) : null;
-
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-
-  const { error } = await db
-    .from('profiles')
-    .update({ school_id: schoolId })
-    .eq('id', userId);
-
-  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
-
-  if (error) {
-    alert('Error updating school: ' + error.message);
-    return;
-  }
-
-  // Update the displayed school name in the row
-  const assignedSchool = _schools.find(s => s.id === schoolId);
-  const row = document.getElementById(`user-row-${userId}`);
-  if (row) {
-    const schoolCell = row.cells[2];
-    schoolCell.innerHTML = assignedSchool
-      ? escAdmin(assignedSchool.name)
-      : '<span style="color:#9ca3af;">— unassigned —</span>';
-  }
-
-  if (btn) {
-    btn.textContent = '✓ Saved';
-    setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 2000);
-  }
-}
-
-function deactivateUser(id) {
-  const row = document.getElementById(`user-row-${id}`);
-  if (!row) return;
-  const name = _userNameById[id] || 'this user';
-  row.innerHTML = `
-    <td colspan="7">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
-        <span style="font-size:13px;">Deactivate <strong>${escAdmin(name)}</strong>? They'll lose access immediately.</span>
-        <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDeactivateUser" data-id="${id}">Yes, deactivate</button>
-          <button class="reassign-btn" data-act="cancelDeactivateUser" data-id="${id}">Cancel</button>
-        </div>
-      </div>
-    </td>`;
-}
-
-async function confirmDeactivateUser(id) {
-  const { error } = await db.from('profiles').update({ approved: false }).eq('id', id);
-  if (error) { alert('Error: ' + error.message); return; }
-  const row = document.getElementById(`user-row-${id}`);
-  if (row) row.remove();
-  const container = document.getElementById('all-users-list');
-  const tbody = container ? container.querySelector('tbody') : null;
-  if (tbody && !tbody.querySelector('tr')) {
-    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No approved users yet.</p>';
-  }
-}
-
-function cancelDeactivateUser(id) { loadAllUsers(); }
 
 // ── Pending users (with school assignment) ───────────────────────────────
 
@@ -896,13 +1062,13 @@ async function loadPendingUsers() {
   }
 
   if (!pending || !pending.length) {
-    badge.style.display = 'none';
+    badge.classList.add('hidden');
     container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No pending users. All accounts are approved.</p>';
     return;
   }
 
   badge.textContent = pending.length;
-  badge.style.display = 'inline';
+  badge.classList.remove('hidden');
 
   const schoolOptions = _schools.map(s =>
     `<option value="${s.id}">${escAdmin(s.name)}</option>`
@@ -912,9 +1078,6 @@ async function loadPendingUsers() {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const daysSince = (Date.now() - new Date(u.created_at)) / (1000 * 60 * 60 * 24);
     const isReturning = daysSince > 3;
-    const matchedSchool = _schools.find(s =>
-      s.name.toLowerCase() === (u.school_name || '').toLowerCase()
-    );
     return `
       <div class="pending-row" id="row-${u.id}">
         <div class="pending-info">
@@ -1026,7 +1189,7 @@ function _updatePendingBadge() {
   const remaining = document.querySelectorAll('.pending-row').length;
   const badge     = document.getElementById('pending-badge');
   if (remaining === 0) {
-    badge.style.display = 'none';
+    badge.classList.add('hidden');
     document.getElementById('pending-users-list').innerHTML =
       '<p style="color:#9ca3af;font-size:13px;">No pending users. All accounts are approved.</p>';
   } else {
@@ -1034,22 +1197,20 @@ function _updatePendingBadge() {
   }
 }
 
-// ── Dashboard data ──
+// ── Dashboard bootstrap ──
 function loadDashboard() {
   const today     = new Date().toISOString().split('T')[0];
   const thirtyAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
   document.getElementById('audit-from').value = thirtyAgo;
   document.getElementById('audit-to').value   = today;
 
-  loadSchools().then(() => {
-    loadPendingUsers();
-    loadAllUsers();
-    loadCicoStats();
-  });
-  loadAuditLog();
-  loadAnalytics();
-  loadErrors();
-  loadFeedback();
+  // Bootstrap: schools cache + pending queue power the Approvals badge, which
+  // must stay current regardless of which tab is open.
+  loadSchools().then(() => { loadPendingUsers(); });
+  _loadedViews.add('approvals');
+
+  const initial = location.hash.replace('#', '');
+  showView(ADMIN_VIEWS.includes(initial) ? initial : 'overview');
 }
 
 // ── Error Logs ────────────────────────────────────────────────────────────
@@ -1187,6 +1348,8 @@ async function loadFeedback() {
 }
 
 async function loadCicoStats() {
+  await loadSchools(); // safety-refresh — this view can load before bootstrap resolves
+
   const thirtyAgo  = new Date(Date.now() - 30*24*60*60*1000).toISOString();
   const todayStart = new Date().toISOString().split('T')[0];
 

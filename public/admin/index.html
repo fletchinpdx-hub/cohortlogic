@@ -47,171 +47,206 @@
 
   <div class="dashboard-body">
 
-    <!-- Pending Users -->
-    <h2 style="margin-bottom:12px;">Pending Approvals</h2>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3 style="display:flex;align-items:center;gap:10px;">
-        Pending Users
-        <span id="pending-badge" style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;"></span>
-      </h3>
-      <div id="pending-users-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+    <nav class="admin-tabs">
+      <button class="tab-btn active" data-act="gotoView" data-view="overview">Overview</button>
+      <button class="tab-btn" data-act="gotoView" data-view="approvals">Approvals <span id="pending-badge" class="tab-badge hidden"></span></button>
+      <button class="tab-btn" data-act="gotoView" data-view="schools">Schools &amp; Users</button>
+      <button class="tab-btn" data-act="gotoView" data-view="analytics">Analytics</button>
+      <button class="tab-btn" data-act="gotoView" data-view="logs">Logs</button>
+      <button class="tab-btn" data-act="gotoView" data-view="feedback">Feedback</button>
+    </nav>
+
+    <!-- Overview -->
+    <div class="admin-view" id="view-overview">
+      <div id="overview-attention" class="overview-grid"></div>
+      <div id="overview-stats" class="stats-grid"></div>
     </div>
 
-    <!-- All Users -->
-    <h2 style="margin-bottom:12px;">All Users</h2>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3>Approved Accounts</h3>
-      <div id="all-users-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
-    </div>
-
-    <!-- Stats -->
-    <h2>Class Builder Analytics</h2>
-    <div class="stats-grid" id="stats-grid">
-      <div class="stat-card"><div class="stat-label">Total Sessions</div><div class="stat-value" id="stat-total-sessions">—</div></div>
-      <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value" id="stat-week-sessions">—</div></div>
-      <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value" id="stat-total-events">—</div></div>
-      <div class="stat-card"><div class="stat-label">Reached Export</div><div class="stat-value" id="stat-exports">—</div><div class="stat-sub">completed the full flow</div></div>
-    </div>
-
-    <!-- Funnel -->
-    <div class="section-card">
-      <h3>Class Builder — Workflow Funnel</h3>
-      <div id="funnel-chart"></div>
-    </div>
-
-    <!-- Feature usage -->
-    <div class="section-card">
-      <h3>Class Builder — Feature Usage</h3>
-      <div id="feature-usage"></div>
-    </div>
-
-    <!-- Recent sessions -->
-    <div class="section-card">
-      <h3>Class Builder — Recent Sessions</h3>
-      <table class="event-table">
-        <thead>
-          <tr>
-            <th>Date &amp; Time</th>
-            <th>Actions Taken</th>
-            <th>Browser / Device</th>
-          </tr>
-        </thead>
-        <tbody id="sessions-tbody"></tbody>
-      </table>
-    </div>
-
-    <!-- CICO Analytics -->
-    <h2 style="margin-bottom:12px;margin-top:8px;">CICO Analytics</h2>
-    <div class="stats-grid" style="margin-bottom:20px;">
-      <div class="stat-card"><div class="stat-label">Enrolled Students</div><div class="stat-value" id="cico-stat-students">—</div></div>
-      <div class="stat-card"><div class="stat-label">Check-ins (30d)</div><div class="stat-value" id="cico-stat-checkins">—</div></div>
-      <div class="stat-card"><div class="stat-label">Check-ins Today</div><div class="stat-value" id="cico-stat-today">—</div></div>
-      <div class="stat-card"><div class="stat-label">Active Schools</div><div class="stat-value" id="cico-stat-schools">—</div><div class="stat-sub">used in last 30 days</div></div>
-    </div>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3>Schools — CICO Activity</h3>
-      <div id="cico-schools-table"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
-    </div>
-
-    <!-- Audit Log -->
-    <h2 style="margin-bottom:12px;margin-top:8px;">Audit Log</h2>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3>Data Access & Change History</h3>
-
-      <div class="audit-filters">
-        <div>
-          <label>Table</label>
-          <select id="audit-table-filter">
-            <option value="">All tables</option>
-            <option value="students">students</option>
-            <option value="cico_students">cico_students (historical)</option>
-            <option value="cico_checkins">cico_checkins</option>
-            <option value="cico_period_scores">cico_period_scores</option>
-            <option value="cico_incidents">cico_incidents</option>
-            <option value="referral_referrals">referral_referrals</option>
-            <option value="profiles">profiles</option>
-            <option value="schools">schools</option>
-          </select>
-        </div>
-        <div>
-          <label>Action</label>
-          <select id="audit-action-filter">
-            <option value="">All actions</option>
-            <option value="INSERT">INSERT</option>
-            <option value="UPDATE">UPDATE</option>
-            <option value="DELETE">DELETE</option>
-          </select>
-        </div>
-        <div>
-          <label>From</label>
-          <input type="date" id="audit-from" />
-        </div>
-        <div>
-          <label>To</label>
-          <input type="date" id="audit-to" />
-        </div>
-        <div style="align-self:flex-end;">
-          <button class="btn btn-outline btn-sm" id="clear-audit-filters-btn">Clear</button>
-        </div>
-      </div>
-
-      <div id="audit-log-wrap">
-        <p style="color:#9ca3af;font-size:13px;">Loading…</p>
+    <!-- Approvals -->
+    <div class="admin-view hidden" id="view-approvals">
+      <h2 style="margin-bottom:12px;">Pending Approvals</h2>
+      <div class="section-card">
+        <h3>Pending Users</h3>
+        <div id="pending-users-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
       </div>
     </div>
 
-    <!-- Schools -->
-    <h2 style="margin-bottom:12px;margin-top:8px;">Schools</h2>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3>Manage Schools</h3>
-      <div id="schools-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
-      <div class="add-school-row">
-        <input type="text" id="new-school-name"     placeholder="School name *" />
-        <input type="text" id="new-school-district" placeholder="District (optional)" />
-        <input type="text" id="new-school-state"    placeholder="State (optional)" style="max-width:90px;" />
-        <button class="btn btn-primary btn-sm" id="add-school-btn">+ Add School</button>
+    <!-- Schools & Users -->
+    <div class="admin-view hidden" id="view-schools">
+      <h2 style="margin-bottom:12px;">Schools &amp; Users</h2>
+      <div class="section-card" style="margin-bottom:20px;">
+        <div class="user-search-row">
+          <input type="text" id="user-search-input" class="user-search-input" placeholder="Search users by name or email across all schools…" />
+        </div>
+        <div id="user-search-results" class="hidden"></div>
+        <div id="schools-users-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+        <div class="add-school-row">
+          <input type="text" id="new-school-name"     placeholder="School name *" />
+          <input type="text" id="new-school-district" placeholder="District (optional)" />
+          <input type="text" id="new-school-state"    placeholder="State (optional)" style="max-width:90px;" />
+          <button class="btn btn-primary btn-sm" id="add-school-btn">+ Add School</button>
+        </div>
+        <div id="school-alert" class="alert hidden" style="margin-top:10px;"></div>
       </div>
-      <div id="school-alert" class="alert hidden" style="margin-top:10px;"></div>
     </div>
 
-    <!-- Error Logs -->
-    <h2 style="margin-bottom:12px;margin-top:8px;">Error Logs</h2>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3>Application Errors</h3>
-      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">
-        <div>
-          <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Product</label>
-          <select id="error-product-filter" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit;">
-            <option value="">All products</option>
-            <option value="class_builder">Class Builder</option>
-            <option value="cico">CICO</option>
-            <option value="referrals">Referral Tracking</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Type</label>
-          <select id="error-type-filter" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit;">
-            <option value="">All types</option>
-            <option value="import_failed">import_failed</option>
-            <option value="session_restore_failed">session_restore_failed</option>
-            <option value="unhandled_error">unhandled_error</option>
-            <option value="unhandled_promise">unhandled_promise</option>
-          </select>
-        </div>
-        <button class="btn btn-outline btn-sm" data-act="loadErrors">Refresh</button>
-        <button class="btn btn-outline btn-sm" data-act="clearErrorFilters">Clear filters</button>
+    <!-- Analytics -->
+    <div class="admin-view hidden" id="view-analytics">
+      <h2 style="margin-bottom:12px;">Analytics</h2>
+      <div class="subtab-row">
+        <button class="subtab-btn active" data-act="gotoSubtab" data-group="analytics" data-sub="cb">Class Builder</button>
+        <button class="subtab-btn" data-act="gotoSubtab" data-group="analytics" data-sub="cico">CICO</button>
       </div>
-      <div id="error-log-wrap"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+
+      <div class="admin-subview" data-group="analytics" id="analytics-cb">
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card"><div class="stat-label">Total Sessions</div><div class="stat-value" id="stat-total-sessions">—</div></div>
+          <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value" id="stat-week-sessions">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value" id="stat-total-events">—</div></div>
+          <div class="stat-card"><div class="stat-label">Reached Export</div><div class="stat-value" id="stat-exports">—</div><div class="stat-sub">completed the full flow</div></div>
+        </div>
+
+        <div class="section-card">
+          <h3>Class Builder — Workflow Funnel</h3>
+          <div id="funnel-chart"></div>
+        </div>
+
+        <div class="section-card">
+          <h3>Class Builder — Feature Usage</h3>
+          <div id="feature-usage"></div>
+        </div>
+
+        <div class="section-card">
+          <h3>Class Builder — Recent Sessions</h3>
+          <table class="event-table">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Actions Taken</th>
+                <th>Browser / Device</th>
+              </tr>
+            </thead>
+            <tbody id="sessions-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-subview hidden" data-group="analytics" id="analytics-cico">
+        <div class="stats-grid" style="margin-bottom:20px;">
+          <div class="stat-card"><div class="stat-label">Enrolled Students</div><div class="stat-value" id="cico-stat-students">—</div></div>
+          <div class="stat-card"><div class="stat-label">Check-ins (30d)</div><div class="stat-value" id="cico-stat-checkins">—</div></div>
+          <div class="stat-card"><div class="stat-label">Check-ins Today</div><div class="stat-value" id="cico-stat-today">—</div></div>
+          <div class="stat-card"><div class="stat-label">Active Schools</div><div class="stat-value" id="cico-stat-schools">—</div><div class="stat-sub">used in last 30 days</div></div>
+        </div>
+        <div class="section-card">
+          <h3>Schools — CICO Activity</h3>
+          <div id="cico-schools-table"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="admin-view hidden" id="view-logs">
+      <h2 style="margin-bottom:12px;">Logs</h2>
+      <div class="subtab-row">
+        <button class="subtab-btn active" data-act="gotoSubtab" data-group="logs" data-sub="audit">Audit Log</button>
+        <button class="subtab-btn" data-act="gotoSubtab" data-group="logs" data-sub="errors">Errors</button>
+      </div>
+
+      <div class="admin-subview" data-group="logs" id="logs-audit">
+        <div class="section-card">
+          <h3 style="display:flex;align-items:center;justify-content:space-between;">
+            Data Access &amp; Change History
+            <button class="log-toolbar-btn" data-act="toggleAuditFilters">Filters</button>
+          </h3>
+
+          <div class="audit-filters hidden" id="audit-filters-panel">
+            <div>
+              <label>Table</label>
+              <select id="audit-table-filter">
+                <option value="">All tables</option>
+                <option value="students">students</option>
+                <option value="cico_students">cico_students (historical)</option>
+                <option value="cico_checkins">cico_checkins</option>
+                <option value="cico_period_scores">cico_period_scores</option>
+                <option value="cico_incidents">cico_incidents</option>
+                <option value="referral_referrals">referral_referrals</option>
+                <option value="profiles">profiles</option>
+                <option value="schools">schools</option>
+              </select>
+            </div>
+            <div>
+              <label>Action</label>
+              <select id="audit-action-filter">
+                <option value="">All actions</option>
+                <option value="INSERT">INSERT</option>
+                <option value="UPDATE">UPDATE</option>
+                <option value="DELETE">DELETE</option>
+              </select>
+            </div>
+            <div>
+              <label>From</label>
+              <input type="date" id="audit-from" />
+            </div>
+            <div>
+              <label>To</label>
+              <input type="date" id="audit-to" />
+            </div>
+            <div style="align-self:flex-end;">
+              <button class="btn btn-outline btn-sm" id="clear-audit-filters-btn">Clear</button>
+            </div>
+          </div>
+
+          <div id="audit-log-wrap">
+            <p style="color:#9ca3af;font-size:13px;">Loading…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-subview hidden" data-group="logs" id="logs-errors">
+        <div class="section-card">
+          <h3 style="display:flex;align-items:center;justify-content:space-between;">
+            Application Errors
+            <button class="log-toolbar-btn" data-act="toggleErrorFilters">Filters</button>
+          </h3>
+          <div class="hidden" id="error-filters-panel" style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Product</label>
+              <select id="error-product-filter" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit;">
+                <option value="">All products</option>
+                <option value="class_builder">Class Builder</option>
+                <option value="cico">CICO</option>
+                <option value="referrals">Referral Tracking</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Type</label>
+              <select id="error-type-filter" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit;">
+                <option value="">All types</option>
+                <option value="import_failed">import_failed</option>
+                <option value="session_restore_failed">session_restore_failed</option>
+                <option value="unhandled_error">unhandled_error</option>
+                <option value="unhandled_promise">unhandled_promise</option>
+              </select>
+            </div>
+            <button class="btn btn-outline btn-sm" data-act="loadErrors">Refresh</button>
+            <button class="btn btn-outline btn-sm" data-act="clearErrorFilters">Clear filters</button>
+          </div>
+          <div id="error-log-wrap"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+        </div>
+      </div>
     </div>
 
     <!-- Feedback -->
-    <h2 style="margin-bottom:12px;margin-top:8px;">Feedback</h2>
-    <div class="section-card" style="margin-bottom:32px;">
-      <h3>User Feedback</h3>
-      <div id="feedback-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+    <div class="admin-view hidden" id="view-feedback">
+      <h2 style="margin-bottom:12px;">Feedback</h2>
+      <div class="section-card">
+        <h3>User Feedback</h3>
+        <div id="feedback-list"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
+      </div>
     </div>
 
-    <!-- Change password -->
+    <!-- Change password (independent of tabs) -->
     <div class="section-card hidden" id="change-pw-section">
       <h3>Change Password</h3>
       <div class="pw-form">
