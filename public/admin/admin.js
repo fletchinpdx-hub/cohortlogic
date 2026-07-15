@@ -284,7 +284,7 @@ async function loadOverview() {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [pendingRes, errorsRes, feedbackRes, schoolsRes, usersRes, cbSessionsRes, cicoWeekRes, secHotRes] = await Promise.all([
-    db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', false),
+    db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', false).is('archived_at', null),
     db.from('error_logs').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
     db.from('feedback').select('id', { count: 'exact', head: true }).is('archived_at', null),
     db.from('schools').select('id', { count: 'exact', head: true }),
@@ -1034,6 +1034,8 @@ const ADMIN_ACTIONS = {
   startEditSchool, deleteSchool, saveEditSchool, cancelEditSchool, confirmDeleteSchool, cancelDeleteSchool,
   reassignUserSchool, deactivateUser, setUserRole, confirmDeactivateUser, cancelDeactivateUser,
   approveUser, assignPendingSchool, dismissPendingRow,
+  togglePendingArchived, archivePendingUser, unarchivePendingUser,
+  deletePendingUser, confirmDeletePendingUser, cancelDeletePendingUser,
   wipeSchoolData, confirmWipeSchoolData,
   gotoView, gotoSubtab, gotoSubtabView, toggleSchoolCard, jumpToSchoolCard,
   toggleAuditFilters, toggleErrorFilters,
@@ -1058,38 +1060,76 @@ document.addEventListener('change', (e) => {
 
 // ── Pending users (with school assignment) ───────────────────────────────
 
+// "Needs attention" = un-archived (archived_at IS NULL), same convention as
+// feedback. Archiving dismisses a junk/duplicate/mistaken signup from the
+// active queue without deleting the account; Delete removes the profile row
+// outright (existing admin DELETE policy on public.profiles covers this).
+let _pendingShowArchived = false;
+
 async function loadPendingUsers() {
   const container = document.getElementById('pending-users-list');
   const badge     = document.getElementById('pending-badge');
+  const showArchived = _pendingShowArchived;
 
-  const { data: pending, error } = await db
-    .from('profiles')
-    .select('id, full_name, email, school_name, created_at')
+  let q = db.from('profiles')
+    .select('id, full_name, email, school_name, created_at, archived_at')
     .eq('approved', false)
     .order('created_at', { ascending: true });
+  q = showArchived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
+  const { data: pending, error } = await q;
 
   if (error) {
     container.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load pending users.</p>`;
     return;
   }
 
-  if (!pending || !pending.length) {
-    badge.classList.add('hidden');
-    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No pending users. All accounts are approved.</p>';
-    return;
+  // The badge always reflects the active (un-archived) queue, regardless of
+  // which list is currently showing.
+  if (!showArchived) {
+    if (!pending || !pending.length) badge.classList.add('hidden');
+    else { badge.textContent = pending.length; badge.classList.remove('hidden'); }
   }
 
-  badge.textContent = pending.length;
-  badge.classList.remove('hidden');
+  const toolbar = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      <button class="log-toolbar-btn" data-act="togglePendingArchived">
+        ${showArchived ? '← Back to pending' : 'Show archived'}
+      </button>
+    </div>`;
+
+  if (!pending || !pending.length) {
+    container.innerHTML = toolbar + `<p style="color:#9ca3af;font-size:13px;">${
+      showArchived ? 'No archived users.' : 'No pending users. All accounts are approved.'
+    }</p>`;
+    return;
+  }
 
   const schoolOptions = _schools.map(s =>
     `<option value="${s.id}">${escAdmin(s.name)}</option>`
   ).join('');
 
-  container.innerHTML = pending.map(u => {
+  container.innerHTML = toolbar + pending.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const daysSince = (Date.now() - new Date(u.created_at)) / (1000 * 60 * 60 * 24);
     const isReturning = daysSince > 3;
+
+    if (showArchived) {
+      const archivedDate = new Date(u.archived_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `
+        <div class="pending-row" id="row-${u.id}">
+          <div class="pending-info">
+            <strong>${escAdmin(u.full_name || '(no name)')}</strong>
+            ${u.email ? `<a href="mailto:${escAdmin(u.email)}" style="font-size:12px;color:#6b7280;display:block;margin-top:2px;">${escAdmin(u.email)}</a>` : ''}
+            <div class="meta">${escAdmin(u.school_name || 'No school listed')} · Archived ${archivedDate}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+            <button class="reassign-btn" data-act="unarchivePendingUser" data-id="${u.id}">Restore</button>
+            <button class="reassign-btn" data-act="deletePendingUser" data-id="${u.id}" style="color:var(--red);border-color:#fca5a5;">Delete</button>
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="pending-row" id="row-${u.id}">
         <div class="pending-info">
@@ -1108,22 +1148,66 @@ async function loadPendingUsers() {
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
           <button class="approve-btn" data-act="approveUser" data-id="${u.id}">${isReturning ? 'Reactivate' : 'Approve'}</button>
           <button class="reassign-btn" data-act="assignPendingSchool" data-id="${u.id}" title="Set their school without approving — their school admin approves them">Route to school admin →</button>
+          <button class="reassign-btn" data-act="archivePendingUser" data-id="${u.id}" title="Dismiss without deleting — hides this from the queue">Archive</button>
+          <button class="reassign-btn" data-act="deletePendingUser" data-id="${u.id}" style="color:var(--red);border-color:#fca5a5;">Delete</button>
         </div>
       </div>
     `;
   }).join('');
 
   // Pre-select matched schools after DOM is ready
-  pending.forEach(u => {
-    const matchedSchool = _schools.find(s =>
-      s.name.toLowerCase() === (u.school_name || '').toLowerCase()
-    );
-    if (matchedSchool) {
-      const sel = document.getElementById(`school-sel-${u.id}`);
-      if (sel) sel.value = matchedSchool.id;
-    }
-  });
+  if (!showArchived) {
+    pending.forEach(u => {
+      const matchedSchool = _schools.find(s =>
+        s.name.toLowerCase() === (u.school_name || '').toLowerCase()
+      );
+      if (matchedSchool) {
+        const sel = document.getElementById(`school-sel-${u.id}`);
+        if (sel) sel.value = matchedSchool.id;
+      }
+    });
+  }
 }
+
+function togglePendingArchived() {
+  _pendingShowArchived = !_pendingShowArchived;
+  loadPendingUsers();
+}
+
+async function archivePendingUser(userId) {
+  const { error } = await db.from('profiles').update({ archived_at: new Date().toISOString() }).eq('id', userId);
+  if (error) { alert('Error archiving user: ' + error.message); return; }
+  loadPendingUsers();
+}
+
+async function unarchivePendingUser(userId) {
+  const { error } = await db.from('profiles').update({ archived_at: null }).eq('id', userId);
+  if (error) { alert('Error restoring user: ' + error.message); return; }
+  loadPendingUsers();
+}
+
+function deletePendingUser(id) {
+  const row = document.getElementById(`row-${id}`);
+  if (!row) return;
+  const nameEl = row.querySelector('.pending-info strong');
+  const name = nameEl ? nameEl.textContent : 'this user';
+  row.innerHTML = `
+    <div class="pending-info">
+      <span style="font-size:13px;">Permanently delete <strong>${escAdmin(name)}</strong>? This removes their account and cannot be undone.</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      <button class="reassign-btn" style="color:var(--red);border-color:#fca5a5;" data-act="confirmDeletePendingUser" data-id="${id}">Yes, delete</button>
+      <button class="reassign-btn" data-act="cancelDeletePendingUser" data-id="${id}">Cancel</button>
+    </div>`;
+}
+
+async function confirmDeletePendingUser(id) {
+  const { error } = await db.from('profiles').delete().eq('id', id);
+  if (error) { alert('Error deleting user: ' + error.message); return; }
+  loadPendingUsers();
+}
+
+function cancelDeletePendingUser() { loadPendingUsers(); }
 
 async function approveUser(userId) {
   const btn       = document.querySelector(`#row-${userId} .approve-btn`);
