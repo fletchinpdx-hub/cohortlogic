@@ -286,7 +286,7 @@ async function loadOverview() {
   const [pendingRes, errorsRes, feedbackRes, schoolsRes, usersRes, cbSessionsRes, cicoWeekRes, secHotRes] = await Promise.all([
     db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', false),
     db.from('error_logs').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
-    db.from('feedback').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+    db.from('feedback').select('id', { count: 'exact', head: true }).is('archived_at', null),
     db.from('schools').select('id', { count: 'exact', head: true }),
     db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', true),
     db.from('sessions').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
@@ -296,7 +296,7 @@ async function loadOverview() {
 
   const pending  = pendingRes.count  ?? 0;
   const errors7d = errorsRes.count   ?? 0;
-  const fb7d     = feedbackRes.count ?? 0;
+  const fbActive = feedbackRes.count ?? 0;   // un-archived = needs attention
   const secHot   = secHotRes.count   ?? 0;
 
   attnEl.innerHTML = `
@@ -312,12 +312,13 @@ async function loadOverview() {
       <div class="attention-value">${secHot}</div>
       <div class="attention-label">Open security findings</div>
     </div>
-    <div class="attention-card" data-act="gotoView" data-view="feedback">
-      <div class="attention-value">${fb7d}</div>
-      <div class="attention-label">New feedback (7d)</div>
+    <div class="attention-card ${fbActive ? 'attention-hot' : ''}" data-act="gotoView" data-view="feedback">
+      <div class="attention-value">${fbActive}</div>
+      <div class="attention-label">Feedback to review</div>
     </div>`;
 
   _setSecurityBadge(secHot);
+  _setFeedbackBadge(fbActive);
 
   statsEl.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Schools</div><div class="stat-value">${schoolsRes.count ?? 0}</div></div>
@@ -1037,6 +1038,7 @@ const ADMIN_ACTIONS = {
   gotoView, gotoSubtab, gotoSubtabView, toggleSchoolCard, jumpToSchoolCard,
   toggleAuditFilters, toggleErrorFilters,
   loadSecurity, setFindingStatus,
+  archiveFeedback, unarchiveFeedback, toggleFeedbackArchived,
 };
 
 document.addEventListener('click', (e) => {
@@ -1440,46 +1442,97 @@ function _setSecurityBadge(hotCount) {
 
 // ── Feedback ──────────────────────────────────────────────────────────────
 
+// "Needs attention" = un-archived (archived_at IS NULL). Archiving is the
+// single "I've dealt with it" action; the badge + overview card count active items.
+let _feedbackShowArchived = false;
+
+function _setFeedbackBadge(count) {
+  const badge = document.getElementById('feedback-badge');
+  if (!badge) return;
+  if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+  else           { badge.classList.add('hidden'); }
+}
+
+async function _refreshFeedbackBadge() {
+  const { count } = await db.from('feedback')
+    .select('id', { count: 'exact', head: true }).is('archived_at', null);
+  _setFeedbackBadge(count ?? 0);
+}
+
 async function loadFeedback() {
   const container = document.getElementById('feedback-list');
-  const { data, error } = await db.from('feedback')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const showArchived = _feedbackShowArchived;
+
+  let q = db.from('feedback').select('*').order('created_at', { ascending: false });
+  q = showArchived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
+  const { data, error } = await q;
+
+  const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const productLabel = p => escAdmin(({ class_builder: 'Class Builder', cico: 'CICO', referrals: 'Referral Tracking', schedule_builder: 'Schedule Builder', dashboard: 'Dashboard' }[p] || p || '—'));
+
+  // Keep the active badge in sync whenever we load the active list.
+  if (!showArchived) _setFeedbackBadge(data?.length ?? 0);
+
+  const toolbar = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <span style="font-size:13px;color:#374151;font-weight:600">
+        ${showArchived ? 'Archived feedback' : `${data?.length ?? 0} item${(data?.length ?? 0) === 1 ? '' : 's'} to review`}
+      </span>
+      <button class="btn-sm btn-outline" data-act="toggleFeedbackArchived" style="margin-left:auto">
+        ${showArchived ? '← Back to active' : 'Show archived'}
+      </button>
+    </div>`;
 
   if (error || !data?.length) {
-    container.innerHTML = `<p style="color:#9ca3af;font-size:13px;">${error ? 'Error loading feedback.' : 'No feedback submitted yet.'}</p>`;
+    container.innerHTML = toolbar + `<p style="color:#9ca3af;font-size:13px;">${
+      error ? 'Error loading feedback.' : (showArchived ? 'No archived feedback.' : 'No feedback to review — all caught up. 🎉')
+    }</p>`;
     return;
   }
 
-  const fmt = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const productLabel = p => ({ class_builder: 'Class Builder', cico: 'CICO', referrals: 'Referral Tracking', schedule_builder: 'Schedule Builder' }[p] || p);
-
-  container.innerHTML = `
+  container.innerHTML = toolbar + `
     <table class="event-table">
       <thead>
-        <tr>
-          <th>Date</th>
-          <th>Product</th>
-          <th>Name</th>
-          <th>Email</th>
-          <th>School</th>
-          <th>Message</th>
-        </tr>
+        <tr><th>Date</th><th>Product</th><th>Name</th><th>Email</th><th>School</th><th>Message</th><th></th></tr>
       </thead>
       <tbody>
         ${data.map(f => `
           <tr>
             <td style="white-space:nowrap">${fmt(f.created_at)}</td>
             <td><span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#e0f2fe;color:#0369a1">${productLabel(f.product)}</span></td>
-            <td>${f.name || '<span style="color:#9ca3af">—</span>'}</td>
-            <td>${f.email ? `<a href="mailto:${f.email}">${f.email}</a>` : '<span style="color:#9ca3af">—</span>'}</td>
-            <td>${f.school_name || '<span style="color:#9ca3af">—</span>'}</td>
-            <td style="max-width:340px;white-space:pre-wrap">${f.message}</td>
+            <td>${f.name ? escAdmin(f.name) : '<span style="color:#9ca3af">—</span>'}</td>
+            <td>${f.email ? `<a href="mailto:${encodeURIComponent(f.email)}">${escAdmin(f.email)}</a>` : '<span style="color:#9ca3af">—</span>'}</td>
+            <td>${f.school_name ? escAdmin(f.school_name) : '<span style="color:#9ca3af">—</span>'}</td>
+            <td style="max-width:340px;white-space:pre-wrap">${escAdmin(f.message || '')}</td>
+            <td style="white-space:nowrap">
+              <button class="btn-sm btn-outline" data-act="${showArchived ? 'unarchiveFeedback' : 'archiveFeedback'}" data-id="${f.id}">
+                ${showArchived ? 'Unarchive' : 'Archive'}
+              </button>
+            </td>
           </tr>
         `).join('')}
       </tbody>
     </table>
   `;
+}
+
+async function archiveFeedback(id) {
+  const { error } = await db.from('feedback').update({ archived_at: new Date().toISOString() }).eq('id', id);
+  if (error) { alert('Could not archive: ' + error.message); return; }
+  await loadFeedback();
+  await _refreshFeedbackBadge();
+}
+
+async function unarchiveFeedback(id) {
+  const { error } = await db.from('feedback').update({ archived_at: null }).eq('id', id);
+  if (error) { alert('Could not unarchive: ' + error.message); return; }
+  await loadFeedback();
+  await _refreshFeedbackBadge();
+}
+
+function toggleFeedbackArchived() {
+  _feedbackShowArchived = !_feedbackShowArchived;
+  loadFeedback();
 }
 
 async function loadCicoStats() {
