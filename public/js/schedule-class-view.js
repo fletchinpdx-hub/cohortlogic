@@ -152,6 +152,81 @@ function renderClassSchedulesView() {
 // ── Class Schedules view helpers ──────────────────────────────────────────────
 
 // Returns display data for one slot in a class's schedule, or null if empty.
+// Resolve a grade instruction blockId into a class-view entry (name, color).
+function _instructionEntry(btId, isSwapFill) {
+  const pid = btId.includes('|') ? btId.split('|')[0] : btId;
+  const sub = btId.includes('|') ? btId.split('|')[1] : null;
+  const bt  = SchedState.blockTypes.find(b => b.id === pid);
+  if (!bt) return null;
+  let displayName = bt.name;
+  if (sub) {
+    if (pid === 'bt_mm') {
+      const mm = (SchedState.school.morningMeetings || []).find(m => m.id === sub);
+      displayName = mm?.name || bt.name;
+    } else if (pid !== 'bt_lunch' && pid !== 'bt_recess') {
+      const sb = (bt.subBlocks || []).find(s => s.id === sub);
+      displayName = sb ? `${bt.name} – ${sb.name}` : bt.name;
+    }
+  }
+  return { btId, isSpecials: false, displayName, color: bt.color || '#6b7280', isSwapFill: !!isSwapFill };
+}
+
+// "Swap fill" for an off-carousel class: it can't be on the carousel with its
+// peers (its special is at a different time), so at the carousel-time HOLE it
+// does the instruction the grade runs DURING its own off-carousel special. This
+// fills the grey hole AND recovers instruction minutes the special overlapped
+// (e.g. Content that only partially fit). Returns { holeSlotIdx: gradeBtId }.
+// View-layer only — the grade master data is untouched.
+function _classHoleFillMap(classId, grade, day) {
+  const daySlots   = _autoFillSlots(day);
+  const gradeSched = SchedState.masterSchedule[day]?.[grade] || {};
+  const ss         = SchedState.specialsSchedule?.[classId]?.[day];
+  const specials   = SchedState.school.specials || [];
+
+  // Slots this class's own special covers, and whether that special is
+  // off-carousel (grade block at its start is instruction, not bt_spec).
+  const covered = new Set();
+  const offWindows = [];
+  if (ss?.startTime) {
+    const sp = specials.find(s => s.id === ss.subjectId);
+    const n  = Math.ceil((sp?.duration || 45) / 5);
+    const si = daySlots.indexOf(ss.startTime);
+    if (si >= 0) {
+      for (let j = 0; j < n; j++) covered.add(si + j);
+      const gb = gradeSched[daySlots[si]];
+      if (!gb || !gb.startsWith('bt_spec')) offWindows.push({ startIdx: si, len: n });
+    }
+  }
+  if (!offWindows.length) return {};
+
+  // Hole runs: contiguous grade-carousel (bt_spec) slots this class's special
+  // does NOT cover — i.e. the grey placeholders.
+  const holeRuns = [];
+  let run = null;
+  daySlots.forEach((sl, i) => {
+    const gb = gradeSched[sl];
+    if (gb && gb.startsWith('bt_spec') && !covered.has(i)) {
+      if (!run) run = { startIdx: i, len: 0 };
+      run.len++;
+    } else if (run) { holeRuns.push(run); run = null; }
+  });
+  if (run) holeRuns.push(run);
+
+  // Pair holes with off-carousel windows in order; map hole slots to the grade
+  // instruction block at the aligned offset in the special window (skip bt_spec).
+  const map = {};
+  holeRuns.forEach((hole, k) => {
+    const win = offWindows[k];
+    if (!win) return;
+    const span = Math.min(hole.len, win.len);
+    for (let j = 0; j < span; j++) {
+      const gb = gradeSched[daySlots[win.startIdx + j]];
+      if (gb && !gb.startsWith('bt_spec')) map[hole.startIdx + j] = gb;
+    }
+  });
+  return map;
+}
+
 function getClassSlotEntry(slot, grade, day, classId) {
   const daySlots = _autoFillSlots(day);
   const slotIdx  = daySlots.indexOf(slot);
@@ -182,9 +257,13 @@ function getClassSlotEntry(slot, grade, day, classId) {
   if (!btId) return null;
 
   if (btId.startsWith('bt_spec')) {
-    // The grade is on the carousel here, but THIS class's own special is at a
-    // different time (handled above). Muted placeholder pointing to that time —
-    // the class isn't deleted, its special shows at its own slot.
+    // Swap fill: this off-carousel class does, in its carousel-time hole, the
+    // instruction the grade runs during its own off-carousel special.
+    const fillBt = _classHoleFillMap(classId, grade, day)[slotIdx];
+    if (fillBt) return _instructionEntry(fillBt, true);
+
+    // No swap available (e.g. mismatched durations) — muted placeholder pointing
+    // to when this class's special actually is.
     const elsewhere = ss?.startTime && ss.startTime !== slot ? ss.startTime : null;
     return {
       btId, isSpecials: false, isSpecialsHole: true,
@@ -193,23 +272,7 @@ function getClassSlotEntry(slot, grade, day, classId) {
     };
   }
 
-  const pid = btId.includes('|') ? btId.split('|')[0] : btId;
-  const sub = btId.includes('|') ? btId.split('|')[1] : null;
-  const bt  = SchedState.blockTypes.find(b => b.id === pid);
-  if (!bt) return null;
-
-  let displayName = bt.name;
-  if (sub) {
-    if (pid === 'bt_mm') {
-      const mm = (SchedState.school.morningMeetings || []).find(m => m.id === sub);
-      displayName = mm?.name || bt.name;
-    } else if (pid !== 'bt_lunch' && pid !== 'bt_recess') {
-      const sb = (bt.subBlocks || []).find(s => s.id === sub);
-      displayName = sb ? `${bt.name} – ${sb.name}` : bt.name;
-    }
-  }
-
-  return { btId, isSpecials: false, displayName, color: bt.color || '#6b7280' };
+  return _instructionEntry(btId, false);
 }
 
 // Renders one td for the class schedule views.
