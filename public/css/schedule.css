@@ -2053,11 +2053,17 @@
 
 /* Split cell: two side-by-side blocks in one td */
 .split-cell { padding: 0 !important; }
+/* Each 5-min slot is its own <td>. The base 1px row border-bottom chops the
+   split halves' colored border-left into dashes (regular blocks avoid this
+   because their accent sits on the <td> itself). Drop the inter-row border so
+   the accents read as continuous lines; the isEnd row keeps its inline 2px
+   colored bottom border. */
+.grid-cell.split-cell { border-bottom: 0; }
 .split-block-wrap {
   display: flex;
   width: 100%;
   height: 100%;
-  min-height: 20px;
+  min-height: 0; /* must match the 16px row height, not force 20px (distorts block height) */
 }
 .split-half {
   flex: 1;
