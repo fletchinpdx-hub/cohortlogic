@@ -408,6 +408,39 @@
   gap: 28px;
 }
 
+/* Prominent "continue from a saved file" banner at the top of School Info —
+   the common workflow is colleagues passing .cohortlogic files back and forth. */
+.load-file-banner {
+  max-width: 780px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--teal, #2a9d8f);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(42,157,143,.08), rgba(42,157,143,.03));
+}
+.load-file-banner-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy, #0a2240);
+  margin-bottom: 3px;
+}
+.load-file-banner-sub {
+  font-size: 13px;
+  color: #4b5563;
+  max-width: 520px;
+  line-height: 1.45;
+}
+.load-file-banner-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .form-section {
   background: #fff;
   border: 1px solid var(--gray-200);

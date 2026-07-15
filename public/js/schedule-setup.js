@@ -107,6 +107,17 @@ function renderSchoolInfo() {
       <p class="view-subtitle">Tell us about your school. This sets the foundation for every schedule you build.</p>
     </div>
 
+    <!-- Prominent "continue from a saved file" entry point. The label triggers the
+         hidden #load-sched-file input in the sidebar (wired once in schedule-init.js),
+         so it reuses the existing load flow with no inline handler (CSP-safe). -->
+    <div class="load-file-banner">
+      <div class="load-file-banner-text">
+        <div class="load-file-banner-title">📂 Continue from a saved file</div>
+        <div class="load-file-banner-sub">Picking up where you — or a colleague — left off? Schedules are shared as <strong>.cohortlogic</strong> files. Load one to continue editing.</div>
+      </div>
+      <label class="btn btn-primary load-file-banner-btn" for="load-sched-file">↑ Load a .cohortlogic File</label>
+    </div>
+
     <div class="setup-form">
 
       <!-- School Details -->
