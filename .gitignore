@@ -2,3 +2,5 @@ node_modules/
 .qa-credentials
 qa-runs.log
 .wrangler/
+security/rotation-manifest.json
+.env.security

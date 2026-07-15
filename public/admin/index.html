@@ -53,6 +53,7 @@
       <button class="tab-btn" data-act="gotoView" data-view="schools">Schools &amp; Users</button>
       <button class="tab-btn" data-act="gotoView" data-view="analytics">Analytics</button>
       <button class="tab-btn" data-act="gotoView" data-view="logs">Logs</button>
+      <button class="tab-btn" data-act="gotoView" data-view="security">Security <span id="security-badge" class="tab-badge hidden"></span></button>
       <button class="tab-btn" data-act="gotoView" data-view="feedback">Feedback</button>
     </nav>
 
@@ -235,6 +236,13 @@
           <div id="error-log-wrap"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
         </div>
       </div>
+    </div>
+
+    <!-- Security -->
+    <div class="admin-view hidden" id="view-security">
+      <h2 style="margin-bottom:12px;">Security &amp; Compliance</h2>
+      <div id="security-heartbeat" class="section-card" style="margin-bottom:20px;"></div>
+      <div id="security-findings"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
     </div>
 
     <!-- Feedback -->

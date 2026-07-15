@@ -16,6 +16,9 @@
 .qa-credentials
 .dev.vars
 .env
+.env.security
+security
+security/**
 node_modules
 node_modules/**
 

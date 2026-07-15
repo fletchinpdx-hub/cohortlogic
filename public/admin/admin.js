@@ -224,7 +224,7 @@ document.getElementById('save-pw-btn').addEventListener('click', async () => {
 
 // ── Tab navigation / router ─────────────────────────────────────────────────
 
-const ADMIN_VIEWS  = ['overview', 'approvals', 'schools', 'analytics', 'logs', 'feedback'];
+const ADMIN_VIEWS  = ['overview', 'approvals', 'schools', 'analytics', 'logs', 'security', 'feedback'];
 const _loadedViews = new Set();
 
 function gotoView(_, el) { showView(el.dataset.view); }
@@ -247,6 +247,7 @@ function loadViewData(view) {
     case 'schools':   loadSchoolsAndUsers(); break;
     case 'analytics': loadAnalytics(); loadCicoStats(); break;
     case 'logs':      loadAuditLog();  loadErrors();    break;
+    case 'security':  loadSecurity();  break;
     case 'feedback':  loadFeedback();  break;
     // 'approvals' is loaded eagerly in loadDashboard() so its tab badge is always current
   }
@@ -282,7 +283,7 @@ async function loadOverview() {
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [pendingRes, errorsRes, feedbackRes, schoolsRes, usersRes, cbSessionsRes, cicoWeekRes] = await Promise.all([
+  const [pendingRes, errorsRes, feedbackRes, schoolsRes, usersRes, cbSessionsRes, cicoWeekRes, secHotRes] = await Promise.all([
     db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', false),
     db.from('error_logs').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
     db.from('feedback').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
@@ -290,11 +291,13 @@ async function loadOverview() {
     db.from('profiles').select('id', { count: 'exact', head: true }).eq('approved', true),
     db.from('sessions').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
     db.from('cico_checkins').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+    db.from('security_findings').select('id', { count: 'exact', head: true }).eq('status', 'open').in('severity', ['critical', 'high']),
   ]);
 
   const pending  = pendingRes.count  ?? 0;
   const errors7d = errorsRes.count   ?? 0;
   const fb7d     = feedbackRes.count ?? 0;
+  const secHot   = secHotRes.count   ?? 0;
 
   attnEl.innerHTML = `
     <div class="attention-card ${pending ? 'attention-hot' : ''}" data-act="gotoView" data-view="approvals">
@@ -305,10 +308,16 @@ async function loadOverview() {
       <div class="attention-value">${errors7d}</div>
       <div class="attention-label">New errors (7d)</div>
     </div>
+    <div class="attention-card ${secHot ? 'attention-hot' : ''}" data-act="gotoView" data-view="security">
+      <div class="attention-value">${secHot}</div>
+      <div class="attention-label">Open security findings</div>
+    </div>
     <div class="attention-card" data-act="gotoView" data-view="feedback">
       <div class="attention-value">${fb7d}</div>
       <div class="attention-label">New feedback (7d)</div>
     </div>`;
+
+  _setSecurityBadge(secHot);
 
   statsEl.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Schools</div><div class="stat-value">${schoolsRes.count ?? 0}</div></div>
@@ -1027,6 +1036,7 @@ const ADMIN_ACTIONS = {
   wipeSchoolData, confirmWipeSchoolData,
   gotoView, gotoSubtab, gotoSubtabView, toggleSchoolCard, jumpToSchoolCard,
   toggleAuditFilters, toggleErrorFilters,
+  loadSecurity, setFindingStatus,
 };
 
 document.addEventListener('click', (e) => {
@@ -1301,6 +1311,131 @@ function clearErrorFilters() {
   document.getElementById('error-product-filter').value = '';
   document.getElementById('error-type-filter').value    = '';
   loadErrors();
+}
+
+// ── Security & Compliance ────────────────────────────────────────────────
+// Reads security_runs/security_findings, written by the daily
+// security-compliance agent (.claude/agents/security-compliance.md).
+// RLS restricts SELECT on both tables to super_admin (is_admin()); this
+// panel's session already qualifies. Writes go only through the
+// set_finding_status RPC — the agent's own writes use a service-role key
+// this client never has.
+
+const SECURITY_SEVERITY_RANK  = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+const SECURITY_SEVERITY_COLOR = {
+  critical: '#fee2e2;color:#991b1b',
+  high:     '#ffedd5;color:#9a3412',
+  medium:   '#fef9c3;color:#854d0e',
+  low:      '#e0f2fe;color:#0369a1',
+  info:     '#f3f4f6;color:#374151',
+};
+const SECURITY_CATEGORY_LABEL = {
+  deploy_exposure: 'Deploy Exposure',
+  rls_audit:       'RLS Audit',
+  credential_mfa:  'Credential & MFA',
+  ferpa_privacy:   'FERPA / Privacy',
+};
+
+async function loadSecurity() {
+  document.getElementById('security-heartbeat').innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+  document.getElementById('security-findings').innerHTML  = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+
+  const [runRes, findingsRes] = await Promise.all([
+    db.from('security_runs').select('*').order('started_at', { ascending: false }).limit(1),
+    db.from('security_findings').select('*').in('status', ['open', 'acknowledged']),
+  ]);
+
+  renderSecurityHeartbeat(runRes.data?.[0] || null, runRes.error);
+  renderSecurityFindings(findingsRes.data || [], findingsRes.error);
+}
+
+function renderSecurityHeartbeat(run, error) {
+  const el = document.getElementById('security-heartbeat');
+  if (error) {
+    el.innerHTML = `<h3>Agent Status</h3><p style="color:#ef4444;font-size:13px;">Error loading run status: ${escAdmin(error.message)}</p>`;
+    return;
+  }
+  if (!run) {
+    el.innerHTML = '<h3>Agent Status</h3><p style="color:#9ca3af;font-size:13px;">No runs recorded yet — the daily security-compliance agent hasn\'t reported in.</p>';
+    return;
+  }
+
+  const fmt = ts => ts ? new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+  const lastTs   = run.finished_at || run.started_at;
+  const hoursAgo = lastTs ? (Date.now() - new Date(lastTs).getTime()) / 36e5 : Infinity;
+  const stale    = !run.finished_at || hoursAgo > 25;
+
+  el.innerHTML = `
+    <h3 style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      Agent Status
+      <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;${stale ? 'background:#fee2e2;color:#991b1b;' : 'background:#d1fae5;color:#065f46;'}">${stale ? 'Stale' : 'Healthy'}</span>
+    </h3>
+    <div style="font-size:13px;color:#6b7280;">
+      Last run: ${fmt(lastTs)} · ${run.checks_run ?? '—'} checks · ${run.findings_open ?? '—'} open findings
+    </div>`;
+}
+
+function renderSecurityFindings(findings, error) {
+  const el = document.getElementById('security-findings');
+  if (error) {
+    el.innerHTML = `<p style="color:#ef4444;font-size:13px;">Error: ${escAdmin(error.message)}</p>`;
+    return;
+  }
+
+  const openCritHigh = findings.filter(f => f.status === 'open' && (f.severity === 'critical' || f.severity === 'high')).length;
+  _setSecurityBadge(openCritHigh);
+
+  if (!findings.length) {
+    el.innerHTML = '<div class="section-card"><p style="color:#9ca3af;font-size:13px;">No open findings.</p></div>';
+    return;
+  }
+
+  const sorted = [...findings].sort((a, b) =>
+    (SECURITY_SEVERITY_RANK[a.severity] ?? 9) - (SECURITY_SEVERITY_RANK[b.severity] ?? 9));
+
+  const byCategory = {};
+  sorted.forEach(f => { (byCategory[f.category] ??= []).push(f); });
+
+  el.innerHTML = Object.entries(byCategory).map(([cat, items]) => `
+    <div class="section-card" style="margin-bottom:16px;">
+      <h3>${escAdmin(SECURITY_CATEGORY_LABEL[cat] || cat)}</h3>
+      ${items.map(f => `
+        <div style="border-top:1px solid #f3f4f6;padding:12px 0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:${SECURITY_SEVERITY_COLOR[f.severity] || SECURITY_SEVERITY_COLOR.info}">${escAdmin(f.severity)}</span>
+            <strong style="font-size:13px;">${escAdmin(f.title)}</strong>
+            ${f.status === 'acknowledged' ? '<span style="font-size:11px;color:#9ca3af;">(acknowledged)</span>' : ''}
+          </div>
+          ${f.detail ? `<p style="font-size:12px;color:#6b7280;margin:6px 0;">${escAdmin(f.detail)}</p>` : ''}
+          <div style="font-size:11px;color:#9ca3af;">First seen ${escAdmin(new Date(f.first_seen).toLocaleDateString())} · Last seen ${escAdmin(new Date(f.last_seen).toLocaleDateString())}</div>
+          <div style="margin-top:8px;display:flex;gap:8px;">
+            ${f.status !== 'acknowledged' ? `<button class="reassign-btn" data-act="setFindingStatus" data-id="${escAdmin(f.id)}" data-status="acknowledged">Acknowledge</button>` : ''}
+            <button class="reassign-btn" style="color:var(--teal);border-color:var(--teal);" data-act="setFindingStatus" data-id="${escAdmin(f.id)}" data-status="resolved">Resolve</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+async function setFindingStatus(id, el) {
+  const status = el.dataset.status;
+  const { error } = await db.rpc('set_finding_status', { p_finding_id: id, p_status: status });
+  if (error) {
+    alert(`Failed to update finding: ${error.message}`);
+    return;
+  }
+  loadSecurity();
+}
+
+function _setSecurityBadge(hotCount) {
+  const badge = document.getElementById('security-badge');
+  if (hotCount > 0) {
+    badge.textContent = hotCount;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
 }
 
 // ── Feedback ──────────────────────────────────────────────────────────────
