@@ -1036,6 +1036,7 @@ const ADMIN_ACTIONS = {
   approveUser, assignPendingSchool, dismissPendingRow,
   togglePendingArchived, archivePendingUser, unarchivePendingUser,
   deletePendingUser, confirmDeletePendingUser, cancelDeletePendingUser,
+  quickAddSchoolForPending, cancelQuickAddSchool, createQuickSchool,
   wipeSchoolData, confirmWipeSchoolData,
   gotoView, gotoSubtab, gotoSubtabView, toggleSchoolCard, jumpToSchoolCard,
   toggleAuditFilters, toggleErrorFilters,
@@ -1065,6 +1066,11 @@ document.addEventListener('change', (e) => {
 // active queue without deleting the account; Delete removes the profile row
 // outright (existing admin DELETE policy on public.profiles covers this).
 let _pendingShowArchived = false;
+
+// id -> the raw school/district text the user typed at signup — kept so the
+// "set up new school" quick-add form can prefill it without re-querying or
+// stashing free text in a DOM attribute (which escAdmin doesn't quote-escape).
+let _pendingSchoolTextById = {};
 
 async function loadPendingUsers() {
   const container = document.getElementById('pending-users-list');
@@ -1108,10 +1114,13 @@ async function loadPendingUsers() {
     `<option value="${s.id}">${escAdmin(s.name)}</option>`
   ).join('');
 
+  if (!showArchived) _pendingSchoolTextById = {};
+
   container.innerHTML = toolbar + pending.map(u => {
     const date = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const daysSince = (Date.now() - new Date(u.created_at)) / (1000 * 60 * 60 * 24);
     const isReturning = daysSince > 3;
+    if (!showArchived) _pendingSchoolTextById[u.id] = u.school_name || '';
 
     if (showArchived) {
       const archivedDate = new Date(u.archived_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -1140,9 +1149,20 @@ async function loadPendingUsers() {
           <div class="pending-school-row">
             <label style="font-size:12px;color:#6b7280;">Assign to school:</label>
             <select class="school-sel" id="school-sel-${u.id}">
-              <option value="">— None / create below —</option>
+              <option value="">— No school —</option>
               ${schoolOptions}
             </select>
+          </div>
+          <div id="school-mismatch-${u.id}" class="hidden" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;">
+            <span>⚠ "${escAdmin(u.school_name || '')}" doesn't match an existing school.</span>
+            <button class="reassign-btn" data-act="quickAddSchoolForPending" data-id="${u.id}" style="flex-shrink:0;">+ Set up new school</button>
+          </div>
+          <div id="quick-add-school-${u.id}" class="hidden" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <input type="text" id="quick-school-name-${u.id}" placeholder="School name *" style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:12px;font-family:inherit;outline:none;flex:1;min-width:140px;" />
+            <input type="text" id="quick-school-district-${u.id}" placeholder="District (optional)" style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:12px;font-family:inherit;outline:none;flex:1;min-width:120px;" />
+            <input type="text" id="quick-school-state-${u.id}" placeholder="State" style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;font-size:12px;font-family:inherit;outline:none;max-width:70px;" />
+            <button class="approve-btn" id="quick-school-create-btn-${u.id}" data-act="createQuickSchool" data-id="${u.id}">Create &amp; assign</button>
+            <button class="reassign-btn" data-act="cancelQuickAddSchool" data-id="${u.id}">Cancel</button>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
@@ -1155,15 +1175,19 @@ async function loadPendingUsers() {
     `;
   }).join('');
 
-  // Pre-select matched schools after DOM is ready
+  // Pre-select matched schools after DOM is ready; flag unmatched typed names
   if (!showArchived) {
     pending.forEach(u => {
-      const matchedSchool = _schools.find(s =>
-        s.name.toLowerCase() === (u.school_name || '').toLowerCase()
-      );
+      const typed = (u.school_name || '').trim();
+      const matchedSchool = typed
+        ? _schools.find(s => s.name.toLowerCase() === typed.toLowerCase())
+        : null;
       if (matchedSchool) {
         const sel = document.getElementById(`school-sel-${u.id}`);
         if (sel) sel.value = matchedSchool.id;
+      } else if (typed) {
+        const warn = document.getElementById(`school-mismatch-${u.id}`);
+        if (warn) warn.classList.remove('hidden');
       }
     });
   }
@@ -1209,10 +1233,74 @@ async function confirmDeletePendingUser(id) {
 
 function cancelDeletePendingUser() { loadPendingUsers(); }
 
+function quickAddSchoolForPending(id) {
+  const box = document.getElementById(`quick-add-school-${id}`);
+  if (!box) return;
+  box.classList.remove('hidden');
+  const nameInput = document.getElementById(`quick-school-name-${id}`);
+  if (nameInput) {
+    if (!nameInput.value) nameInput.value = _pendingSchoolTextById[id] || '';
+    nameInput.focus();
+  }
+}
+
+function cancelQuickAddSchool(id) {
+  const box = document.getElementById(`quick-add-school-${id}`);
+  if (box) box.classList.add('hidden');
+}
+
+async function createQuickSchool(id) {
+  const nameInput     = document.getElementById(`quick-school-name-${id}`);
+  const districtInput = document.getElementById(`quick-school-district-${id}`);
+  const stateInput    = document.getElementById(`quick-school-state-${id}`);
+  const btn           = document.getElementById(`quick-school-create-btn-${id}`);
+  const name = nameInput ? nameInput.value.trim() : '';
+  if (!name) { alert('School name is required.'); return; }
+  const district = districtInput ? districtInput.value.trim() : '';
+  const state    = stateInput    ? stateInput.value.trim()    : '';
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+  const { data, error } = await db.from('schools')
+    .insert({ name, district: district || null, state: state || null })
+    .select().single();
+
+  if (error) {
+    alert('Error creating school: ' + error.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Create & assign'; }
+    return;
+  }
+
+  _schools.push(data);
+  _schools.sort((a, b) => a.name.localeCompare(b.name));
+
+  const sel = document.getElementById(`school-sel-${id}`);
+  if (sel) {
+    const opt = document.createElement('option');
+    opt.value = data.id;
+    opt.textContent = data.name;
+    sel.appendChild(opt);
+    sel.value = data.id;
+  }
+  const warn = document.getElementById(`school-mismatch-${id}`);
+  if (warn) warn.classList.add('hidden');
+  cancelQuickAddSchool(id);
+}
+
 async function approveUser(userId) {
   const btn       = document.querySelector(`#row-${userId} .approve-btn`);
   const schoolSel = document.getElementById(`school-sel-${userId}`);
   const schoolId  = schoolSel ? (schoolSel.value || null) : null;
+
+  if (!schoolId) {
+    const typed = (_pendingSchoolTextById[userId] || '').trim();
+    if (typed) {
+      const proceed = confirm(
+        `This user typed "${typed}" as their school, but no school is selected and it doesn't match one on file.\n\n` +
+        `Approve anyway with no school assigned?\n(Cancel to set up a new school first.)`
+      );
+      if (!proceed) { quickAddSchoolForPending(userId); return; }
+    }
+  }
 
   // Grab user details before the row changes
   const nameEl  = document.querySelector(`#row-${userId} .pending-info strong`);
