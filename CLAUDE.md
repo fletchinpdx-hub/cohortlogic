@@ -424,9 +424,10 @@ Two tiers: the **static gate** (above, runs on every deploy) and **live post-dep
 
 Current agents:
 - `qa-classbuilder` — Class Builder (`app.html`): access gate → sample data → mapping → generation → violation cards → grade filter → drag-to-move.
-- `qa-schedulebuilder` — Schedule Builder (`schedule-app.html`): login/gate → seed a minimal school → render + exercise Master Schedule (core) and each extracted feature view (IA, Specials view, Class view, Export), watching for the `ReferenceError`/CSP failures a bad classic-script split produces.
+- `qa-schedulebuilder` — Schedule Builder (`schedule-app.html`): login/gate → seed a minimal school → render + exercise Master Schedule (core) and each extracted feature view (IA, Specials view, Class view, Export); also confirms the shared feedback widget and the Synchronized-Blocks non-overlap rule.
+- `qa-admin` — super-admin dashboard (`admin/`): the Feedback review flow (needs-attention card + tab badge, archive/unarchive, show-archived). **Special auth:** the admin panel signs out non-super_admins and runs an MFA gate — if the QA account isn't a super_admin with no enrolled MFA factor, this agent reports `PREREQUISITE — manual verification required` (with a manual checklist) rather than failing. Not a bug.
 
-Both log in with the QA test account (`.qa-credentials`, gitignored) and append a line to `qa-runs.log` (gitignored) — the only durable record of when QA last ran. **Note on credentials:** the agents type the QA test-account password into the live login form. That's a deliberate, user-owned QA automation with a dedicated throwaway account; if you'd rather perform the login step yourself and hand the session to the agent, say so and the agent will pause at login.
+They log in with the QA test account (`.qa-credentials`, gitignored) and append a line to `qa-runs.log` (gitignored) — the only durable record of when QA last ran. **Note on credentials:** the agents type the QA test-account password into the live login form. That's a deliberate, user-owned QA automation with a dedicated throwaway account; if you'd rather perform the login step yourself and hand the session to the agent, say so and the agent will pause at login.
 
 **Adding a new product's QA:** drop a `qa-<product>.md` in `.claude/agents/` following the two existing files' structure (Chrome-tools setup → read `.qa-credentials` → login → per-feature checklist with console checks → log to `qa-runs.log` → report table). It joins "run QA" automatically.
 

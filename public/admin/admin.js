@@ -1037,7 +1037,7 @@ const ADMIN_ACTIONS = {
   wipeSchoolData, confirmWipeSchoolData,
   gotoView, gotoSubtab, gotoSubtabView, toggleSchoolCard, jumpToSchoolCard,
   toggleAuditFilters, toggleErrorFilters,
-  loadSecurity, setFindingStatus,
+  loadSecurity, setFindingStatus, toggleSecurityHistory,
   archiveFeedback, unarchiveFeedback, toggleFeedbackArchived,
 };
 
@@ -1438,6 +1438,68 @@ function _setSecurityBadge(hotCount) {
   } else {
     badge.classList.add('hidden');
   }
+}
+
+// History is collapsed by default and loads on first expand — resolving a
+// finding just moves it here (status flips to 'resolved', row is kept, not
+// deleted), so this is the audit trail for "what got resolved and when."
+async function toggleSecurityHistory(_, el) {
+  const wrap    = document.getElementById('security-history-wrap');
+  const opening = wrap.classList.contains('hidden');
+  wrap.classList.toggle('hidden');
+  el.textContent = opening ? 'Hide' : 'Show';
+  if (opening) await loadSecurityHistory();
+}
+
+async function loadSecurityHistory() {
+  const wrap = document.getElementById('security-history-wrap');
+  wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+
+  const { data, error } = await db
+    .from('security_findings')
+    .select('*')
+    .eq('status', 'resolved')
+    .order('resolved_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    wrap.innerHTML = `<p style="color:#ef4444;font-size:13px;">Error: ${escAdmin(error.message)}</p>`;
+    return;
+  }
+
+  if (!data.length) {
+    wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No resolved findings yet.</p>';
+    return;
+  }
+
+  const fmt = ts => ts ? new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+
+  const rows = data.map(f => `
+    <tr>
+      <td style="white-space:nowrap;font-size:12px;">${fmt(f.resolved_at)}</td>
+      <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:${SECURITY_SEVERITY_COLOR[f.severity] || SECURITY_SEVERITY_COLOR.info}">${escAdmin(f.severity)}</span></td>
+      <td style="font-size:12px;color:#6b7280;">${escAdmin(SECURITY_CATEGORY_LABEL[f.category] || f.category)}</td>
+      <td style="font-size:13px;">${escAdmin(f.title)}</td>
+      <td style="font-size:11px;color:#9ca3af;white-space:nowrap;">First seen ${fmt(f.first_seen)}</td>
+    </tr>
+  `).join('');
+
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">Showing ${data.length} resolved finding${data.length === 1 ? '' : 's'}</div>
+    <div style="overflow-x:auto;">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Resolved</th>
+            <th>Severity</th>
+            <th>Category</th>
+            <th>Finding</th>
+            <th>Timeline</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 // ── Feedback ──────────────────────────────────────────────────────────────
