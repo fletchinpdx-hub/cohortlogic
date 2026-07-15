@@ -2731,6 +2731,35 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   const masterColor = masterBt?.color || '#94a3b8';
   const masterName  = masterBtId ? getBtName(masterBtId) : '';
 
+  // Off-carousel special with NO competing instruction for the other classes
+  // (their instructional day has wound down / this slot is unscheduled for them).
+  // There's nothing to split against, so render a single clean partial-specials
+  // block for the pulled-out class rather than a grey "· N" void that reads as
+  // a broken empty section. Continuity is derived from the special's own range
+  // because the grade master is null here (buildCell can't supply isCont/isEnd).
+  if (!masterBtId) {
+    const sp        = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
+    const daySlots  = _autoFillSlots(day);
+    const startIdx  = daySlots.indexOf(entry.startTime);
+    const numSlots  = Math.ceil((entry.duration || 45) / 5);
+    const slotIdx   = daySlots.indexOf(slot);
+    const cont      = !specInfo.isStart;
+    const end       = slotIdx === startIdx + numSlots - 1;
+    const bTop      = cont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
+    const bBot      = end  ? `border-bottom:2px solid ${color};` : '';
+    let soloInner = '';
+    if (specInfo.isStart) {
+      const mins    = entry.duration;
+      const endSlot = minsToTime(timeToMins(slot) + mins);
+      const n       = specInfo.all.length;
+      soloInner = `<span class="cell-label" style="color:${color}">${escHtml(sp?.name || 'Specials')}` +
+        `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${mins} min</span>` +
+        `<span class="cell-specials-subject">${n} ${n === 1 ? 'class' : 'classes'} · rest open</span></span>`;
+    }
+    const soloStyle = `background:${color}18;border-left:3px solid ${color};${bTop}${bBot}`;
+    return `<td class="grid-cell filled${cont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${soloStyle}">${soloInner}</td>`;
+  }
+
   // Show how the grade splits: M classes on specials, the rest on the master block.
   const inSpec  = specInfo.all.length;
   const inClass = Math.max(specInfo.totalClasses - inSpec, 0);
