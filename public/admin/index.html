@@ -51,6 +51,7 @@
       <button class="tab-btn active" data-act="gotoView" data-view="overview">Overview</button>
       <button class="tab-btn" data-act="gotoView" data-view="approvals">Approvals <span id="pending-badge" class="tab-badge hidden"></span></button>
       <button class="tab-btn" data-act="gotoView" data-view="schools">Schools &amp; Users</button>
+      <button class="tab-btn" data-act="gotoView" data-view="billing">Billing</button>
       <button class="tab-btn" data-act="gotoView" data-view="analytics">Analytics</button>
       <button class="tab-btn" data-act="gotoView" data-view="logs">Logs</button>
       <button class="tab-btn" data-act="gotoView" data-view="security">Security <span id="security-badge" class="tab-badge hidden"></span></button>
@@ -88,6 +89,18 @@
           <button class="btn btn-primary btn-sm" id="add-school-btn">+ Add School</button>
         </div>
         <div id="school-alert" class="alert hidden" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- Billing -->
+    <div class="admin-view hidden" id="view-billing">
+      <h2 style="margin-bottom:12px;">Billing</h2>
+      <div id="billing-summary" class="stats-grid" style="margin-bottom:20px;">
+        <p style="color:#9ca3af;font-size:13px;">Loading…</p>
+      </div>
+      <div class="section-card">
+        <h3>Subscriptions by School</h3>
+        <div id="billing-portfolio"><p style="color:#9ca3af;font-size:13px;">Loading…</p></div>
       </div>
     </div>
 
@@ -174,6 +187,7 @@
                 <option value="referral_referrals">referral_referrals</option>
                 <option value="profiles">profiles</option>
                 <option value="schools">schools</option>
+                <option value="subscriptions">subscriptions</option>
               </select>
             </div>
             <div>
@@ -290,6 +304,17 @@
       <button class="audit-modal-close">✕</button>
     </div>
     <div class="audit-modal-body" id="audit-modal-body"></div>
+  </div>
+</div>
+
+<!-- Subscription add/edit modal (populated by JS) -->
+<div id="subscription-modal" style="display:none;" class="audit-modal-overlay">
+  <div class="audit-modal">
+    <div class="audit-modal-head">
+      <h3 id="subscription-modal-title">Subscription</h3>
+      <button class="audit-modal-close">✕</button>
+    </div>
+    <div class="audit-modal-body" id="subscription-modal-body"></div>
   </div>
 </div>
 

@@ -164,6 +164,12 @@ _auditOverlay.addEventListener('click', closeAuditModal);
 _auditOverlay.querySelector('.audit-modal').addEventListener('click', e => e.stopPropagation());
 _auditOverlay.querySelector('.audit-modal-close').addEventListener('click', closeAuditModal);
 
+// ── Subscription add/edit modal ──
+const _subscriptionOverlay = document.getElementById('subscription-modal');
+_subscriptionOverlay.addEventListener('click', closeSubscriptionModal);
+_subscriptionOverlay.querySelector('.audit-modal').addEventListener('click', e => e.stopPropagation());
+_subscriptionOverlay.querySelector('.audit-modal-close').addEventListener('click', closeSubscriptionModal);
+
 // ── Change password ──
 // Recovery sessions (forgot-password link) authorize a password set WITHOUT the
 // current password; a normal in-app change requires it (the Supabase project
@@ -224,7 +230,7 @@ document.getElementById('save-pw-btn').addEventListener('click', async () => {
 
 // ── Tab navigation / router ─────────────────────────────────────────────────
 
-const ADMIN_VIEWS  = ['overview', 'approvals', 'schools', 'analytics', 'logs', 'security', 'feedback'];
+const ADMIN_VIEWS  = ['overview', 'approvals', 'schools', 'billing', 'analytics', 'logs', 'security', 'feedback'];
 const _loadedViews = new Set();
 
 function gotoView(_, el) { showView(el.dataset.view); }
@@ -245,6 +251,7 @@ function loadViewData(view) {
   _loadedViews.add(view);
   switch (view) {
     case 'schools':   loadSchoolsAndUsers(); break;
+    case 'billing':   loadBilling(); break;
     case 'analytics': loadAnalytics(); loadCicoStats(); break;
     case 'logs':      loadAuditLog();  loadErrors();    break;
     case 'security':  loadSecurity();  break;
@@ -1042,6 +1049,7 @@ const ADMIN_ACTIONS = {
   toggleAuditFilters, toggleErrorFilters,
   loadSecurity, setFindingStatus, toggleSecurityHistory,
   archiveFeedback, unarchiveFeedback, toggleFeedbackArchived,
+  openSubscriptionModal, closeSubscriptionModal, saveSubscription, deleteSubscription,
 };
 
 document.addEventListener('click', (e) => {
@@ -1058,6 +1066,300 @@ document.addEventListener('change', (e) => {
   const fn = ADMIN_CHANGE_ACTIONS[t.dataset.change];
   if (fn) fn(t.dataset.id, t);
 });
+
+// ── Billing ──────────────────────────────────────────────────────────────
+// One subscription row per school (see supabase/migrations/subscriptions.sql).
+// Super-admin only via RLS. This is a record-keeping ledger, not payment
+// processing — it captures the contract we closed, not a Stripe charge.
+
+// Preset packages, mirrors ADMIN_PRODUCTS above. Purely a UI prefill — the
+// actual agreed fee/licenses on a subscription row always win, so custom
+// deals stay representable. Set real defaultFeeCents once pricing is final.
+const ADMIN_PLANS = [
+  { key: 'core',     name: 'Core',     defaultFeeCents: 0, defaultLicenses: 10, products: ['cico'] },
+  { key: 'pro',      name: 'Pro',      defaultFeeCents: 0, defaultLicenses: 25, products: ['cico', 'referrals'] },
+  { key: 'district', name: 'District', defaultFeeCents: 0, defaultLicenses: 0,  products: ['cico', 'referrals', 'schedule_builder'] },
+];
+
+const BILLING_STATUS_COLORS = {
+  trial:     { bg: '#e0f2fe', fg: '#075985' },
+  active:    { bg: '#dcfce7', fg: '#166534' },
+  past_due:  { bg: '#fef3c7', fg: '#92400e' },
+  cancelled: { bg: '#f3f4f6', fg: '#4b5563' },
+  expired:   { bg: '#fee2e2', fg: '#991b1b' },
+};
+
+let _subscriptions     = [];  // one row per subscribed school
+let _billingSeatCounts = {};  // school_id -> approved user count
+
+function _fmtCents(cents) {
+  return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+
+function _subNetCents(sub) {
+  return Math.max(0, (sub.fee_cents || 0) - (sub.discount_cents || 0));
+}
+
+// Annualized net fee, for ARR. 'custom' billing periods are treated as annual —
+// there's no reliable way to project them, and undercounting ARR is the safer
+// default vs. inventing a cadence.
+function _subAnnualizedCents(sub) {
+  const net = _subNetCents(sub);
+  return sub.billing_period === 'monthly' ? net * 12 : net;
+}
+
+async function loadBilling() {
+  const summaryEl   = document.getElementById('billing-summary');
+  const portfolioEl = document.getElementById('billing-portfolio');
+  portfolioEl.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Loading…</p>';
+
+  const [schoolsRes, subsRes, usersRes] = await Promise.all([
+    db.from('schools').select('*').order('name'),
+    db.from('subscriptions').select('*'),
+    db.from('profiles').select('school_id').eq('approved', true),
+  ]);
+
+  if (schoolsRes.error) {
+    portfolioEl.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load schools: ${escAdmin(schoolsRes.error.message)}</p>`;
+    return;
+  }
+  _schools = schoolsRes.data || [];
+
+  if (subsRes.error) {
+    const missingTable = /relation .* does not exist/i.test(subsRes.error.message || '');
+    portfolioEl.innerHTML = `<p style="color:#ef4444;font-size:13px;">Could not load subscriptions: ${escAdmin(subsRes.error.message)}${
+      missingTable ? ' — run supabase/migrations/subscriptions.sql in Supabase first.' : ''
+    }</p>`;
+    summaryEl.innerHTML = '';
+    return;
+  }
+  _subscriptions = subsRes.data || [];
+
+  _billingSeatCounts = {};
+  (usersRes.data || []).forEach(u => {
+    if (!u.school_id) return;
+    _billingSeatCounts[u.school_id] = (_billingSeatCounts[u.school_id] || 0) + 1;
+  });
+
+  renderBillingSummary();
+  renderBillingPortfolio();
+}
+
+function renderBillingSummary() {
+  const el = document.getElementById('billing-summary');
+  const active = _subscriptions.filter(s => s.status === 'active');
+  const arrCents = active.reduce((sum, s) => sum + _subAnnualizedCents(s), 0);
+  const mrrCents = Math.round(arrCents / 12);
+  const in30 = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const renewalsDue = _subscriptions.filter(s =>
+    s.renewal_date && !['cancelled', 'expired'].includes(s.status) &&
+    new Date(s.renewal_date).getTime() <= in30
+  ).length;
+  const trials = _subscriptions.filter(s => s.status === 'trial').length;
+
+  const cards = [
+    { label: 'ARR', value: _fmtCents(arrCents) },
+    { label: 'MRR', value: _fmtCents(mrrCents) },
+    { label: 'Active Subscriptions', value: String(active.length) },
+    { label: 'Renewals Due (30d)', value: String(renewalsDue), hot: renewalsDue > 0 },
+    { label: 'Trials', value: String(trials) },
+  ];
+  el.innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-label">${escAdmin(c.label)}</div>
+      <div class="stat-value"${c.hot ? ' style="color:#b45309;"' : ''}>${escAdmin(c.value)}</div>
+    </div>`).join('');
+}
+
+function renderBillingPortfolio() {
+  const container = document.getElementById('billing-portfolio');
+  const subBySchool = {};
+  _subscriptions.forEach(s => { subBySchool[s.school_id] = s; });
+
+  if (!_schools.length) {
+    container.innerHTML = '<p style="color:#9ca3af;font-size:13px;">No schools yet — add one in Schools &amp; Users first.</p>';
+    return;
+  }
+
+  const rows = _schools.map(s => billingRowHtml(s, subBySchool[s.id] || null, _billingSeatCounts[s.id] || 0)).join('');
+  container.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="users-table">
+        <thead><tr><th>School</th><th>Package</th><th>Status</th><th>Seats</th><th>Fee</th><th>Renewal</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function billingRowHtml(s, sub, seatsUsed) {
+  if (!sub) {
+    return `
+      <tr id="billing-row-${s.id}">
+        <td><strong>${escAdmin(s.name)}</strong></td>
+        <td colspan="5" style="color:#9ca3af;">No subscription</td>
+        <td><button class="reassign-btn" data-act="openSubscriptionModal" data-id="${s.id}">+ Add subscription</button></td>
+      </tr>`;
+  }
+
+  const seatsTotal   = sub.license_count || 0;
+  const overSeats    = seatsTotal > 0 && seatsUsed > seatsTotal;
+  const statusColor  = BILLING_STATUS_COLORS[sub.status] || BILLING_STATUS_COLORS.active;
+  const netCents     = _subNetCents(sub);
+  const renewalMs    = sub.renewal_date ? new Date(sub.renewal_date).getTime() - Date.now() : null;
+  const renewalSoon  = renewalMs !== null && renewalMs >= 0 && renewalMs <= 30 * 24 * 60 * 60 * 1000;
+  const periodSuffix = sub.billing_period === 'monthly' ? '/mo' : sub.billing_period === 'annual' ? '/yr' : '';
+
+  return `
+    <tr id="billing-row-${s.id}">
+      <td><strong>${escAdmin(s.name)}</strong></td>
+      <td>${escAdmin(sub.package)}</td>
+      <td><span style="display:inline-block;background:${statusColor.bg};color:${statusColor.fg};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;text-transform:capitalize;">${escAdmin(sub.status.replace('_', ' '))}</span></td>
+      <td${overSeats ? ' style="color:var(--red);font-weight:700;"' : ''}>${seatsUsed} / ${seatsTotal || '—'}</td>
+      <td>${escAdmin(_fmtCents(netCents) + periodSuffix)}</td>
+      <td${renewalSoon ? ' style="color:#b45309;font-weight:700;"' : ''}>${sub.renewal_date ? escAdmin(new Date(sub.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) : '—'}</td>
+      <td><button class="reassign-btn" data-act="openSubscriptionModal" data-id="${s.id}">Edit</button></td>
+    </tr>`;
+}
+
+function openSubscriptionModal(schoolId) {
+  const school = _schools.find(s => s.id === schoolId);
+  if (!school) return;
+  const sub = _subscriptions.find(s => s.school_id === schoolId) || null;
+
+  document.getElementById('subscription-modal-title').textContent = `${sub ? 'Edit' : 'Add'} subscription — ${school.name}`;
+
+  const planOptions = ADMIN_PLANS.map(p =>
+    `<option value="${p.key}"${sub && sub.package === p.name ? ' selected' : ''}>${escAdmin(p.name)}</option>`
+  ).join('');
+  const statusOptions = Object.keys(BILLING_STATUS_COLORS).map(st =>
+    `<option value="${st}"${sub && sub.status === st ? ' selected' : ''}>${escAdmin(st.replace('_', ' '))}</option>`
+  ).join('');
+  const feeDollars = sub ? (sub.fee_cents / 100).toFixed(2) : '';
+
+  const body = document.getElementById('subscription-modal-body');
+  body.innerHTML = `
+    <div class="pw-form" style="max-width:none;gap:14px;">
+      <div>
+        <label class="form-label">Package</label>
+        <select id="sub-package" class="form-input" style="margin-bottom:0;">${planOptions}</select>
+      </div>
+      <div>
+        <label class="form-label">Status</label>
+        <select id="sub-status" class="form-input" style="margin-bottom:0;">${statusOptions}</select>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:100px;">
+          <label class="form-label">Licenses (seats)</label>
+          <input type="number" min="0" id="sub-licenses" class="form-input" style="margin-bottom:0;" value="${sub ? sub.license_count : ''}" />
+        </div>
+        <div style="flex:1;min-width:100px;">
+          <label class="form-label">Fee ($)</label>
+          <input type="number" min="0" step="0.01" id="sub-fee" class="form-input" style="margin-bottom:0;" value="${feeDollars}" />
+        </div>
+        <div style="flex:1;min-width:110px;">
+          <label class="form-label">Billing period</label>
+          <select id="sub-period" class="form-input" style="margin-bottom:0;">
+            <option value="annual"${!sub || sub.billing_period === 'annual' ? ' selected' : ''}>Annual</option>
+            <option value="monthly"${sub && sub.billing_period === 'monthly' ? ' selected' : ''}>Monthly</option>
+            <option value="custom"${sub && sub.billing_period === 'custom' ? ' selected' : ''}>Custom</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:130px;">
+          <label class="form-label">Contract signed</label>
+          <input type="date" id="sub-signed" class="form-input" style="margin-bottom:0;" value="${sub && sub.contract_signed_date ? sub.contract_signed_date : ''}" />
+        </div>
+        <div style="flex:1;min-width:130px;">
+          <label class="form-label">Term start</label>
+          <input type="date" id="sub-start" class="form-input" style="margin-bottom:0;" value="${sub && sub.term_start ? sub.term_start : ''}" />
+        </div>
+        <div style="flex:1;min-width:130px;">
+          <label class="form-label">Renewal date</label>
+          <input type="date" id="sub-renewal" class="form-input" style="margin-bottom:0;" value="${sub && sub.renewal_date ? sub.renewal_date : ''}" />
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Notes</label>
+        <textarea id="sub-notes" class="form-input" style="margin-bottom:0;min-height:60px;">${sub ? escAdmin(sub.notes || '') : ''}</textarea>
+      </div>
+      <div id="subscription-modal-alert" class="alert alert-error hidden"></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;">
+        <div>${sub ? `<button class="btn btn-outline btn-sm" style="color:var(--red);border-color:#fca5a5;" data-act="deleteSubscription" data-id="${schoolId}">Delete</button>` : ''}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm" data-act="closeSubscriptionModal">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="save-subscription-btn" data-act="saveSubscription" data-id="${schoolId}">Save</button>
+        </div>
+      </div>
+    </div>`;
+
+  // Prefill fee/licenses from the chosen package — only for a brand-new
+  // subscription, and only into fields the admin hasn't already typed into.
+  if (!sub) {
+    document.getElementById('sub-package').addEventListener('change', (e) => {
+      const plan = ADMIN_PLANS.find(p => p.key === e.target.value);
+      if (!plan) return;
+      const licensesEl = document.getElementById('sub-licenses');
+      const feeEl      = document.getElementById('sub-fee');
+      if (licensesEl && !licensesEl.value) licensesEl.value = plan.defaultLicenses || '';
+      if (feeEl && !feeEl.value) feeEl.value = plan.defaultFeeCents ? (plan.defaultFeeCents / 100).toFixed(2) : '';
+    });
+  }
+
+  document.getElementById('subscription-modal').style.display = 'flex';
+}
+
+function closeSubscriptionModal() {
+  document.getElementById('subscription-modal').style.display = 'none';
+}
+
+async function saveSubscription(schoolId) {
+  const btn     = document.getElementById('save-subscription-btn');
+  const alertEl = document.getElementById('subscription-modal-alert');
+  alertEl.classList.add('hidden');
+
+  const packageSel = document.getElementById('sub-package');
+  const plan       = ADMIN_PLANS.find(p => p.key === packageSel.value);
+  const feeDollars = parseFloat(document.getElementById('sub-fee').value);
+
+  const payload = {
+    school_id:             schoolId,
+    package:               plan ? plan.name : packageSel.value,
+    status:                document.getElementById('sub-status').value,
+    license_count:         parseInt(document.getElementById('sub-licenses').value, 10) || 0,
+    fee_cents:             Number.isFinite(feeDollars) ? Math.round(feeDollars * 100) : 0,
+    billing_period:        document.getElementById('sub-period').value,
+    contract_signed_date:  document.getElementById('sub-signed').value || null,
+    term_start:            document.getElementById('sub-start').value || null,
+    renewal_date:          document.getElementById('sub-renewal').value || null,
+    notes:                 document.getElementById('sub-notes').value.trim() || null,
+  };
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { error } = await db.from('subscriptions').upsert(payload, { onConflict: 'school_id' });
+
+  if (error) {
+    alertEl.textContent = 'Error saving subscription: ' + error.message;
+    alertEl.classList.remove('hidden');
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+    return;
+  }
+
+  closeSubscriptionModal();
+  loadBilling();
+}
+
+function deleteSubscription(schoolId) {
+  if (!confirm('Delete this subscription record? This cannot be undone.')) return;
+  _confirmDeleteSubscription(schoolId);
+}
+
+async function _confirmDeleteSubscription(schoolId) {
+  const { error } = await db.from('subscriptions').delete().eq('school_id', schoolId);
+  if (error) { alert('Error deleting subscription: ' + error.message); return; }
+  closeSubscriptionModal();
+  loadBilling();
+}
 
 // ── Pending users (with school assignment) ───────────────────────────────
 
