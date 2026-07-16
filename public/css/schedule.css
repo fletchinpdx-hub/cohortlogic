@@ -985,6 +985,8 @@
   flex-shrink: 0;
   line-height: 1;
 }
+/* Lives inside a <label class="form-label">, which is uppercase + letter-spaced —
+   reset both here or the tooltip prose inherits them and shouts. */
 .field-tooltip-body {
   visibility: hidden;
   opacity: 0;
@@ -997,6 +999,8 @@
   font-size: 12px;
   line-height: 1.5;
   font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
   padding: 8px 10px;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,.25);
@@ -1013,8 +1017,12 @@
   border-right: 5px solid transparent;
   border-bottom: 5px solid var(--gray-800);
 }
+/* :focus-visible, NOT :focus — the icon is tabindex="0", so plain :focus meant a
+   mouse CLICK on the "?" latched the tooltip open until you clicked elsewhere.
+   :focus-visible keeps the keyboard affordance (Tab still reveals it) without the
+   sticky-on-click behaviour. */
 .field-tooltip:hover .field-tooltip-body,
-.field-tooltip-icon:focus + .field-tooltip-body {
+.field-tooltip-icon:focus-visible + .field-tooltip-body {
   visibility: visible;
   opacity: 1;
 }
