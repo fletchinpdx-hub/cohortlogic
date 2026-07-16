@@ -1,3 +1,9 @@
+-- SUPERSEDED 2026-07-16: marketing_tables.sql was rewritten to be the
+-- canonical, idempotent, up-to-date version (this same policy fix, folded
+-- in, plus a schema correction and duplicate-policy reconciliation). Kept
+-- here only as the historical record of the first fix attempt. Re-run
+-- marketing_tables.sql, not this file, if you need to reconcile drift.
+--
 -- ═══════════════════════════════════════════════════════════════════════
 -- Fix: contact_submissions / newsletter_subscribers SELECT policies were
 -- scoped `to authenticated using (true)` — the original comment assumed
