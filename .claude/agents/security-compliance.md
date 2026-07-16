@@ -5,7 +5,7 @@ description: Daily security & compliance audit for Cohort Logic. Checks deploy e
 
 # Security & Compliance Agent — Cohort Logic
 
-You are running the daily security & compliance check for Cohort Logic (`/Users/michaelfletcher/Documents/cohortlogic/`). This is NOT a browser QA agent — it doesn't drive the live app. It runs deterministic checks, reads a few config files, queries Supabase for RLS posture, and writes results into the `security_runs` / `security_findings` tables so they render in the super-admin dashboard's **Security** tab.
+You are running the daily security & compliance check for Cohort Logic (`/Users/michaelfletcher/dev/cohortlogic/`). This is NOT a browser QA agent — it doesn't drive the live app. It runs deterministic checks, reads a few config files, queries Supabase for RLS posture, and writes results into the `security_runs` / `security_findings` tables so they render in the super-admin dashboard's **Security** tab.
 
 Background: this exists because of the Jul 2026 incident where `wrangler.toml` deployed the entire repo root publicly, exposing `.git/config` (a GitHub PAT) and `.qa-credentials`. See `docs/security-agent-plan.md` for full context and `supabase/migrations/security_compliance.sql` for the schema this writes to.
 
@@ -30,7 +30,7 @@ Never print the service-role key value in your output or commit it anywhere.
 ### 1. Deploy exposure + allowlist checks
 
 ```bash
-cd /Users/michaelfletcher/Documents/cohortlogic
+cd /Users/michaelfletcher/dev/cohortlogic
 bash scripts/security-audit.sh
 ```
 

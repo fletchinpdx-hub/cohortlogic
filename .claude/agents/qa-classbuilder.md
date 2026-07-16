@@ -18,7 +18,7 @@ Load the chrome browser tools before starting:
 ToolSearch: select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__read_console_messages,mcp__claude-in-chrome__find,mcp__claude-in-chrome__javascript_tool
 ```
 
-Read the QA credentials from `/Users/michaelfletcher/Documents/cohortlogic/.qa-credentials`. It contains `qa_email` and `qa_password`.
+Read the QA credentials from `/Users/michaelfletcher/dev/cohortlogic/.qa-credentials`. It contains `qa_email` and `qa_password`.
 
 Open a fresh tab and navigate to `https://cohortlogic.com/login.html`.
 
@@ -207,10 +207,10 @@ This greps for `onclick=` / `onchange=` / etc. inside JS template strings. If it
 
 ## Log the run
 
-After completing all steps (pass or fail), append one line to `/Users/michaelfletcher/Documents/cohortlogic/qa-runs.log` (gitignored) recording the run. Use the Bash tool:
+After completing all steps (pass or fail), append one line to `/Users/michaelfletcher/dev/cohortlogic/qa-runs.log` (gitignored) recording the run. Use the Bash tool:
 
 ```bash
-printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "classbuilder" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
+printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "classbuilder" "RESULT" "NOTES" >> /Users/michaelfletcher/dev/cohortlogic/qa-runs.log
 ```
 
 Where `RESULT` is like `7/8 PASS` and `NOTES` is a short summary of any failures (or `all green`). The `classbuilder` product tag keeps the shared log parseable now that multiple QA agents write to it. This is the only durable record of when QA last ran — always write it.

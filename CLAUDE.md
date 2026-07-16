@@ -8,7 +8,9 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 **Supabase project:** dlqnzlwuzktcljxxxlit  
 **Local dev:** http://localhost:3456 (run via `npx serve -l 3456 public`)  
 **Hosting:** Cloudflare Workers (static assets via `wrangler.toml`, `directory = "public"` — only files inside `public/` are ever served; this is an allowlist, not the old `.` denylist model).  
-**Deploy:** always `bash scripts/deploy.sh` from `/Users/michaelfletcher/Documents/cohortlogic/` — never raw `npx wrangler deploy` (that skips the pre-deploy gate). GitHub push auto-deploy is **broken and unreliable** (since v54) — do not count on it. See the Deployment section for the full rule. Netlify site should be deleted.
+**Deploy:** always `bash scripts/deploy.sh` from `/Users/michaelfletcher/dev/cohortlogic/` — never raw `npx wrangler deploy` (that skips the pre-deploy gate). GitHub push auto-deploy is **broken and unreliable** (since v54) — do not count on it. See the Deployment section for the full rule. Netlify site should be deleted.
+
+**Repo location — `~/dev/cohortlogic`, never `~/Documents` or `~/Desktop`:** moved here 2026-07-16. Cause, not just symptom: this Mac has iCloud "Desktop & Documents" sync enabled, which makes both those folders live iCloud containers — the file-provider daemon holds them open and can duplicate files mid-write during heavy churn (`foo 2.ts`, and it has reached inside `.git` as `.git/index 2` on a sibling project, which is a real corruption risk, not just clutter). A repo with frequent build/deploy activity (like this one — multiple deploys/day, wrangler asset uploads) is more exposed than a static one. **If a `* 2.*` file ever shows up anywhere in this repo, don't just delete it and move on — first confirm the repo hasn't ended up back inside a synced folder** (`diff <(ls ~/Library/Mobile\ Documents/com~apple~CloudDocs/Documents) <(ls ~/Documents)` — identical output means sync is on).
 
 ## Compact Instructions
 When compacting this conversation, preserve:
@@ -422,7 +424,7 @@ public/
 ---
 
 ## Deployment
-- **Always deploy via `bash scripts/deploy.sh`** from `/Users/michaelfletcher/Documents/cohortlogic/` — NOT raw `npx wrangler deploy`. `deploy.sh` runs the Tier 1 pre-deploy gate (`scripts/predeploy.sh`) first and aborts if any check fails; raw wrangler skips the gate. (`--skip-gate` exists for genuine emergencies only.) GitHub auto-deploy broke after v54 and is NOT reliable.
+- **Always deploy via `bash scripts/deploy.sh`** from `/Users/michaelfletcher/dev/cohortlogic/` — NOT raw `npx wrangler deploy`. `deploy.sh` runs the Tier 1 pre-deploy gate (`scripts/predeploy.sh`) first and aborts if any check fails; raw wrangler skips the gate. (`--skip-gate` exists for genuine emergencies only.) GitHub auto-deploy broke after v54 and is NOT reliable.
 - **The pre-deploy gate** (`scripts/predeploy.sh`, 5 checks, all sub-second, no browser): 1) CSP inline-handler scan, 2) cache-version **consistency + coverage**, 3) secret-exposure (.assetsignore), 4) Class Builder algorithm unit tests (`tests/algorithm.test.js`), 5) Schedule Builder reference check (`tests/check-refs.js` — every function/const referenced by a classic `<script>` must be defined somewhere in the loaded bundle; catches the #1 monolith-split failure mode). Each `check-*.sh` hard-fails if its scan target is missing (so a future restructure can't silently disarm it).
 
 ### Cache-busting (`?v=`) — the rule

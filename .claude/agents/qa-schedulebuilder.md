@@ -20,7 +20,7 @@ Load the chrome browser tools before starting:
 ToolSearch: select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__read_console_messages,mcp__claude-in-chrome__find,mcp__claude-in-chrome__javascript_tool
 ```
 
-Read the QA credentials from `/Users/michaelfletcher/Documents/cohortlogic/.qa-credentials` (`qa_email`, `qa_password`).
+Read the QA credentials from `/Users/michaelfletcher/dev/cohortlogic/.qa-credentials` (`qa_email`, `qa_password`).
 
 Open a fresh tab and navigate to `https://cohortlogic.com/login.html`.
 
@@ -208,10 +208,10 @@ The gate already covers this, but for reference — before deploying, `bash scri
 
 ## Log the run
 
-After all steps, append one line to `/Users/michaelfletcher/Documents/cohortlogic/qa-runs.log` (gitignored):
+After all steps, append one line to `/Users/michaelfletcher/dev/cohortlogic/qa-runs.log` (gitignored):
 
 ```bash
-printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "schedulebuilder" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
+printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "schedulebuilder" "RESULT" "NOTES" >> /Users/michaelfletcher/dev/cohortlogic/qa-runs.log
 ```
 
 `RESULT` like `8/9 PASS`, `NOTES` a short summary (or `all green`). Always write it.

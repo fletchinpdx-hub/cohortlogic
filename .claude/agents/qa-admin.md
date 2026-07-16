@@ -80,7 +80,7 @@ the `feedback_archive.sql` migration wasn't run) — capture it.
 ## Log the run
 
 ```bash
-printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "admin" "RESULT" "NOTES" >> /Users/michaelfletcher/Documents/cohortlogic/qa-runs.log
+printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "admin" "RESULT" "NOTES" >> /Users/michaelfletcher/dev/cohortlogic/qa-runs.log
 ```
 `RESULT` = `seed OK — manual checklist handed off` (typical), or
 `seed FAIL — <reason>`. Always write it.

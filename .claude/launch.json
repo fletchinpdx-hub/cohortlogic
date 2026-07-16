@@ -4,7 +4,7 @@
     {
       "name": "cohortlogic",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "--no-clean-urls", "/Users/michaelfletcher/Documents/cohortlogic/public"],
+      "runtimeArgs": ["serve", "--no-clean-urls", "/Users/michaelfletcher/dev/cohortlogic/public"],
       "port": 3456,
       "autoPort": true
     }
