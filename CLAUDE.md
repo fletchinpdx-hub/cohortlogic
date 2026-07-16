@@ -7,7 +7,8 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 **GitHub:** github.com/fletchinpdx-hub/cohortlogic  
 **Supabase project:** dlqnzlwuzktcljxxxlit  
 **Local dev:** http://localhost:3456 (run via `npx serve -l 3456 public`)  
-**Hosting:** Cloudflare Workers (static assets via `wrangler.toml`, `directory = "public"` — only files inside `public/` are ever served; this is an allowlist, not the old `.` denylist model). Deploy with `npx wrangler deploy` from `/Users/michaelfletcher/Documents/cohortlogic/`. GitHub push auto-deploys via Cloudflare Pages integration — but wrangler is the reliable fallback. Netlify site should be deleted.
+**Hosting:** Cloudflare Workers (static assets via `wrangler.toml`, `directory = "public"` — only files inside `public/` are ever served; this is an allowlist, not the old `.` denylist model).  
+**Deploy:** always `bash scripts/deploy.sh` from `/Users/michaelfletcher/Documents/cohortlogic/` — never raw `npx wrangler deploy` (that skips the pre-deploy gate). GitHub push auto-deploy is **broken and unreliable** (since v54) — do not count on it. See the Deployment section for the full rule. Netlify site should be deleted.
 
 ## Compact Instructions
 When compacting this conversation, preserve:
@@ -46,12 +47,12 @@ Daily behavioral check-in/check-out tracker for students. Supabase-backed, multi
 - 15-minute inactivity session timeout with 60-second warning banner
 
 ### 3. Building Schedule Builder (`schedule-app.html`)
-Master schedule builder for school administrators. Phase 1 complete; Phase 2 Specials Schedule view live.
+Master schedule builder for school administrators. All four phases (Setup → Build → Detail → Export) are built and live.
 
-**Cache buster:** currently `?v=149` on all script tags AND both CSS links in `public/schedule-app.html`. Bump ALL on every deploy. (Repo now serves from `public/` — all app files live under `public/`; JS paths below are relative to `public/`.)
+**Cache buster:** every script tag AND both CSS links in `public/schedule-app.html` carry a `?v=NNN` query. **Bump ALL of them, in lockstep, on every deploy** — the pre-deploy gate's version-consistency check fails if they drift. (Don't record the current number here; it goes stale immediately — read it off the file.) All app files live under `public/`; JS paths below are relative to `public/`.
 
 **Data model — file-based, not Supabase:**
-- Schedule data NEVER stored server-side. Users download a `.clsched` JSON file to save; upload it to resume.
+- Schedule data NEVER stored server-side. Users download a `.cohortlogic` JSON file to save; upload it to resume. (Legacy `.clsched` and `.cohort` files are still accepted on load and migrated — see `loadScheduleFromFile`.)
 - `localStorage` is a session cache only (survives tab close, not device switch).
 - Supabase used only for auth + product gating (`enabled_products` includes `schedule_builder`).
 - `downloadScheduleFile()` / `loadScheduleFromFile(file)` in `schedule-state.js`.
@@ -59,8 +60,9 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 **Nav flow (current):**
 - Phase 1 — Setup: School Info → Staff Roster → Specials → Block Types
 - Phase 1 — Build: Master Schedule (locked until grades configured)
-- Phase 2 — Detail: Specials Schedule (locked until specials configured) → IA Schedule (live) → Class Schedules (placeholder)
-- Finish: Export (placeholder)
+- Phase 2 — Detail: Specials Schedule (locked until specials configured) → IA Schedule → Class Schedules
+- Finish: Export
+(All views are built — none are placeholders. An intro tour auto-runs on first visit; see `js/schedule-tour.js`.)
 
 **Key state — `SchedState` in `schedule-state.js`:**
 - `school` — name, year, grades, time bounds (firstBell, dismissal, arrival=studentCampusStart, dismissal=studentCampusEnd, teacherContractStart/End…), lunchPeriods[], gradeRecesses{}, gradeBands[], blockPairings[], specials[], specialsRotationMode. NOTE: `morningMeetings[]` and legacy `morningMeeting*` fields are **defunct** (v124) — morning meetings are configured only as the `bt_mm` block (Block Types → school-wide time). Stale `morningMeetings` data is fully inert: it neither places blocks nor affects the minutes budget.
@@ -77,12 +79,16 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 - `js/supabase-config.js` — shared Supabase client (SupabaseClient), loaded first
 - `js/schedule-state.js` — SchedState, DEFAULT_BLOCK_TYPES, saveToLocal, loadFromLocal, downloadScheduleFile, loadScheduleFromFile, uid(), updateSidebarStatus()
 - `js/schedule-setup.js` — School Info, Staff Roster, Specials, Block Types views + save flows; SP_DEFAULT_COLORS
-- `js/schedule-grid.js` (~3,323 lines, was ~6,177 pre-split) — CORE: Master Schedule grid render/cells, drag-to-move, resize, context menu, undo, the consolidated warnings panel, conflict rendering/banners, the placement algorithm (specials scheduling incl. `buildSpecialsSchedule`/`findGradeFixedTime`, grade pairings/`placePairedBlocks`, `_populateGradeData`, `rebuildPlacement()`), and `printScheduleGrid` (a shared print utility used by IA/specials/class views — intentionally NOT extracted, stays here)
-- `js/schedule-ia.js` (~1,678 lines, extraction 1) — IA Schedule view (All IAs + Individual IA), IA assignment edit/delete, IA assignment from the master schedule, duty blocks/panel. State: `iaSchedUI`, `iaDrag`, `iaMasterState`
-- `js/schedule-specials-view.js` (~571 lines, extraction 2) — Specials Schedule view (by-teacher grid), coverage validation/banner, the individual override panel. State: `specialsSchedUI`. (The specials *scheduling algorithm* stays in schedule-grid.js — this file is the view/UI layer only.)
-- `js/schedule-class-view.js` (~326 lines, extraction 3) — Class Schedules view (single class + grade compare). State: `classSchedUI`
-- `js/schedule-export.js` (~324 lines, extraction 4) — XLSX/JSON export (`exportXLSX`, `exportJSON`, `_blendColumnRuns`), Export view placeholder
-- `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring, loaded last
+- `js/schedule-grid.js` (~3,450 lines, was ~6,177 pre-split) — CORE: Master Schedule grid render/cells, drag-to-move, resize, context menu, undo, the consolidated warnings panel, conflict rendering/banners, the placement algorithm (specials scheduling incl. `buildSpecialsSchedule`/`findGradeFixedTime`, grade pairings/`placePairedBlocks`, `_populateGradeData`, `rebuildPlacement()`), and `printScheduleGrid` (a shared print utility used by IA/specials/class views — intentionally NOT extracted, stays here)
+- `js/schedule-ia.js` (~1,680 lines, extraction 1) — IA Schedule view (All IAs + Individual IA), IA assignment edit/delete, IA assignment from the master schedule, duty blocks/panel. State: `iaSchedUI`, `iaDrag`, `iaMasterState`
+- `js/schedule-specials-view.js` (~570 lines, extraction 2) — Specials Schedule view (by-teacher grid), coverage validation/banner, the individual override panel. State: `specialsSchedUI`. (The specials *scheduling algorithm* stays in schedule-grid.js — this file is the view/UI layer only.)
+- `js/schedule-class-view.js` (~390 lines, extraction 3) — Class Schedules view (single class + grade compare), incl. `getClassSlotEntry` + the off-carousel swap fill. State: `classSchedUI`
+- `js/schedule-export.js` (~325 lines, extraction 4) — XLSX/JSON export (`exportXLSX`, `exportJSON`, `_blendColumnRuns`) + the Export view
+- `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring
+- `js/schedule-tour.js` (~370 lines) — interactive intro tour (coach-marks), CSP-safe, auto-runs once on first visit, replayable from the sidebar. **Spotlight-only** (unlike the Class Builder tour in `js/tour.js`): it highlights the sidebar nav down the four phases rather than driving the grid.
+- `js/feedback.js` — shared Send Feedback widget (see Shared components), loaded last
+
+(Line counts are approximate and drift — treat them as "which file is big," not a spec.)
 
 **Key behaviors:**
 - `preFillFixedBlocks()` — auto-places lunch (from `lunchPeriods`) + recess (from `computeRecessTimes`) + morning meeting (only from the `bt_mm` block's uniformStart/End). Clears all fixed-block slots first, then re-places. Calls `ensureFixedBlockTypes()` at the top (v126) so bt_mm/bt_lunch/bt_recess type defs always exist — without them `buildCell()` renders those slots as **empty cells** and the palette's Transition group vanishes. `ensureFixedBlockTypes()` used to run only on load; running it here self-heals every build.
@@ -143,7 +149,7 @@ Master schedule builder for school administrators. Phase 1 complete; Phase 2 Spe
 
 **SP_DEFAULT_COLORS:** defined at top of `schedule-setup.js`, globally accessible to `schedule-grid.js` (loads after).
 
-**`.clsched` file format:** v3 JSON; `school.specials[]` persisted with `color` field.
+**Schedule file format:** saves download as **`.cohortlogic`** (v3 JSON; `school.specials[]` persisted with `color`). `loadScheduleFromFile` also accepts legacy **`.clsched`** and **`.cohort`** files and migrates them to the unified shape.
 
 ---
 
@@ -214,7 +220,7 @@ line after `supabase-config.js`:
 | `profiles` | `id, full_name, school_name, school_id, approved, role, product_overrides, is_admin (legacy), created_at` |
 | `schools` | `id, name, district, state, enabled_products, created_at` |
 | `audit_log` | FERPA audit trail: `id, user_id, action, table_name, record_id, old_data, new_data, created_at` |
-| `cico_students` | Students per school |
+| `students` | Students per school — **shared roster** for CICO + Referrals (renamed from `cico_students`; a `cico_students` compat view still exists but nothing in the client uses it) |
 | `cico_checkins` | Daily check-in records |
 | `cico_period_scores` | Per-period scores (child of checkins, FK: `checkin_id`) |
 | `cico_incidents` | Incident records (child of checkins, FK: `checkin_id`) |
@@ -224,6 +230,15 @@ line after `supabase-config.js`:
 | `sessions` | Class Builder demo sessions (anon + authenticated INSERT, authenticated SELECT) |
 | `events` | Class Builder demo events (anon + authenticated INSERT, authenticated SELECT) |
 | `features` | Feature flags: `key, enabled, updated_at` — read-only via RLS (SELECT only, no writes from client) |
+| `feedback` | Send Feedback submissions: `product, name, email, message, archived_at, …`. **anon INSERT allowed** (that's the public widget); SELECT/archive restricted to super_admin. Surfaced in admin → Feedback. |
+| `subscriptions` | Billing / plan state per school — admin → Billing |
+| `security_findings` / `security_runs` | Automated daily security audit (deploy exposure / RLS / MFA / FERPA) — admin → Security |
+| `contact_submissions` | Marketing contact-form submissions |
+| `error_logs` | Client error capture |
+| `referral_referrals` | Referral records (see Referral Tracking) |
+| `referral_settings` | Per-school referral config incl. `default_reviewer_id` |
+| `referral_custom_fields` / `referral_custom_field_options` | School-scoped custom fields for referrals |
+| `referral_locations/behaviors/motivations/actions/others_involved` | Referral dropdown config (school-scoped) |
 
 ### Roles & tool access
 - `profiles.role` enum: `'user' | 'school_admin' | 'super_admin'` — **source of truth** for access level. The legacy `profiles.is_admin` boolean is vestigial (kept so the signup trigger doesn't break); `is_admin()` now reads `role`.
@@ -265,16 +280,18 @@ School admins have **no direct write on `profiles`** — they call these, which 
 - 15-minute inactivity timeout (same as CICO)
 - RLS is a second backstop at the data layer
 
-### Sections
-- **Pending Approvals** — approve new users, assign to a school; returning deactivated users show "Previously active" badge + "Reactivate" button
-- **All Users** — approved users with school reassign dropdown + Deactivate button
-- **Class Builder Analytics** — sessions, funnel (how far users get), feature usage, recent sessions
-- **CICO Analytics** — enrolled students, check-ins (30d + today), active schools, per-school activity table with Wipe Data action
-- **Audit Log** — FERPA audit trail, filter by table/action/date, paginated, detail modal
-- **Schools** — Add, edit (inline), and delete schools; deletion blocked if users are assigned
+### Sections (tabs — `data-view` on the topbar buttons)
+- **Overview** — at-a-glance stats
+- **Approvals** — approve new users, assign to a school; returning deactivated users show "Previously active" badge + "Reactivate" button
+- **Schools & Users** — Add/edit (inline)/delete schools (deletion blocked if users are assigned); approved users with school reassign, Role column (`setUserRole` — promote/revoke `school_admin`; super_admin only via SQL), Deactivate
+- **Billing** — subscription / plan state per school (`subscriptions`)
+- **Analytics** — Class Builder (sessions, funnel, feature usage, recent sessions) + CICO (enrolled students, check-ins 30d/today, active schools, per-school table with Wipe Data)
+- **Logs** — FERPA audit trail, filter by table/action/date, paginated, detail modal
+- **Security** — results of the automated daily security audit (`security_runs` / `security_findings`)
+- **Feedback** — user submissions from the shared Send Feedback widget. Unread submissions light up a badge (`#feedback-badge`) on the tab so new feedback is obvious; each card can be **archived** when handled
 
 ### Key functions in admin.js
-- `verifyAndLoad(session, event)` — async; called fire-and-forget from onAuthStateChange; checks `profiles.is_admin`, signs out non-admins, then calls showDashboard + loadDashboard
+- `verifyAndLoad(session, event)` — async; called fire-and-forget from onAuthStateChange; reads `profiles.role` (**source of truth**, NOT the legacy `is_admin` column) and signs out anyone who isn't `super_admin`, then calls showDashboard + loadDashboard
 - `loadDashboard()` — synchronous dispatcher: fires loadSchools → loadPendingUsers + loadAllUsers + loadCicoStats in parallel; loadAuditLog and loadAnalytics independently
 - `loadAnalytics()` — async: queries sessions + events tables for Class Builder stats
 - `loadCicoStats()` — async: queries cico_students + cico_checkins for CICO stat cards and per-school table
@@ -285,8 +302,7 @@ School admins have **no direct write on `profiles`** — they call these, which 
 - `wipeSchoolData()` / `confirmWipeSchoolData()` — deletes all CICO data for a school in safe order (child records first)
 - `loadAuditLog(append)` — paginated 50/page, resolves user names via `_auditUserCache`
 - `openAuditDetail(id)` — modal with INSERT/UPDATE/DELETE diff
-- **All Users** now has a **Role** column (`setUserRole` — promote/revoke `school_admin`; super_admin only set via SQL)
-- **Pending** has `assignPendingSchool` — "Route to school admin": sets `school_id` WITHOUT approving, so the user lands in their school admin's queue
+- **Approvals** has `assignPendingSchool` — "Route to school admin": sets `school_id` WITHOUT approving, so the user lands in their school admin's queue
 
 ---
 
@@ -321,61 +337,55 @@ A per-school admin (designated by the super admin) manages **only their own scho
 ---
 
 ## File structure
+
+**Everything served lives under `public/`** (`wrangler.toml` → `directory = "public"`). Anything outside `public/` is never served — that's the allowlist that keeps `.git`/credentials off the web. Repo root holds only tooling: `CLAUDE.md`, `wrangler.toml`, `docs/`, `scripts/`, `tests/`, `supabase/`, `security/`, `sample/`.
+
 ```
-index.html              — Marketing/landing page
-dashboard.html          — Product dashboard (links to both products + role-aware admin link)
-app.html                — Class Builder app
-checkin-app.html        — Check-in / Check-out app
-schedule-app.html       — Building Schedule Builder app
-login.html              — Shared login for CICO
-signup.html             — CICO signup (email verification + pending approval flow)
-privacy.html            — Privacy policy (FERPA)
-security.html           — Security & privacy marketing page
-pricing.html            — Pricing page
-contact.html            — Contact page
-class-builder.html      — Class Builder marketing/product page
-resources.html          — Resources
-wrangler.toml           — Cloudflare Workers static asset config (no build step)
-_headers                — Security headers for all routes (CSP, X-Frame-Options, etc.)
-admin/
-  index.html            — Super-admin panel
-  admin.js              — All super-admin logic
-  admin.css             — Shared admin styles (also used by school-admin/)
-school-admin/
-  index.html            — Per-school admin panel (reuses ../admin/admin.css)
-  school-admin.js       — School-admin logic (approve/deactivate/remove staff, tool access)
-css/
-  styles.css            — Class Builder styles (--navy, --teal, --gold)
-  checkin.css           — CICO styles (--ci-navy, --ci-teal, --ci-gold)
-  marketing.css         — Marketing site design system
-js/
-  app.js                — Class Builder: AppState, navigation, utilities
-  import.js             — File import (Excel + CSV)
-  fieldMapping.js       — Column mapping, competency config
-  students.js           — Student table, separation/together pairs
-  classes.js            — Grade/class config, teacher assignment
-  algorithm.js          — Snake-draft + separation/together fixing + category balancing
-  results.js            — Class cards, drag-to-move, export by grade/teacher
-  sample.js             — 500-student sample + blank template download
-  supabase-config.js    — Shared: SupabaseClient, trackSession(), trackEvent()
-  admin-mfa.js          — Shared MFA gate + TOTP enrollment for both admin panels (window.AdminMFA)
-  checkin-state.js      — CicoState, loadCicoData(), navigation, toast, initApp(), session timeout
-  checkin-entry.js      — Entry view: student search, period grid, incidents
-  checkin-history.js    — History view: filter, load, render cards
-  checkin-students.js   — Students view: list, add/edit, Excel import
-  checkin-config.js     — Settings: period count, categories, incident types
-  checkin-reports.js    — Reports: 4 tabs, Chart.js charts, stat cards
-  schedule-state.js     — SchedState, DEFAULT_BLOCK_TYPES, file save/load, uid()
-  schedule-setup.js     — School Info, Block Types, Staff Roster views
-  schedule-grid.js      — Master Schedule grid, drag-to-move, auto-populate, XLSX export
-  schedule-init.js      — Boot, landing screen, download/load wiring
-css/
-  schedule.css          — Schedule Builder styles (extends styles.css)
-images/
-  logo.png              — Transparent PNG logo
-supabase/migrations/
-  ferpa_compliance.sql           — (ALREADY RUN)
-  school_isolation_complete.sql  — (ALREADY RUN)
+public/
+  _headers              — Security headers for all routes (CSP, X-Frame-Options, etc.)
+  index.html            — Marketing/landing page
+  dashboard.html        — Product dashboard (product links + role-aware admin link)
+  app.html              — Class Builder app
+  checkin-app.html      — Check-in / Check-out app
+  schedule-app.html     — Building Schedule Builder app
+  referral-app.html     — Referral Tracking app
+  login.html / signup.html      — Shared auth (email verification + pending approval)
+  privacy.html / terms-beta.html / security.html / pricing.html / contact.html
+  products.html / class-builder.html / schedule-builder.html / checkin-checkout.html
+  balanced-classes.html / prepare-student-roster.html / schedule.html / resources.html
+  robots.txt / sitemap.xml
+  admin/
+    index.html          — Super-admin panel (8 tabs, see Admin panel)
+    admin.js            — All super-admin logic
+    admin.css           — Shared admin styles (also used by school-admin/)
+  school-admin/
+    index.html          — Per-school admin panel (reuses ../admin/admin.css)
+    school-admin.js     — School-admin logic (approve/deactivate/remove staff, tool access)
+  css/
+    styles.css          — Class Builder styles (--navy, --teal, --gold)
+    checkin.css         — CICO styles (--ci-navy, --ci-teal, --ci-gold); reused by Referrals
+    referral.css        — Referral-specific styles
+    schedule.css        — Schedule Builder styles (extends styles.css)
+    marketing.css       — Marketing site design system
+  images/logo.png       — Transparent PNG logo
+  js/
+    supabase-config.js  — Shared: SupabaseClient (top-level const!), trackSession(), trackEvent()
+    auth-gate.js        — Session + approval gate (loaded in <head> of gated apps)
+    session.js          — Inactivity/session timeout
+    login.js / signup.js / dashboard.js / contact.js / marketing-chrome.js
+    feedback.js         — Shared Send Feedback widget (all products)
+    admin-mfa.js        — Shared MFA gate + TOTP enrollment for both panels (window.AdminMFA)
+    tour.js             — Class Builder intro tour (coach-marks)
+    — Class Builder:  app.js, import.js, fieldMapping.js, students.js, classes.js,
+                      algorithm.js, results.js, sample.js
+    — CICO:           checkin-state.js, checkin-entry.js, checkin-history.js,
+                      checkin-students.js, checkin-config.js, checkin-reports.js
+    — Referrals:      referral-state.js, referral-entry.js, referral-list.js,
+                      referral-students.js, referral-config.js, referral-reports.js,
+                      referral-review.js
+    — Schedule:       schedule-state.js, schedule-setup.js, schedule-grid.js,
+                      schedule-ia.js, schedule-specials-view.js, schedule-class-view.js,
+                      schedule-export.js, schedule-init.js, schedule-tour.js
 ```
 
 ---
@@ -479,14 +489,17 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 
 ### Schedule Builder
 - **Specials scheduling** — substantially reworked (v137–v139): hardest-grade-first placement order, two-phase (all carousels then recovery), prefer ONE fixed time per grade across all days (`findGradeFixedTime`), and specials get first pick of the day (instruction cleared before placement, re-flowed after). Remaining hard limit: consolidation is bounded by specials-teacher count free at a shared time; genuine shortfalls still stagger via recovery. Verify against real teacher/cpw data.
-- **Class Schedules view** — BUILT (`renderClassSchedulesView`; Single Class `buildClassWeekGrid` + Compare Grade `buildGradeCompareGrid`).
-- **Export view** — BUILT (`exportXLSX` + `exportJSON`; per-day master tabs, Class Schedules, Specials, IA, School Info, Staff). Potential upgrade: switch to SheetJS **styled/paid build** for cell colors/centering/borders on the XLSX export (free build writes merges but no styles).
+- **XLSX export styling** — potential upgrade: switch to the SheetJS **styled/paid build** for cell colors/centering/borders (the free build writes structure/merges but no styles).
 - **Dismissal Duty (`bt_dis`)** — still appears in the Master Schedule palette (Arrival Duty was removed in v142); remove via `PALETTE_EXCLUDE` if it's non-paintable in the user's workflow.
 - **CICO** — re-QA the entry/students/settings/reports flows after the v-Jul-2026 CSP handler migration (see security table note); those interactions were dead in prod and are now fixed but need a real click-through.
 - **FERPA privacy policy page** — older pending item
 - **Teacher-level RLS** — on hold; needs product decisions
 
 ### Other products
+- **Cache-busting only covers Schedule Builder + Class Builder.** `schedule-app.html` versions every tag; but `checkin-app.html` (1 of 9 script tags), `referral-app.html` (1 of 10) and `dashboard.html` (1 of 3) version only `feedback.js` — everything else is unversioned and rides default browser/CF caching, so a JS change to CICO/Referrals/Dashboard can serve **stale code to returning users**. `check-versions.sh` does NOT catch this: it only asserts each file's `?v=` values are *internally consistent*, and a file with one versioned tag trivially passes. This is the same failure class as the CSP-handler regression (dead in prod, unnoticed). Fix = add `?v=NNN` to every asset tag in those three files and bump with each deploy; optionally extend the check to assert *coverage* (every `js/`+`css/` tag versioned), not just consistency.
+- **`feedback.js` is pinned at `?v=1`** in checkin/referral/dashboard. It has never changed since it landed, so this hasn't bitten yet — but the next edit to it won't reach anyone holding a cached copy. Bump it (and the rest) when touched.
+- **Dead feedback CSS** — `#feedback-btn` / `.feedback-overlay` rules linger in `css/styles.css` (4) and `css/checkin.css` (2) from the pre-widget modals. Harmless, unused, safe to delete.
+- **`cico_students` compat view** — nothing in the client references it any more (all reads use `students`); safe to drop.
 - **Test signup flow end-to-end** — verify email confirmation → pending approvals → approval → login works
 - **CICO weekly trend chart** — 8-week bar chart in CICO Analytics to show usage trajectory
 - **Pending Approvals UX** — edge cases for returning deactivated users (currently uses 3-day heuristic)
