@@ -784,3 +784,147 @@ body {
 .feedback-thanks-icon { font-size:40px;margin-bottom:12px; }
 .feedback-thanks h3 { margin:0 0 8px;font-size:18px;color:var(--navy); }
 .feedback-thanks p { margin:0;font-size:14px;color:#6b7280; }
+
+/* ── Form layout ───────────────────────────────────────────────────
+   Ported from schedule.css. app.html has used .setup-form / .form-row /
+   .form-group / .form-label / .form-hint since the School Profile view
+   landed, but ONLY schedule.css ever defined them and Class Builder does
+   not load that file — so those markup classes were inert here. The
+   inline `flex:2` on School Profile's form-groups had no flex parent, so
+   School Name and District stacked instead of sitting side by side.
+   Defining them renders School Profile as it was always written to look,
+   and gives Import/Export the same section shell Schedule Builder uses. */
+.setup-form {
+  max-width: 780px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.form-section {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+}
+.form-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 16px;
+}
+.form-hint {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-bottom: 14px;
+}
+.form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* ── Import/Export view ────────────────────────────────────────────
+   The one place file handling lives, plus the plain-language explainer.
+   Mirrors Schedule Builder's Import/Export view, recoloured to Class
+   Builder's palette (--teal #2A9D8F, not SB's #0ea5e9). Class Builder
+   has THREE file roles to SB's two: the roster comes in, the
+   .cohortlogic round-trips, the .xlsx goes out. */
+.file-flow {
+  display: block;
+  width: 100%;
+  max-width: 620px;
+  height: auto;
+  margin: 4px 0 18px;
+}
+.file-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+.file-guide-card {
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+}
+.file-guide-roster { border-top: 3px solid var(--gold); }
+.file-guide-work   { border-top: 3px solid var(--teal); }
+.file-guide-share  { border-top: 3px solid #16a34a; }
+.file-guide-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.file-guide-icon  { font-size: 20px; }
+.file-guide-title { font-size: 14px; font-weight: 700; color: var(--gray-900); }
+.file-ext {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+.file-guide-card ul { margin: 0; padding-left: 18px; }
+.file-guide-card li {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--gray-700);
+  margin-bottom: 5px;
+}
+.file-guide-rule {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #92400e;
+}
+.file-guide-rule code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: rgba(255,255,255,.7);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.ie-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.ie-label   { cursor: pointer; display: inline-flex; align-items: center; }
+.ie-note {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.ie-note-ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
+.ie-note-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+/* Two side-by-side drop zones (roster / restore) collapse on narrow screens. */
+.ie-dropgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.ie-subhead {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin: 0 0 6px;
+}

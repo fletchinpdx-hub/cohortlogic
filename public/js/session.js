@@ -4,7 +4,18 @@
 const SESSION_VERSION = 3;
 
 // ── Save ──
+// Two entry points by design. The Import/Export tab is the canonical, documented
+// home for file handling; the Results toolbar keeps its own buttons as contextual
+// shortcuts (different ids, same functions) so exporting right after generating
+// doesn't cost a tab jump. Both save paths run saveSession(), so the "have you
+// saved?" flag is set no matter which button the user reaches for.
 document.getElementById('save-session-btn').addEventListener('click', saveSession);
+document.getElementById('ie-save-session-btn').addEventListener('click', saveSession);
+
+// Export shortcuts on the Import/Export tab — exportByGrade/exportByTeacher are
+// defined in results.js, which loads before this file.
+document.getElementById('ie-export-by-grade-btn').addEventListener('click', () => exportByGrade());
+document.getElementById('ie-export-by-teacher-btn').addEventListener('click', () => exportByTeacher());
 
 function buildCBStaff() {
   const staff = [];
@@ -88,6 +99,28 @@ function saveSession() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   if (typeof trackEvent === 'function') trackEvent('session_saved');
+  try { localStorage.setItem(CB_SAVED_KEY, '1'); } catch (e) { /* private mode */ }
+  renderCBSaveNote();
+}
+
+// ── "Have you actually saved?" note ──
+// This matters more in Class Builder than in Schedule Builder. SB caches to
+// localStorage, so closing the tab is survivable. Class Builder persists
+// NOTHING — the roster, rules, and generated classes live in AppState, in
+// memory, only. Close the tab without downloading a .cohortlogic and the work
+// is gone with no recovery. The flag tracks downloads only: loading a file
+// doesn't set it, because changes made since that load are still unsaved.
+const CB_SAVED_KEY = 'cl_cb_session_downloaded';
+
+function renderCBSaveNote() {
+  const el = document.getElementById('ie-save-note');
+  if (!el) return;
+  let saved = false;
+  try { saved = localStorage.getItem(CB_SAVED_KEY) === '1'; } catch (e) { /* private mode */ }
+  el.className   = 'ie-note ' + (saved ? 'ie-note-ok' : 'ie-note-warn');
+  el.textContent = saved
+    ? '✓ You have saved a session file. Save again after you make changes, so your saved copy stays up to date.'
+    : '⚠ You have not saved a session file yet. Class Builder does not keep your work — right now your roster, rules, and classes only exist in this browser tab. Save a file to keep them.';
 }
 
 // ── Restore ──
@@ -112,6 +145,9 @@ restoreZone.addEventListener('drop', e => {
   const file = e.dataTransfer.files[0];
   if (file) loadCohortFile(file);
 });
+
+// Static markup + scripts at end of body, so the note element already exists.
+renderCBSaveNote();
 
 function _migrateToCohortLogicCB(raw) {
   if (raw._product === 'cohort_logic') return raw;

@@ -33,8 +33,8 @@
       view: 'import',
       anchor: '[data-view="import"]',
       step: 2,
-      title: 'Import your roster',
-      body: 'Upload an Excel or CSV file — drag-and-drop or browse. Your data stays in your browser and is never sent to a server. No file yet? Download the sample or a blank template to explore.'
+      title: 'Import & Export',
+      body: 'Everything to do with files lives here. Upload your roster (Excel or CSV) — it stays in your browser and is never sent to a server. It\'s also where you save your work as a .cohortlogic file, reopen it later, and download the finished class lists. No roster yet? Grab the sample or a blank template.'
     },
     {
       view: 'fields',

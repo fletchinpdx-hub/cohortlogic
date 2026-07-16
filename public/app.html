@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/supabase-config.js?v=20260716b"></script>
-  <script src="js/auth-gate.js?v=20260716b"></script>
-  <link rel="stylesheet" href="css/styles.css?v=20260716b" />
+  <script src="js/supabase-config.js?v=20260716c"></script>
+  <script src="js/auth-gate.js?v=20260716c"></script>
+  <link rel="stylesheet" href="css/styles.css?v=20260716c" />
   <!-- SheetJS for Excel parsing and generation -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -29,7 +29,7 @@
           <span class="nav-icon">🏫</span> School Profile
         </a>
         <a class="nav-item" data-view="import">
-          <span class="nav-icon">📥</span> Import Data
+          <span class="nav-icon">📤</span> Import/Export
         </a>
         <a class="nav-item" data-view="fields">
           <span class="nav-icon">🗂️</span> Field Mapping
@@ -87,50 +87,157 @@
         </div>
       </div>
 
-      <!-- Import View -->
+      <!-- Import/Export View —————————————————————————————————————————
+           The ONE place file handling lives, plus the plain-language
+           explainer. Mirrors Schedule Builder's Import/Export view.
+           Note the structural difference: SB renders its view from JS
+           (renderImportExportView), but Class Builder's views are STATIC
+           markup and import.js / sample.js / session.js bind their
+           handlers by id at load time. So this stays static HTML and the
+           ids below (drop-zone, file-input, browse-btn, restore-drop-zone,
+           restore-file-input, restore-session-btn, download-template-btn,
+           download-sample-btn, import-status) are load-bearing — renaming
+           one silently breaks that wiring. -->
       <div id="view-import" class="view">
         <div class="view-header">
-          <h1>Import Student Data</h1>
-          <p class="view-subtitle">Upload an Excel or CSV file to get started. Your data stays in your browser and is never sent to a server.</p>
+          <h1>Import &amp; Export</h1>
+          <p class="view-subtitle">Bring your roster in, save your work so you can come back to it, and share the finished class lists.</p>
         </div>
 
-        <div class="import-options">
-          <!-- File upload (Excel or CSV) -->
-          <div class="import-card" id="excel-card">
-            <div class="import-card-icon">📊</div>
-            <h2>Upload a File</h2>
-            <p>Excel (.xlsx) or CSV — drag and drop or click to browse.</p>
+        <div class="setup-form">
+
+          <!-- ── Explainer ──────────────────────────────────────────── -->
+          <div class="form-section">
+            <h2 class="form-section-title">Which file is which?</h2>
+            <p class="form-hint">Three files, three different jobs. Only one of them is your work.</p>
+
+            <svg class="file-flow" viewBox="0 0 620 272" role="img" aria-labelledby="cbFfTitle cbFfDesc">
+              <title id="cbFfTitle">How the three files are used</title>
+              <desc id="cbFfDesc">Your student roster is uploaded into Class Builder as an .xlsx or .csv file. Class Builder saves a .cohortlogic file that you can load back in to keep editing. It also downloads .xlsx class lists, which are a one-way copy for printing and sharing.</desc>
+              <defs>
+                <marker id="cbFfArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#64748B" />
+                </marker>
+              </defs>
+
+              <!-- Roster in -->
+              <rect x="8" y="44" width="150" height="80" rx="8" fill="#fdf6e3" stroke="#E9B949" />
+              <text x="83" y="70"  text-anchor="middle" font-size="12.5" font-weight="700" fill="#8a6d1f">📄 Your roster</text>
+              <text x="83" y="90"  text-anchor="middle" font-size="11.5" font-weight="700" fill="#a97f16">.xlsx / .csv</text>
+              <text x="83" y="110" text-anchor="middle" font-size="10.5" fill="#8a6d1f">Goes in — one way</text>
+
+              <!-- Class Builder -->
+              <rect x="245" y="58" width="130" height="52" rx="8" fill="#1E3A5F" />
+              <text x="310" y="90" text-anchor="middle" fill="#fff" font-size="13.5" font-weight="700">Class Builder</text>
+
+              <!-- Class lists out -->
+              <rect x="462" y="44" width="150" height="80" rx="8" fill="#ecfdf5" stroke="#16a34a" />
+              <text x="537" y="70"  text-anchor="middle" font-size="12.5" font-weight="700" fill="#166534">📗 Class lists</text>
+              <text x="537" y="90"  text-anchor="middle" font-size="11.5" font-weight="700" fill="#16a34a">.xlsx</text>
+              <text x="537" y="110" text-anchor="middle" font-size="10.5" fill="#166534">Print &amp; share</text>
+
+              <!-- Work file (round-trip) -->
+              <rect x="228" y="190" width="164" height="74" rx="8" fill="#e8f5f4" stroke="#2A9D8F" />
+              <text x="310" y="216" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d6f65">📘 Your work file</text>
+              <text x="310" y="236" text-anchor="middle" font-size="11.5" font-weight="700" fill="#2A9D8F">.cohortlogic</text>
+              <text x="310" y="256" text-anchor="middle" font-size="10.5" fill="#1d6f65">Keep this one</text>
+
+              <!-- Arrows -->
+              <path d="M164,84 L239,84" stroke="#64748B" stroke-width="1.5" fill="none" marker-end="url(#cbFfArrow)" />
+              <text x="201" y="76" text-anchor="middle" font-size="10.5" font-weight="700" fill="#a97f16">upload</text>
+
+              <path d="M381,84 L456,84" stroke="#64748B" stroke-width="1.5" fill="none" marker-end="url(#cbFfArrow)" />
+              <text x="418" y="76" text-anchor="middle" font-size="10.5" font-weight="700" fill="#16a34a">download only</text>
+
+              <path d="M310,116 L310,184" stroke="#64748B" stroke-width="1.5" fill="none"
+                    marker-start="url(#cbFfArrow)" marker-end="url(#cbFfArrow)" />
+              <text x="322" y="144" font-size="10.5" font-weight="700" fill="#2A9D8F">save &amp;</text>
+              <text x="322" y="158" font-size="10.5" font-weight="700" fill="#2A9D8F">reopen</text>
+            </svg>
+
+            <div class="file-guide">
+              <div class="file-guide-card file-guide-roster">
+                <div class="file-guide-head">
+                  <span class="file-guide-icon">📄</span>
+                  <span class="file-guide-title">Your roster<code class="file-ext">.xlsx / .csv</code></span>
+                </div>
+                <ul>
+                  <li><strong>This is your source data</strong> — the student list you already keep in your SIS or a spreadsheet.</li>
+                  <li><strong>It only comes in.</strong> Class Builder reads it in your browser; it is never sent to a server.</li>
+                  <li><strong>Editing the original later won't update anything here.</strong> Upload it again if it changes.</li>
+                  <li><strong>Don't have one?</strong> Download the template or the sample below.</li>
+                </ul>
+              </div>
+              <div class="file-guide-card file-guide-work">
+                <div class="file-guide-head">
+                  <span class="file-guide-icon">📘</span>
+                  <span class="file-guide-title">Your work file<code class="file-ext">.cohortlogic</code></span>
+                </div>
+                <ul>
+                  <li><strong>This is your work.</strong> It is the only file you can open again and keep editing.</li>
+                  <li><strong>Save it before you close this tab.</strong> Class Builder keeps nothing — close without saving and your roster, rules, and classes are gone.</li>
+                  <li><strong>Keep it somewhere safe</strong> — your school's Google Drive or OneDrive, not just the Downloads folder.</li>
+                  <li><strong>Email it to a colleague</strong> and they can carry on exactly where you stopped.</li>
+                  <li><strong>Schedule Builder reads it too</strong> — your school name and staff carry across.</li>
+                </ul>
+              </div>
+              <div class="file-guide-card file-guide-share">
+                <div class="file-guide-head">
+                  <span class="file-guide-icon">📗</span>
+                  <span class="file-guide-title">Class lists<code class="file-ext">.xlsx</code></span>
+                </div>
+                <ul>
+                  <li><strong>This is the finished product</strong> — ready to read, print, and hand out.</li>
+                  <li><strong>Opens in Excel or Google Sheets.</strong> One tab per grade, or one tab per teacher.</li>
+                  <li><strong>Share it with staff</strong> or print it for a binder.</li>
+                  <li><strong>It is a one-way copy.</strong> You cannot load it back in — anything you change there will not come back.</li>
+                </ul>
+              </div>
+            </div>
+
+            <p class="file-guide-rule"><strong>The short version:</strong> your roster goes <em>in</em>. The <code>.cohortlogic</code> file is your original — <strong>keep it</strong>. The <code>.xlsx</code> is the printout — share it. If you only save one file, save the <code>.cohortlogic</code>.</p>
+          </div>
+
+          <!-- ── 1. Roster in ───────────────────────────────────────── -->
+          <div class="form-section">
+            <h2 class="form-section-title">1. Bring in your student roster</h2>
+            <p class="form-hint">Upload an Excel or CSV file to get started. Your data stays in your browser and is never sent to a server.</p>
+
             <div id="drop-zone" class="drop-zone">
               <div class="drop-zone-inner">
                 <div class="drop-icon">⬆️</div>
-                <p>Drop your file here</p>
+                <p>Drop your roster here</p>
                 <p class="drop-sub">or</p>
                 <button class="btn btn-secondary" id="browse-btn">Browse Files</button>
               </div>
               <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden />
             </div>
+
+            <p class="ie-subhead" style="margin-top:20px;">Using Google Sheets?</p>
+            <p class="form-hint" style="margin-bottom:0;">Export your sheet and upload it — no sharing required. Open your sheet, click <strong>File → Download</strong>, choose <strong>Excel (.xlsx)</strong> or <strong>CSV</strong>, then upload the downloaded file above.</p>
+
+            <p class="ie-subhead" style="margin-top:20px;">Don't have a file yet?</p>
+            <p class="form-hint">Start from a <strong>blank template</strong> (common columns — add what you track, delete what you don't), or explore with a <strong>sample</strong> of 500 pre-filled students across grades K–5.</p>
+            <div class="ie-actions" style="margin-top:0;">
+              <button class="btn btn-primary btn-sm" id="download-template-btn">⬇️ Download Template</button>
+              <button class="btn btn-outline btn-sm" id="download-sample-btn">⬇️ Download Sample</button>
+            </div>
+
+            <!-- Import status -->
+            <div id="import-status" class="import-status hidden"></div>
           </div>
 
-          <!-- Google Sheets instructions -->
-          <div class="import-card" id="sheets-card">
-            <div class="import-card-icon">📋</div>
-            <h2>Using Google Sheets?</h2>
-            <p>Export your sheet as a file and upload it above — no sharing required.</p>
-            <ol class="sheets-steps">
-              <li>Open your Google Sheet</li>
-              <li>Click <strong>File → Download</strong></li>
-              <li>Choose <strong>Excel (.xlsx)</strong> or <strong>CSV</strong></li>
-              <li>Upload the downloaded file here</li>
-            </ol>
-            <p class="hint">Your data stays on your device and is never sent to a server.</p>
-          </div>
+          <!-- ── 2. Work file ───────────────────────────────────────── -->
+          <div class="form-section">
+            <h2 class="form-section-title">2. Save your work</h2>
+            <p class="form-hint">Download a <strong>.cohortlogic</strong> file to save everything — your students, class setup, placement rules, and generated classes. Load one to pick up exactly where you left off.</p>
 
-          <!-- Restore saved session -->
-          <div class="import-card" id="restore-card">
-            <div class="import-card-icon">💾</div>
-            <h2>Continue a Session</h2>
-            <p>Pick up exactly where you left off — drop in a <strong>.cohortlogic</strong> file to restore your students, class setup, placement rules, and results.</p>
-            <p class="hint" style="margin-bottom:14px;">Save a session anytime from the Results tab using the 💾 Save Session button.</p>
+            <div class="ie-actions">
+              <button class="btn btn-primary" id="ie-save-session-btn">💾 Save session file</button>
+            </div>
+            <p class="ie-note" id="ie-save-note"></p>
+
+            <p class="ie-subhead" style="margin-top:22px;">Continue a saved session</p>
             <div id="restore-drop-zone" class="drop-zone">
               <div class="drop-zone-inner">
                 <div class="drop-icon">📂</div>
@@ -141,28 +248,23 @@
               <input type="file" id="restore-file-input" accept=".cohortlogic,.cohort,.clsched" hidden />
             </div>
           </div>
-        </div>
 
-        <!-- Sample data section -->
-        <div class="sample-section">
-          <h3>Don't have a file yet?</h3>
-          <div class="sample-options">
-            <div class="sample-option">
-              <div class="sample-option-label">Start from a blank template</div>
-              <p class="sample-option-desc">A blank spreadsheet with common columns to get you started. Add columns for any data you track, and delete the ones you don't need.</p>
-              <button class="btn btn-primary btn-sm" id="download-template-btn">⬇️ Download Template</button>
+          <!-- ── 3. Class lists out ─────────────────────────────────── -->
+          <div class="form-section">
+            <h2 class="form-section-title">3. Share the finished class lists</h2>
+            <p class="form-hint">Downloads an Excel workbook of your generated classes. Pick the shape that suits who you're handing it to:</p>
+            <ul class="form-hint" style="margin:6px 0 12px 18px;line-height:1.7">
+              <li><strong>By Grade</strong> — one tab per grade, students sorted by last name</li>
+              <li><strong>By Teacher</strong> — one tab per teacher's class, named by teacher</li>
+            </ul>
+            <div class="ie-actions" style="margin-top:0;">
+              <button class="btn btn-primary btn-sm" id="ie-export-by-grade-btn">⬇️ By Grade</button>
+              <button class="btn btn-outline btn-sm" id="ie-export-by-teacher-btn">⬇️ By Teacher</button>
             </div>
-            <div class="sample-option-divider">or</div>
-            <div class="sample-option">
-              <div class="sample-option-label">Download a sample with example data</div>
-              <p class="sample-option-desc">500 pre-filled students across grades K–5. Useful for exploring the tool before using your own data.</p>
-              <button class="btn btn-outline btn-sm" id="download-sample-btn">⬇️ Download Sample</button>
-            </div>
+            <p class="form-hint" style="margin:12px 0 0;">Generate your classes first — these are also on the Results tab, right where you review them.</p>
           </div>
-        </div>
 
-        <!-- Import status -->
-        <div id="import-status" class="import-status hidden"></div>
+        </div>
       </div>
 
       <!-- Field Mapping View -->
@@ -369,16 +471,16 @@
     </main>
   </div>
 
-  <script src="js/app.js?v=20260716b"></script>
-  <script src="js/import.js?v=20260716b"></script>
-  <script src="js/fieldMapping.js?v=20260716b"></script>
-  <script src="js/students.js?v=20260716b"></script>
-  <script src="js/classes.js?v=20260716b"></script>
-  <script src="js/algorithm.js?v=20260716b"></script>
-  <script src="js/results.js?v=20260716b"></script>
-  <script src="js/sample.js?v=20260716b"></script>
-  <script src="js/session.js?v=20260716b"></script>
-  <script src="js/tour.js?v=20260716b"></script>
-  <script src="js/feedback.js?v=20260716b" data-product="Class Builder" data-key="class_builder"></script>
+  <script src="js/app.js?v=20260716c"></script>
+  <script src="js/import.js?v=20260716c"></script>
+  <script src="js/fieldMapping.js?v=20260716c"></script>
+  <script src="js/students.js?v=20260716c"></script>
+  <script src="js/classes.js?v=20260716c"></script>
+  <script src="js/algorithm.js?v=20260716c"></script>
+  <script src="js/results.js?v=20260716c"></script>
+  <script src="js/sample.js?v=20260716c"></script>
+  <script src="js/session.js?v=20260716c"></script>
+  <script src="js/tour.js?v=20260716c"></script>
+  <script src="js/feedback.js?v=20260716c" data-product="Class Builder" data-key="class_builder"></script>
 </body>
 </html>
