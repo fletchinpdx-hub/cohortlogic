@@ -1077,23 +1077,29 @@ function buildCell(slot, grade, prevSlot) {
     const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${bt.color};`;
     const borderBottom = isEnd  ? `border-bottom:2px solid ${bt.color};` : '';
     style = `background:${bt.color}18;border-left:3px solid ${bt.color};${borderTop}${borderBottom}`;
+    // Off-carousel pull-out tag: some classes are away at a special during this
+    // instruction block. Show it once, at the special's start OR at an instruction
+    // block that begins while the special is ongoing. It goes INSIDE .cell-label
+    // (which is absolutely positioned and overflows the 16px cell) so it stacks
+    // under the block text instead of overlapping it.
+    const _tag = (_pullOut && (_pullOut.isStart || isStart)) ? _buildPulloutTag(_pullOut) : '';
     if (isStart) {
       const mins = blockDuration(day, grade, slot);
       const timeRange = mins >= 10
         ? `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(minsToTime(timeToMins(slot) + mins))} · ${mins} min</span>`
         : '';
-      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}</span>`;
+      inner = `<span class="cell-label" style="color:${bt.color}">${displayName}${timeRange}${_tag}</span>`;
       const _iaAssigns = getIAsForBlock(day, grade, slot);
       if (_iaAssigns.length) {
         inner += '<span class="ia-block-ind">' + _iaAssigns.map(({ ia, alloc }) =>
           `<span class="ia-ind-dot" style="background:${alloc?.color || '#6b7280'}" title="${escHtml(ia.name + (alloc ? ' · ' + alloc.name : ''))}"></span>`
         ).join('') + '</span>';
       }
+    } else if (_tag) {
+      // Special begins partway through this instruction block — the block's own
+      // label lives in its start cell, so render the tag on its own label here.
+      inner = `<span class="cell-label" style="color:${bt.color}">${_tag}</span>`;
     }
-    // Off-carousel pull-out tag: some classes are away at a special during this
-    // instruction block. Show it once, at the special's start OR at an instruction
-    // block that begins while the special is ongoing.
-    if (_pullOut && (_pullOut.isStart || isStart)) inner += _buildPulloutTag(_pullOut);
   } else if (hasConflict && !isCont) {
     // Slot has conflict(s) but no primary block — show the conflict directly
     const conflictBtId = conflicts[0];
