@@ -761,6 +761,17 @@ function computeRecessTimes(s) {
   return result;
 }
 
+// Lunch and recess are driven ENTIRELY by School Info (s.lunchPeriods /
+// s.gradeRecesses → computeRecessTimes) and auto-placed by preFillFixedBlocks.
+// They must never appear in — or be placed from — the Block Types "Uniform Block
+// Types" table: a school-wide time there is both duplicative and wrong (recess is
+// per-grade, not school-wide), and because preFillFixedBlocks places uniform blocks
+// AND School Info lunch/recess in the same pass, a uniform time on them left
+// phantom duplicates at a second time. Excluded at the placement site too, so
+// stale uniformStart/uniformEnd on old saved files is inert rather than silently
+// placing hidden blocks — same rule the legacy morningMeetings fields follow.
+const UNIFORM_EXCLUDE = new Set(['bt_lunch', 'bt_recess']);
+
 // Returns true for any fixed-block slot value, including compound bt_mm|id variants.
 function isFixedBlock(id) {
   if (!id) return false;
@@ -833,8 +844,10 @@ function preFillFixedBlocks() {
         });
       }
 
-      // Other uniform block types with fixed time config
-      SchedState.blockTypes.filter(bt => bt.id !== 'bt_mm' && bt.uniformStart && bt.uniformEnd)
+      // Other uniform block types with fixed time config. bt_lunch/bt_recess are
+      // excluded (UNIFORM_EXCLUDE) — School Info owns their placement below, and a
+      // stale uniform time on them would leave duplicates at a second time.
+      SchedState.blockTypes.filter(bt => bt.id !== 'bt_mm' && !UNIFORM_EXCLUDE.has(bt.id) && bt.uniformStart && bt.uniformEnd)
         .forEach(bt => {
           generateTimeSlots(bt.uniformStart, bt.uniformEnd).forEach(slot => {
             if (!sched[slot] || isFixedBlock(sched[slot])) sched[slot] = bt.id;
@@ -1649,7 +1662,7 @@ function renderBlocks() {
   const s       = SchedState.school;
   const bands   = s.gradeBands || [];
   const reqBTs  = SchedState.blockTypes.filter(bt => bt.required && bt.id !== 'bt_spec');
-  const otherBTs = SchedState.blockTypes.filter(bt => !bt.required);
+  const otherBTs = SchedState.blockTypes.filter(bt => !bt.required && !UNIFORM_EXCLUDE.has(bt.id));
   const configuredSpecials = s.specials && s.specials.length ? s.specials : [];
   const catOrder = ['instruction','sel','specials','intervention','behavior','transition','admin'];
 
@@ -1687,7 +1700,7 @@ function renderBlocks() {
 
     <div class="form-section">
       <h2 class="form-section-title">Uniform Block Types</h2>
-      <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade.</p>
+      <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade. Lunch and recess aren't listed here — they're set per grade in School Info and placed automatically.</p>
       <div id="add-block-form" class="inline-form hidden"></div>
       <div class="req-table-wrap">
         <table class="req-table">
