@@ -234,6 +234,7 @@ line after `supabase-config.js`:
 | `subscriptions` | Billing / plan state per school — admin → Billing |
 | `security_findings` / `security_runs` | Automated daily security audit (deploy exposure / RLS / MFA / FERPA) — admin → Security |
 | `contact_submissions` | Marketing contact-form submissions |
+| `newsletter_subscribers` | Marketing newsletter signups (resources page) |
 | `error_logs` | Client error capture |
 | `referral_referrals` | Referral records (see Referral Tracking) |
 | `referral_settings` | Per-school referral config incl. `default_reviewer_id` |
