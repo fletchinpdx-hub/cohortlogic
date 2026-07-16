@@ -10,7 +10,7 @@ const VIEW_RENDERERS = {
   'specials-sched':() => { navigateTo('specials-sched'); renderSpecialsScheduleView(); },
   'class-sched':   () => { navigateTo('class-sched');   renderClassSchedulesView(); },
   ia:              () => { navigateTo('ia');              renderIAScheduleView(); },
-  export:          () => { navigateTo('export');          renderExportPlaceholder(); },
+  export:          () => { navigateTo('export');          renderImportExportView(); },
 };
 
 document.getElementById('main').addEventListener('click', e => {
@@ -27,21 +27,12 @@ document.querySelectorAll('.nav-item').forEach(item => {
   });
 });
 
-// ── Download button (always visible in sidebar) ───────────────────────────────
-document.getElementById('download-sched-btn').addEventListener('click', () => {
-  if (!SchedState.school.name) {
-    alert('Nothing to download yet — fill in School Info first.');
-    return;
-  }
-  downloadScheduleFile();
-});
-
-// ── Load file (hidden input triggered by sidebar link) ────────────────────────
+// ── Load file ─────────────────────────────────────────────────────────────────
+// The hidden #load-sched-file input is wired ONCE here, but triggered from several
+// places via <label for="load-sched-file">: the landing screen, the School Info
+// load banner, and the Import/Export view. (The sidebar's download button and load
+// links were removed — every import/export control now lives on Import/Export.)
 const fileInput = document.getElementById('load-sched-file');
-document.getElementById('load-sched-link').addEventListener('click', e => {
-  e.preventDefault();
-  fileInput.click();
-});
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files[0];
   if (!file) return;
@@ -61,11 +52,8 @@ fileInput.addEventListener('change', async () => {
 });
 
 // ── Import from Class Builder (.cohort) ───────────────────────────────────────
+// Same pattern: input wired once here, triggered by a <label> on Import/Export.
 const cohortInput = document.getElementById('load-cohort-input');
-document.getElementById('load-cohort-link').addEventListener('click', e => {
-  e.preventDefault();
-  cohortInput.click();
-});
 cohortInput.addEventListener('change', async () => {
   const file = cohortInput.files[0];
   if (!file) return;

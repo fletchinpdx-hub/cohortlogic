@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Building Schedule Builder — Cohort Logic</title>
-  <link rel="stylesheet" href="css/styles.css?v=167" />
-  <link rel="stylesheet" href="css/schedule.css?v=167" />
+  <link rel="stylesheet" href="css/styles.css?v=168" />
+  <link rel="stylesheet" href="css/schedule.css?v=168" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -51,8 +51,8 @@
         </a>
 
         <div class="nav-section-label">FINISH</div>
-        <a class="nav-item nav-item-locked" data-view="export">
-          <span class="nav-icon">📤</span> Export
+        <a class="nav-item nav-item-locked" data-view="export" id="nav-export">
+          <span class="nav-icon">📤</span> Import/Export
         </a>
       </nav>
 
@@ -72,14 +72,13 @@
       </div>
 
       <div class="sidebar-footer">
-        <button class="btn-download-file btn-download-unsaved" id="download-sched-btn" title="Download your schedule file to save permanently">
-          ↓ Download Schedule File
-        </button>
-        <a href="#" class="sidebar-link" id="load-sched-link">Load a .cohortlogic file…</a>
-        <a href="#" class="sidebar-link" id="load-cohort-link">Import from Class Builder…</a>
-        <input type="file" id="load-cohort-input" accept=".cohortlogic,.cohort" style="display:none" />
         <a href="dashboard.html" class="sidebar-link">← Back to dashboard</a>
       </div>
+      <!-- Hidden file inputs stay here (page-level, wired once in schedule-init.js).
+           They're triggered from several places via <label for="…">, which is CSP-safe
+           and needs no JS: the landing screen, the School Info load banner, and the
+           Import/Export view. Don't move or rename them without updating those labels. -->
+      <input type="file" id="load-cohort-input" accept=".cohortlogic,.cohort" style="display:none" />
       <input type="file" id="load-sched-file" accept=".cohortlogic,.clsched,.cohort,.json" style="display:none">
     </aside>
 
@@ -97,16 +96,16 @@
     </main>
   </div>
 
-  <script src="js/supabase-config.js?v=167"></script>
-  <script src="js/schedule-state.js?v=167"></script>
-  <script src="js/schedule-setup.js?v=167"></script>
-  <script src="js/schedule-grid.js?v=167"></script>
-  <script src="js/schedule-ia.js?v=167"></script>
-  <script src="js/schedule-specials-view.js?v=167"></script>
-  <script src="js/schedule-class-view.js?v=167"></script>
-  <script src="js/schedule-export.js?v=167"></script>
-  <script src="js/schedule-init.js?v=167"></script>
-  <script src="js/schedule-tour.js?v=167"></script>
-  <script src="js/feedback.js?v=167" data-product="Schedule Builder" data-key="schedule_builder"></script>
+  <script src="js/supabase-config.js?v=168"></script>
+  <script src="js/schedule-state.js?v=168"></script>
+  <script src="js/schedule-setup.js?v=168"></script>
+  <script src="js/schedule-grid.js?v=168"></script>
+  <script src="js/schedule-ia.js?v=168"></script>
+  <script src="js/schedule-specials-view.js?v=168"></script>
+  <script src="js/schedule-class-view.js?v=168"></script>
+  <script src="js/schedule-export.js?v=168"></script>
+  <script src="js/schedule-init.js?v=168"></script>
+  <script src="js/schedule-tour.js?v=168"></script>
+  <script src="js/feedback.js?v=168" data-product="Schedule Builder" data-key="schedule_builder"></script>
 </body>
 </html>

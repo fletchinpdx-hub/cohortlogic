@@ -63,8 +63,14 @@ Master schedule builder for school administrators. All four phases (Setup → Bu
 - Phase 1 — Setup: School Info → Staff Roster → Specials → Block Types
 - Phase 1 — Build: Master Schedule (locked until grades configured)
 - Phase 2 — Detail: Specials Schedule (locked until specials configured) → IA Schedule → Class Schedules
-- Finish: Export
+- Finish: Import/Export
 (All views are built — none are placeholders. An intro tour auto-runs on first visit; see `js/schedule-tour.js`.)
+
+**Import/Export is the ONE place for file handling (v168).** The sidebar used to carry a download button + "Load a .cohortlogic file…" + "Import from Class Builder…" links; all three moved onto the Import/Export view and the sidebar footer is now just "← Back to dashboard".
+- **One save format.** There were two parallel systems: `downloadScheduleFile()` → `.cohortlogic` (sidebar) and `exportJSON()`/`importJSON()` → a raw `SchedState` dump as `.json` (Export view). Two buttons, two incompatible shapes, same job — the direct cause of user "which file do I keep?" confusion. `.cohortlogic` won (it carries `_version`/`_product`/`_tools` + the Class Builder `classes` payload; the raw dump carried none). `exportJSON`/`importJSON` are **deleted**. Dropping the `.json` *download* is safe because *loading* still accepts `.json` — a raw dump has `masterSchedule` at top level and no `_product`, which `_migrateToCohortLogic()` treats as an old `.clsched`.
+- **Hidden file inputs** (`#load-sched-file`, `#load-cohort-input`) stay page-level in `schedule-app.html`, wired ONCE in `schedule-init.js`, and are triggered from three places via `<label for="…">` (CSP-safe, no JS): the landing screen, the School Info load banner, and Import/Export. Don't move/rename them without updating those labels.
+- **The "unsaved" nag moved with it.** It used to be the sidebar button's amber `.btn-download-unsaved` state; `updateDownloadBadge()` now toggles `.nav-item-unsaved` on `#nav-export`. This is load-bearing, not decoration — schedule data lives only in the browser until a file is downloaded, so losing the warning risks real data loss. The view also renders a plain-language `#ie-save-note` saying whether a file has ever been downloaded.
+- **The view includes a non-technical explainer** ("Which file is which?") with an inline-SVG diagram: `.cohortlogic` round-trips (download ⇄ load), `.xlsx` is one-way (print/share, can't come back). Written for non-technical admins — the file types were stumping them.
 
 **Key state — `SchedState` in `schedule-state.js`:**
 - `school` — name, year, grades, time bounds (firstBell, dismissal, arrival=studentCampusStart, dismissal=studentCampusEnd, teacherContractStart/End…), lunchPeriods[], gradeRecesses{}, gradeBands[], blockPairings[], specials[], specialsRotationMode. NOTE: `morningMeetings[]` and legacy `morningMeeting*` fields are **defunct** (v124) — morning meetings are configured only as the `bt_mm` block (Block Types → school-wide time). Stale `morningMeetings` data is fully inert: it neither places blocks nor affects the minutes budget.
@@ -85,7 +91,7 @@ Master schedule builder for school administrators. All four phases (Setup → Bu
 - `js/schedule-ia.js` (~1,680 lines, extraction 1) — IA Schedule view (All IAs + Individual IA), IA assignment edit/delete, IA assignment from the master schedule, duty blocks/panel. State: `iaSchedUI`, `iaDrag`, `iaMasterState`
 - `js/schedule-specials-view.js` (~570 lines, extraction 2) — Specials Schedule view (by-teacher grid), coverage validation/banner, the individual override panel. State: `specialsSchedUI`. (The specials *scheduling algorithm* stays in schedule-grid.js — this file is the view/UI layer only.)
 - `js/schedule-class-view.js` (~390 lines, extraction 3) — Class Schedules view (single class + grade compare), incl. `getClassSlotEntry` + the off-carousel swap fill. State: `classSchedUI`
-- `js/schedule-export.js` (~325 lines, extraction 4) — XLSX/JSON export (`exportXLSX`, `exportJSON`, `_blendColumnRuns`) + the Export view
+- `js/schedule-export.js` (extraction 4) — the **Import/Export view** (`renderImportExportView`, `_fileFlowDiagram`, `_renderSaveNote`) + XLSX export (`exportXLSX`, `_blendColumnRuns`). `exportJSON`/`importJSON` were deleted in v168 — see Import/Export above.
 - `js/schedule-init.js` — boot (auth + product gate), landing screen, VIEW_RENDERERS, download/load wiring
 - `js/schedule-tour.js` (~370 lines) — interactive intro tour (coach-marks), CSP-safe, auto-runs once on first visit, replayable from the sidebar. **Spotlight-only** (unlike the Class Builder tour in `js/tour.js`): it highlights the sidebar nav down the four phases rather than driving the grid.
 - `js/feedback.js` — shared Send Feedback widget (see Shared components), loaded last

@@ -3413,7 +3413,7 @@ function renderSpecialsPlaceholder() {
 }
 
 // IA Schedule view moved to schedule-ia.js
-// Export (renderExportPlaceholder, exportJSON, _blendColumnRuns, exportXLSX) moved to schedule-export.js
+// Export (renderImportExportView, _blendColumnRuns, exportXLSX) moved to schedule-export.js
 
 // Specials coverage validation (getSpecialsCoverageReport, showSpecialsCoverageBanner) moved to schedule-specials-view.js
 // Specials Schedule View banner + specialsSchedUI moved to schedule-specials-view.js (classSchedUI stays — extraction 3)

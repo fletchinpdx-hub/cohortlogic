@@ -1911,6 +1911,93 @@
   content: '⚠ ';
 }
 
+/* "You haven't saved a file yet" nag on the Import/Export nav item. Replaces the
+   old sidebar download button's amber state — the schedule lives only in this
+   browser until a file is downloaded, so this warning is load-bearing. */
+.nav-item.nav-item-unsaved::after {
+  content: '⚠';
+  margin-left: auto;
+  padding-left: 8px;
+  color: #f59e0b;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ── Import/Export view ───────────────────────────────────────── */
+.file-flow {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  margin: 4px 0 18px;
+}
+.file-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.file-guide-card {
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+}
+.file-guide-work  { border-top: 3px solid #0ea5e9; }
+.file-guide-share { border-top: 3px solid #16a34a; }
+.file-guide-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.file-guide-icon  { font-size: 20px; }
+.file-guide-title { font-size: 14px; font-weight: 700; color: var(--gray-900); }
+.file-ext {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+.file-guide-card ul { margin: 0; padding-left: 18px; }
+.file-guide-card li {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--gray-700);
+  margin-bottom: 5px;
+}
+.file-guide-rule {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  color: #92400e;
+}
+.file-guide-rule code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: rgba(255,255,255,.7);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.ie-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.ie-label   { cursor: pointer; display: inline-flex; align-items: center; }
+.ie-note {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.ie-note-ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
+.ie-note-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+
 /* ── Landing screen ───────────────────────────────────────────── */
 .landing-wrap {
   display: flex;

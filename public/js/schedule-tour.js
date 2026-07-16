@@ -69,16 +69,14 @@
       body: 'Review the specials rotation by teacher, see each class\'s full week, and assign IAs to blocks. 🔒 These open as you complete the earlier phases.'
     },
     {
+      // Was two steps — one for Export, one anchored to the sidebar's download
+      // button. That button is gone (all file handling now lives on this one tab),
+      // so they're merged rather than left pointing at an element that no longer
+      // exists.
       anchor: '[data-view="export"]',
       badge: 'Finish',
-      title: 'Export',
-      body: 'Send the finished schedule to Excel — per-day master tabs, class schedules, specials, and IA assignments, all in one workbook.'
-    },
-    {
-      anchor: '#download-sched-btn',
-      badge: 'Save your work',
-      title: 'Download & load files',
-      body: 'Schedule Builder keeps your data in your browser, never on a server. Download a .cohortlogic file to save or share it — and load one here anytime to pick up where you left off.'
+      title: 'Import/Export',
+      body: 'Everything to do with files lives here. Schedule Builder keeps your work in your browser, never on a server — so the .cohortlogic file you download IS your save. Download it to keep your work or hand it to a colleague, load one to pick up where you left off, and export to Excel when you\'re ready to print and share.'
     },
     {
       anchor: null,

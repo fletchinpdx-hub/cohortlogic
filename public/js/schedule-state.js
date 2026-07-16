@@ -554,14 +554,19 @@ function loadScheduleFromFile(file) {
   });
 }
 
+// The sidebar download button used to carry this "you haven't saved a file yet"
+// nag. That button moved to the Import/Export view, so the nag now rides the
+// Import/Export nav item instead — schedule data lives only in THIS browser until
+// the user downloads a file, so losing this warning would risk real data loss.
 function updateDownloadBadge() {
-  const btn = document.getElementById('download-sched-btn');
-  if (!btn) return;
+  const nav = document.getElementById('nav-export');
+  if (!nav) return;
   const downloaded = localStorage.getItem('cl_schedule_downloaded') === '1';
-  btn.classList.toggle('btn-download-unsaved', !downloaded);
-  btn.title = downloaded
-    ? 'Download a copy of your schedule file'
-    : 'Unsaved changes — download your schedule file to save permanently';
+  const unsaved    = !downloaded && !!SchedState.school.name;
+  nav.classList.toggle('nav-item-unsaved', unsaved);
+  nav.title = unsaved
+    ? 'Your schedule file hasn’t been downloaded yet — open Import/Export to save it'
+    : '';
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────

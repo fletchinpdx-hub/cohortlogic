@@ -1676,7 +1676,7 @@ function wireIAViewEvents(container, ias) {
     navigateTo('class-sched'); renderClassSchedulesView();
   });
   document.getElementById('ia-next-btn')?.addEventListener('click', () => {
-    navigateTo('export'); renderExportPlaceholder();
+    navigateTo('export'); renderImportExportView();
   });
 
   // CSV download (all IAs summary)
