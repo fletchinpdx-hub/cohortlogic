@@ -1705,27 +1705,6 @@ function renderBlocks() {
       `}
     </div>
 
-    ${bands.length ? `
-    <div class="form-section">
-      <h2 class="form-section-title">Daily Minutes Budget</h2>
-      <p class="form-hint">Required instructional minutes vs. time available after fixed blocks (morning meeting, lunch, recess).</p>
-      <div id="budget-panel"></div>
-    </div>` : ''}
-
-    <div class="form-section">
-      <h2 class="form-section-title">Specials</h2>
-      <p class="form-hint">Colors are used on the master schedule. Name and duration come from the Specials step — <a href="#" data-nav="specials" class="link-inline">edit there</a>.</p>
-      ${configuredSpecials.length ? `
-      <div class="specials-color-list">
-        ${configuredSpecials.map((sp, i) => `
-          <div class="specials-color-row" data-sp-id="${sp.id}">
-            <input type="color" class="sp-color-input-bt" value="${sp.color || SP_DEFAULT_COLORS[i % SP_DEFAULT_COLORS.length]}" title="Block color">
-            <span class="specials-color-name">${escHtml(sp.name)}</span>
-            <span class="specials-color-detail">${sp.duration || 45} min · ${sp.classesPerWeek || 1}×/wk</span>
-          </div>`).join('')}
-      </div>` : `<p class="text-muted">No specials configured yet — <a href="#" data-nav="specials" class="link-inline">set them up in the Specials step</a>.</p>`}
-    </div>
-
     <div class="form-section">
       <h2 class="form-section-title">Uniform Block Types</h2>
       <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade. Lunch and recess aren't listed here — they're set per grade in School Info and placed automatically.</p>
@@ -1800,6 +1779,27 @@ function renderBlocks() {
       </div>
       <button class="btn btn-outline btn-sm mt-8" id="add-pairing-btn"${reqBTs.length ? '' : ' disabled title="Add required blocks first"'}>+ Add Synchronized Block</button>
     </div>
+
+    <div class="form-section">
+      <h2 class="form-section-title">Specials</h2>
+      <p class="form-hint">Colors are used on the master schedule. Name and duration come from the Specials step — <a href="#" data-nav="specials" class="link-inline">edit there</a>.</p>
+      ${configuredSpecials.length ? `
+      <div class="specials-color-list">
+        ${configuredSpecials.map((sp, i) => `
+          <div class="specials-color-row" data-sp-id="${sp.id}">
+            <input type="color" class="sp-color-input-bt" value="${sp.color || SP_DEFAULT_COLORS[i % SP_DEFAULT_COLORS.length]}" title="Block color">
+            <span class="specials-color-name">${escHtml(sp.name)}</span>
+            <span class="specials-color-detail">${sp.duration || 45} min · ${sp.classesPerWeek || 1}×/wk</span>
+          </div>`).join('')}
+      </div>` : `<p class="text-muted">No specials configured yet — <a href="#" data-nav="specials" class="link-inline">set them up in the Specials step</a>.</p>`}
+    </div>
+
+    ${bands.length ? `
+    <div class="form-section">
+      <h2 class="form-section-title">Daily Minutes Budget</h2>
+      <p class="form-hint">Required instructional minutes vs. time available after fixed blocks (morning meeting, lunch, recess).</p>
+      <div id="budget-panel"></div>
+    </div>` : ''}
 
     <div class="view-actions">
       <button class="btn btn-outline" id="blocks-back-btn">← Back to Specials</button>
