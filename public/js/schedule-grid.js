@@ -1027,13 +1027,26 @@ function buildCell(slot, grade, prevSlot) {
       `</div></td>`;
   }
 
-  // Specials — delegate to the class-aware renderer. Triggers when the grade
-  // block is bt_spec (carousel) OR when the grade is on instruction but SOME class
-  // has an off-carousel special here (partial split). getSpecialsAtSlot returns
-  // null when no class is on a special at this slot, so normal cells fall through.
+  // Specials routing (Option 3 model):
+  //  • Carousel (whole grade at specials, or grade block is bt_spec) → unified
+  //    "Specials" block via buildSpecialsCell.
+  //  • Special-only (some classes pulled AND the grade has no competing instruction
+  //    here) → small labeled specials block via buildSpecialsCell.
+  //  • Off-carousel WITH competing instruction → the INSTRUCTION stays the primary
+  //    block (rendered below, so the master grid reads as the grade's schedule) and
+  //    just gets a small "N classes → Special" pull-out tag. No split, no void.
+  // getSpecialsAtSlot returns null when no class is on a special, so normal cells
+  // fall straight through.
+  let _pullOut = null;
   {
     const specInfo = getSpecialsAtSlot(day, grade, slot);
-    if (specInfo) return buildSpecialsCell(slot, grade, specInfo, isCont, isEnd);
+    if (specInfo) {
+      const _mBt     = getBlock(day, grade, slot);
+      const carousel = specInfo.all.length === specInfo.totalClasses ||
+                       (_mBt && _mBt.startsWith('bt_spec'));
+      if (carousel || !_mBt) return buildSpecialsCell(slot, grade, specInfo, isCont, isEnd);
+      _pullOut = specInfo;
+    }
   }
 
   let bt = null, displayName = '', style = '', inner = '';
@@ -1077,6 +1090,10 @@ function buildCell(slot, grade, prevSlot) {
         ).join('') + '</span>';
       }
     }
+    // Off-carousel pull-out tag: some classes are away at a special during this
+    // instruction block. Show it once, at the special's start OR at an instruction
+    // block that begins while the special is ongoing.
+    if (_pullOut && (_pullOut.isStart || isStart)) inner += _buildPulloutTag(_pullOut);
   } else if (hasConflict && !isCont) {
     // Slot has conflict(s) but no primary block — show the conflict directly
     const conflictBtId = conflicts[0];
@@ -2676,26 +2693,32 @@ function getSpecialsAtSlot(day, grade, slot) {
 }
 
 // Renders a grid cell for a specials time slot (unified or split).
+// Renders a specials cell on the master grid. Only TWO shapes reach here (see the
+// routing in buildCell):
+//   1. Carousel — the whole grade is at specials → one unified "Specials" block.
+//   2. Special-only — some classes are pulled to a special AND the grade has no
+//      competing instruction at this slot → a small labeled specials block for the
+//      contiguous special-only run, so it never reads as an empty void.
+// Off-carousel windows that DO overlap instruction never come here: buildCell keeps
+// the instruction as the primary block and adds a "N classes → Special" pull-out tag.
 function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
   const day       = gridUI.activeDay;
   const bt        = SchedState.blockTypes.find(b => b.id === 'bt_spec');
-  const fallback  = bt?.color || '#f97316';
+  const color     = bt?.color || '#f97316';
   const lockedCls = gridUI.lockedGrades.has(grade) ? ' grade-locked' : '';
+  const specials  = SchedState.school.specials || [];
 
-  // Show a single full-width block whenever ALL classes are in specials,
-  // OR whenever the masterSchedule slot is itself bt_spec — splitting when
-  // both halves represent specials creates a misleading "Specials | Music" display.
   const _slotBtId     = getBlock(day, grade, slot);
   const allInSpecials = specInfo.all.length === specInfo.totalClasses ||
                         (_slotBtId && _slotBtId.startsWith('bt_spec'));
 
+  // ── 1. Carousel: whole grade at specials, one unified block ──
+  // Master Schedule shows ALL specials in the uniform bt_spec color (the subject
+  // name still appears in the label). Per-subject colors live in the Specials
+  // Schedule and Class Schedule views, which use their own renderers.
   if (allInSpecials) {
     const entry   = specInfo.all[0];
-    const sp      = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
-    // Master Schedule shows ALL specials in the uniform bt_spec color (the subject
-    // name still appears in the label). Per-subject colors are kept in the Specials
-    // Schedule and Class Schedule views, which use their own renderers.
-    const color   = fallback;
+    const sp      = specials.find(s => s.id === entry.subjectId);
     const teacher = SchedState.staff.find(t => t.id === entry.teacherId);
     const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
     const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
@@ -2714,69 +2737,46 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
     return `<td class="grid-cell filled${isCont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${style}">${inner}</td>`;
   }
 
-  // Mixed split: some classes have specials, others have a different block.
-  // Each half is independently draggable. Specials half uses the uniform bt_spec
-  // color too (see note above).
-  const entry   = specInfo.all[0];
-  const color   = fallback;
-  const borderTop    = isCont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
-  const borderBottom = isEnd  ? `border-bottom:2px solid ${color};` : '';
-
-  // Right half: the masterSchedule block the non-specials classes are doing
-  const masterBtId  = getBlock(day, grade, slot);
-  const masterBt    = masterBtId
-    ? (SchedState.blockTypes.find(b => b.id === masterBtId) ||
-       SchedState.blockTypes.find(b => masterBtId.startsWith(b.id + '|')))
-    : null;
-  const masterColor = masterBt?.color || '#94a3b8';
-  const masterName  = masterBtId ? getBtName(masterBtId) : '';
-
-  // Off-carousel special with NO competing instruction for the other classes
-  // (their instructional day has wound down / this slot is unscheduled for them).
-  // There's nothing to split against, so render a single clean partial-specials
-  // block for the pulled-out class rather than a grey "· N" void that reads as
-  // a broken empty section. Continuity is derived from the special's own range
-  // because the grade master is null here (buildCell can't supply isCont/isEnd).
-  if (!masterBtId) {
-    const sp        = (SchedState.school.specials || []).find(s => s.id === entry.subjectId);
-    const daySlots  = _autoFillSlots(day);
-    const startIdx  = daySlots.indexOf(entry.startTime);
-    const numSlots  = Math.ceil((entry.duration || 45) / 5);
-    const slotIdx   = daySlots.indexOf(slot);
-    const cont      = !specInfo.isStart;
-    const end       = slotIdx === startIdx + numSlots - 1;
-    const bTop      = cont ? 'border-top:1px solid transparent;' : `border-top:2px solid ${color};`;
-    const bBot      = end  ? `border-bottom:2px solid ${color};` : '';
-    let soloInner = '';
-    if (specInfo.isStart) {
-      const mins    = entry.duration;
-      const endSlot = minsToTime(timeToMins(slot) + mins);
-      const n       = specInfo.all.length;
-      soloInner = `<span class="cell-label" style="color:${color}">${escHtml(sp?.name || 'Specials')}` +
-        `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(endSlot)} · ${mins} min</span>` +
-        `<span class="cell-specials-subject">${n} ${n === 1 ? 'class' : 'classes'} · rest open</span></span>`;
-    }
-    const soloStyle = `background:${color}18;border-left:3px solid ${color};${bTop}${bBot}`;
-    return `<td class="grid-cell filled${cont ? ' cont' : ''}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${soloStyle}">${soloInner}</td>`;
+  // ── 2. Special-only: pulled classes are the ONLY thing scheduled here ──
+  // Label the contiguous special-only RUN (a special may overlap instruction for
+  // part of its length and be special-only for the rest — the label anchors at the
+  // first slot of the special-only stretch, not the special's global start).
+  const entry    = specInfo.all[0];
+  const daySlots = _autoFillSlots(day);
+  const slotIdx  = daySlots.indexOf(slot);
+  const startIdx = daySlots.indexOf(entry.startTime);
+  const specEnd  = startIdx + Math.ceil((entry.duration || 45) / 5) - 1;
+  const isSpecOnly = i => i >= startIdx && i <= specEnd && !getBlock(day, grade, daySlots[i]);
+  const runStart = !isSpecOnly(slotIdx - 1);
+  const runEnd   = !isSpecOnly(slotIdx + 1);
+  const bTop     = runStart ? `border-top:2px solid ${color};` : 'border-top:1px solid transparent;';
+  const bBot     = runEnd   ? `border-bottom:2px solid ${color};` : '';
+  let inner = '';
+  if (runStart) {
+    let e = slotIdx;
+    while (isSpecOnly(e + 1)) e++;
+    const runEndSlot = minsToTime(timeToMins(daySlots[e]) + 5);
+    const n          = specInfo.all.length;
+    const subjIds    = [...new Set(specInfo.all.map(x => x.subjectId))];
+    const nm         = subjIds.length === 1 ? (specials.find(s => s.id === subjIds[0])?.name || 'Specials') : 'Specials';
+    inner = `<span class="cell-label" style="color:${color}">${escHtml(nm)}` +
+      `<span class="cell-time">${fmtTime12(slot)} – ${fmtTime12(runEndSlot)}</span>` +
+      `<span class="cell-specials-subject">${n} ${n === 1 ? 'class' : 'classes'} out</span></span>`;
   }
+  const style = `background:${color}18;border-left:3px solid ${color};${bTop}${bBot}`;
+  return `<td class="grid-cell filled${runStart ? '' : ' cont'}${lockedCls}" data-time="${slot}" data-grade="${grade}" style="${style}">${inner}</td>`;
+}
 
-  // Show how the grade splits: M classes on specials, the rest on the master block.
-  const inSpec  = specInfo.all.length;
-  const inClass = Math.max(specInfo.totalClasses - inSpec, 0);
-  const cls = n => `${n} ${n === 1 ? 'class' : 'classes'}`;
-  const splitTitle = `${cls(inSpec)} on Specials · ${cls(inClass)} on ${masterName || 'class'}`;
-
-  let leftInner = '', rightInner = '';
-  if (specInfo.isStart) {
-    leftInner  = `<span class="split-label" style="color:${color}">Specials · ${inSpec}</span>`;
-    rightInner = `<span class="split-label" style="color:${masterColor}">${escHtml(masterName)} · ${inClass}</span>`;
-  }
-
-  return `<td class="grid-cell split-cell${isCont ? ' cont' : ''}${lockedCls}" title="${escHtml(splitTitle)}" data-time="${slot}" data-grade="${grade}" style="${borderTop}${borderBottom}">` +
-    `<div class="split-block-wrap">` +
-    `<div class="split-half split-half-specials" style="background:${color}18;border-left:3px solid ${color};" data-spec-start="${entry.startTime}" data-spec-grade="${grade}">${leftInner}</div>` +
-    `<div class="split-half split-half-regular" style="background:${masterColor}18;border-left:3px solid ${masterColor};">${rightInner}</div>` +
-    `</div></td>`;
+// Small "N classes → Special" pill appended to an instruction block when some of the
+// grade's classes are away at an off-carousel special during that block.
+function _buildPulloutTag(specInfo) {
+  const specColor = (SchedState.blockTypes.find(b => b.id === 'bt_spec')?.color) || '#f97316';
+  const specials  = SchedState.school.specials || [];
+  const subjIds   = [...new Set(specInfo.all.map(e => e.subjectId))];
+  const n         = specInfo.all.length;
+  const nm        = subjIds.length === 1 ? (specials.find(s => s.id === subjIds[0])?.name || 'Specials') : 'Specials';
+  return `<span class="cell-pullout-tag" title="${escHtml(`${n} ${n === 1 ? 'class' : 'classes'} pulled to ${nm}`)}" ` +
+    `style="background:${specColor}1f;color:${specColor};">${n} ${n === 1 ? 'class' : 'classes'} → ${escHtml(nm)}</span>`;
 }
 
 // Core placement logic — pure data mutation, no DOM or storage side effects.

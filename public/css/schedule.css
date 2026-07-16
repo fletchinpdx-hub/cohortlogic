@@ -2052,6 +2052,21 @@
 }
 
 /* Split cell: two side-by-side blocks in one td */
+/* Off-carousel pull-out tag: "N classes → Special" pill on an instruction block. */
+.cell-pullout-tag {
+  display: inline-block;
+  margin-top: 3px;
+  max-width: 100%;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 15px;
+  padding: 0 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
 .split-cell { padding: 0 !important; }
 /* Each 5-min slot is its own <td>. The base 1px row border-bottom chops the
    split halves' colored border-left into dashes (regular blocks avoid this
