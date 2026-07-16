@@ -124,10 +124,16 @@ function renderIAScheduleView() {
   });
 
   // ── Budget category management bar ─────────────────────────────────────────
+  // The bar reads as a legend ("BUDGET: <coloured pills>"), so the action in it has
+  // to look unmistakably like an action or it disappears — a real button (shared
+  // .btn classes), a verb + noun label, and margin-left:auto so it keeps a fixed
+  // home instead of drifting as the wrapping chip row grows. The chips are buttons
+  // too: "Title · 2.8/12h/day" looks like data you can change, so clicking it opens
+  // that category's editor rather than teaching users the row is inert.
   const allocBar = `
     <div class="ia-budget-bar">
       <span class="ia-budget-bar-lbl">Budget:</span>
-      ${allocs.map(a => {
+      ${allocs.length ? allocs.map(a => {
         const usedPerDay = _allocWeeklyHrs[a.id] / 5;
         const target     = a.hoursPerDay || 0;
         const over       = target > 0 && usedPerDay > target;
@@ -137,9 +143,9 @@ function renderIAScheduleView() {
         const chipStyle  = over
           ? `background:#fee2e2;border:1px solid #fca5a5;color:#dc2626`
           : `background:${a.color}18;border:1px solid ${a.color}50;color:${a.color}`;
-        return `<span class="ia-budget-chip" style="${chipStyle}">${escHtml(a.name)}${usageTxt}</span>`;
-      }).join('')}
-      <button class="ia-budget-manage-btn" id="ia-budget-manage-btn">${allocs.length ? '+ Manage' : '+ Add categories'}</button>
+        return `<button type="button" class="ia-budget-chip" style="${chipStyle}" data-chip-alloc="${a.id}" title="${escHtml('Edit ' + a.name)}">${escHtml(a.name)}${usageTxt}</button>`;
+      }).join('') : '<span class="ia-budget-empty-hint">No categories yet — add some to track how IA time is spent.</span>'}
+      <button type="button" class="btn ${allocs.length ? 'btn-outline' : 'btn-primary'} btn-sm ia-budget-manage-btn" id="ia-budget-manage-btn">${allocs.length ? 'Edit categories' : '+ Add categories'}</button>
     </div>
     <div class="ia-budget-manage-panel hidden" id="ia-budget-manage-panel">
       <div id="ia-alloc-list">${buildIAPaletteHtml(allocs)}</div>
@@ -221,7 +227,7 @@ function renderIAScheduleView() {
       <div class="ia-view-top-bar">
         <div>
           <h1 class="grid-title">IA Schedules</h1>
-          <p class="grid-subtitle">Click any assignment to edit or delete it. To add new assignments, go to the Master Schedule and click a block.</p>
+          <p class="grid-subtitle">Click any assignment to edit or delete it. To add new assignments, go to the Master Schedule and click a block. Budget categories below track how IA time is spent — click one to edit it.</p>
         </div>
         <div class="ia-view-top-actions">
           <button class="btn btn-primary btn-sm" id="ia-go-master-btn">← Assign in Master Schedule</button>
@@ -1580,6 +1586,19 @@ function wireIAViewEvents(container, ias) {
   // Budget manage toggle
   document.getElementById('ia-budget-manage-btn')?.addEventListener('click', () => {
     document.getElementById('ia-budget-manage-panel')?.classList.toggle('hidden');
+  });
+
+  // Budget chip — open the panel straight onto that category's edit form.
+  container.querySelectorAll('[data-chip-alloc]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.getElementById('ia-budget-manage-panel')?.classList.remove('hidden');
+      const form = document.getElementById('ia-edit-form-' + chip.dataset.chipAlloc);
+      if (!form) return;
+      form.classList.remove('hidden');
+      // closest() rather than a [data-alloc-id="…"] selector — avoids escaping ids.
+      form.closest('.ia-alloc-item')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      form.querySelector('.ia-edit-name-input')?.focus();
+    });
   });
 
   // Add category form

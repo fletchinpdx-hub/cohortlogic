@@ -3201,12 +3201,20 @@
   flex-shrink: 0;
 }
 .ia-budget-bar-lbl { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .06em; }
-.ia-budget-chip { padding: 2px 8px; border-radius: 20px; border: 1px solid; font-size: 11px; font-weight: 600; }
-.ia-budget-manage-btn {
-  font-size: 11px; color: var(--gray-500); background: none;
-  border: 1px dashed var(--gray-300); border-radius: 4px; padding: 2px 8px; cursor: pointer;
+/* Chips are <button>s — clicking one opens that category's editor. font-family
+   must be inherited or the button UA default overrides the app font. */
+.ia-budget-chip {
+  padding: 2px 8px; border-radius: 20px; border: 1px solid; font-size: 11px; font-weight: 600;
+  font-family: inherit; cursor: pointer; transition: filter .12s, box-shadow .12s;
 }
-.ia-budget-manage-btn:hover { border-color: var(--gray-400); color: var(--gray-700); }
+.ia-budget-chip:hover { filter: brightness(.95); box-shadow: 0 0 0 2px rgba(14, 165, 233, .18); }
+.ia-budget-chip:focus-visible { outline: 2px solid var(--teal, #0ea5e9); outline-offset: 1px; }
+.ia-budget-empty-hint { font-size: 11px; color: var(--gray-500); }
+/* Styling comes from the shared .btn/.btn-outline/.btn-primary classes — this rule
+   only pins the button to the right so it never drifts as the chip row wraps. Do
+   NOT re-add border/background here: schedule.css loads after styles.css, so any
+   property set here beats .btn-outline at equal specificity. */
+.ia-budget-manage-btn { margin-left: auto; flex-shrink: 0; }
 .ia-budget-manage-panel {
   background: var(--gray-50); border: 1px solid var(--gray-100); border-radius: 6px;
   padding: 10px 12px; margin-bottom: 6px; flex-shrink: 0;
