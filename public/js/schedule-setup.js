@@ -345,7 +345,7 @@ function renderGradeRecessHTML(s) {
     if (!gr[g] || gr[g].length === 0) {
       gr[g] = [
         { id: uid(), duration: 20, lunchAdjacent: false, lunchSide: 'after' },
-        { id: uid(), duration: 15, lunchAdjacent: true,  lunchSide: 'after' },
+        { id: uid(), duration: 20, lunchAdjacent: true,  lunchSide: 'after' },
       ];
     }
     return renderGradeRecessItem(g, gr[g]);
@@ -441,7 +441,7 @@ function wireRecessEvents() {
       const gr = SchedState.school.gradeRecesses || {};
       const slots = gr[g] || [];
       if (slots.length >= 4) return;
-      const newSlot = { id: uid(), duration: 15, lunchAdjacent: slots.length === 0, lunchSide: 'after' };
+      const newSlot = { id: uid(), duration: 20, lunchAdjacent: slots.length === 0, lunchSide: 'after' };
       gr[g] = [...slots, newSlot];
       SchedState.school.gradeRecesses = gr;
       refreshGradeRecessItem(g);
