@@ -1707,7 +1707,6 @@ function renderBlocks() {
           <thead><tr>
             <th class="req-th-block">Block</th>
             <th class="req-th-color">Color</th>
-            <th class="req-th-band" style="width:110px">Min/Day<span class="req-th-hint">optional</span></th>
             <th class="req-th-band" style="min-width:160px">School-wide Time<span class="req-th-hint">all grades</span></th>
             <th class="req-th-actions" style="width:80px"></th>
           </tr></thead>
@@ -1725,10 +1724,6 @@ function renderBlocks() {
                 <td class="req-td-color">
                   <div class="req-color-swatch" style="background:${bt.color}"></div>
                   <input type="color" class="req-color-input uniform-color-input" value="${bt.color}" data-bt-id="${bt.id}" />
-                </td>
-                <td class="req-td-min">
-                  <input type="number" class="uniform-dur-input" value="${bt.defaultDuration || ''}"
-                         placeholder="—" min="5" step="5" data-bt-id="${bt.id}" />
                 </td>
                 <td class="req-td-schoolwide">
                   <div class="schoolwide-config" id="sw-config-${bt.id}">
@@ -2113,16 +2108,8 @@ function wireOtherBlocks() {
   const addBtn = document.getElementById('add-block-btn');
   if (addBtn) addBtn.addEventListener('click', () => showOtherBlockForm());
 
-  // Inline duration editing
-  document.querySelectorAll('.uniform-dur-input').forEach(inp => {
-    inp.addEventListener('change', () => {
-      const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
-      if (!bt) return;
-      const val = parseInt(inp.value, 10);
-      if (isNaN(val) || val < 5) { delete bt.defaultDuration; } else { bt.defaultDuration = val; }
-      saveToLocal();
-    });
-  });
+  // (The inline Min/Day column was removed — `defaultDuration` is edited via the
+  // pencil → "Duration (min)" in showOtherBlockForm, which is the only editor now.)
 
   // School-wide time mode radios
   document.querySelectorAll('.sw-mode-radio').forEach(radio => {
@@ -2283,8 +2270,9 @@ function collectUniformFromDOM() {
         bt.uniformEnd     = '';
       }
     }
-    const dur = parseInt(document.querySelector(`.uniform-dur-input[data-bt-id="${bt.id}"]`)?.value || '0', 10);
-    if (dur >= 5) bt.defaultDuration = dur;
+    // defaultDuration is NOT collected here — it has no input in this table any
+    // more. It's owned by showOtherBlockForm (pencil → "Duration (min)") and
+    // persists on the blockType, so an untouched value survives a save.
   });
 }
 
