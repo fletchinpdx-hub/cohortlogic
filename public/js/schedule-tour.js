@@ -22,7 +22,12 @@
   var STEPS = [
     {
       anchor: null,
-      title: 'Welcome to Schedule Builder 👋',
+      // Both spaces in the title after "to" are NBSPs (U+00A0), not plain spaces:
+      // they hold the product name and the emoji together as one unbreakable unit,
+      // so the title wraps to "Welcome to" / "Schedule Builder <emoji>" rather than
+      // orphaning the emoji on its own line once h3 reserves room for the Skip
+      // button. Do not "tidy" them into regular spaces.
+      title: 'Welcome to Schedule Builder 👋',
       body: 'Schedule Builder helps you build your school\'s master schedule in four phases. Here\'s a quick tour of how it\'s laid out.',
       primary: 'Start tour →',
       secondary: 'Skip'
@@ -106,7 +111,11 @@
       '#sb-tour-card.show{opacity:1;transform:translateY(0)}' +
       '#sb-tour-card .sb-tour-badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;' +
       'text-transform:uppercase;color:#0ea5e9;margin-bottom:6px}' +
-      '#sb-tour-card h3{margin:0 0 8px;font-size:18px;font-weight:800;color:#0a2240;line-height:1.25}' +
+      // padding-right reserves the top-right corner for the absolutely-positioned
+      // Skip button, so a long title (the badge-less welcome step) wraps instead of
+      // running underneath it. Harmless on the other steps — their titles are short.
+      '#sb-tour-card h3{margin:0 0 8px;font-size:18px;font-weight:800;color:#0a2240;line-height:1.25;' +
+      'padding-right:52px}' +
       '#sb-tour-card p{margin:0 0 16px;font-size:14px;line-height:1.5;color:#475569}' +
       '#sb-tour-card .sb-tour-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}' +
       '#sb-tour-dots{display:flex;gap:6px;flex-wrap:wrap;max-width:150px}' +
