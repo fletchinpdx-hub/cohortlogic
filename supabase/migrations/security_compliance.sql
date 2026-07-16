@@ -202,7 +202,8 @@ language sql stable security definer set search_path = public as $$
     'referral_behaviors', 'referral_motivations', 'referral_actions',
     'referral_others_involved', 'referral_custom_fields', 'referral_custom_field_options',
     'referral_settings', 'audit_log', 'sessions', 'events', 'features',
-    'security_runs', 'security_findings'
+    'security_runs', 'security_findings', 'contact_submissions', 'newsletter_subscribers',
+    'feedback', 'subscriptions', 'error_logs'
   )
   group by c.relname, c.relrowsecurity
 $$;
