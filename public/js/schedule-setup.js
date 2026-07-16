@@ -1685,6 +1685,34 @@ function renderBlocks() {
     </div>
 
     <div class="form-section">
+      <h2 class="form-section-title">Instructional Time Requirements</h2>
+      <p class="form-hint">Required daily minutes per block, per grade band. Click "Sub-blocks" to define timed components within a block.</p>
+      ${bands.length === 0 ? '<p class="text-muted">Add grade bands above first.</p>' : `
+      <div class="req-table-wrap">
+        <table class="req-table">
+          <thead><tr>
+            <th class="req-th-block">Block</th>
+            <th class="req-th-color">Color</th>
+            ${bands.map(b => `<th class="req-th-band">${escHtml(b.name)}<span class="req-th-hint">min/day</span></th>`).join('')}
+            <th class="req-th-actions"></th>
+          </tr></thead>
+          <tbody id="req-tbody">
+            ${reqBTs.map(bt => renderReqRow(bt, bands)).join('')}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-outline btn-sm mt-8" id="add-req-btn">+ Add Required Block</button>
+      `}
+    </div>
+
+    ${bands.length ? `
+    <div class="form-section">
+      <h2 class="form-section-title">Daily Minutes Budget</h2>
+      <p class="form-hint">Required instructional minutes vs. time available after fixed blocks (morning meeting, lunch, recess).</p>
+      <div id="budget-panel"></div>
+    </div>` : ''}
+
+    <div class="form-section">
       <h2 class="form-section-title">Specials</h2>
       <p class="form-hint">Colors are used on the master schedule. Name and duration come from the Specials step — <a href="#" data-nav="specials" class="link-inline">edit there</a>.</p>
       ${configuredSpecials.length ? `
@@ -1761,34 +1789,6 @@ function renderBlocks() {
       </div>
       <button class="btn btn-outline btn-sm mt-8" id="add-block-btn">+ Add Block Type</button>
     </div>
-
-    <div class="form-section">
-      <h2 class="form-section-title">Instructional Time Requirements</h2>
-      <p class="form-hint">Required daily minutes per block, per grade band. Click "Sub-blocks" to define timed components within a block.</p>
-      ${bands.length === 0 ? '<p class="text-muted">Add grade bands above first.</p>' : `
-      <div class="req-table-wrap">
-        <table class="req-table">
-          <thead><tr>
-            <th class="req-th-block">Block</th>
-            <th class="req-th-color">Color</th>
-            ${bands.map(b => `<th class="req-th-band">${escHtml(b.name)}<span class="req-th-hint">min/day</span></th>`).join('')}
-            <th class="req-th-actions"></th>
-          </tr></thead>
-          <tbody id="req-tbody">
-            ${reqBTs.map(bt => renderReqRow(bt, bands)).join('')}
-          </tbody>
-        </table>
-      </div>
-      <button class="btn btn-outline btn-sm mt-8" id="add-req-btn">+ Add Required Block</button>
-      `}
-    </div>
-
-    ${bands.length ? `
-    <div class="form-section">
-      <h2 class="form-section-title">Daily Minutes Budget</h2>
-      <p class="form-hint">Required instructional minutes vs. time available after fixed blocks (morning meeting, lunch, recess).</p>
-      <div id="budget-panel"></div>
-    </div>` : ''}
 
     <div class="form-section">
       <h2 class="form-section-title">Synchronized Blocks <span class="form-hint-sm">(same time across grades)</span></h2>
