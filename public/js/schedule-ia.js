@@ -1643,7 +1643,7 @@ function _wireIAAssignment() {
     SchedState.iaCoverage.push({
       id: uid(), blockId: opts[0].blockId, subId: opts[0].subId,
       grades: [], iasPerGrade: 1,
-      allowedAllocIds: (SchedState.iaAllocations || []).map(a => a.id),  // default: all categories allowed
+      allowedAllocIds: [],  // default: none funded — user turns categories on
     });
     saveToLocal(); renderIAAssignmentView();
   });
