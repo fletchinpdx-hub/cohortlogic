@@ -49,6 +49,22 @@ Status legend: ☐ not started · ◐ in progress · ☑ done + deployed + verif
   **within the IA's working hours** are HARD constraints.
 - Grade preferences apply to IAs only; classroom teachers keep `gradeAssignment` /
   `splitGrade`.
+- **Duty parity (lunch + recess only).** Spread lunch and recess supervision evenly
+  across IAs, measured in **minutes**, balanced **per type** (separate lunch and
+  recess tallies) and **across the whole week** — so no one becomes "the lunch
+  person" or "the recess person." Parity balances *within* grade-preference tiers
+  (preference still leads for these blocks) and is **subordinate to budget** (never
+  forces an over-budget placement just to equalize). Only lunch/recess get parity;
+  instructional coverage doesn't.
+- **Each IA's own lunch.** Per IA, an optional **duration + time window** for their
+  personal break (to eat, not supervise). The engine reserves it inside the window,
+  marks that time **unavailable for coverage** (hard), and it is **not charged to a
+  budget** and **not counted as duty** for parity. Configured on the **Staff
+  Roster** (per-IA, next to hours). Warn if it can't be fit.
+- **Consistent weekly schedules.** The engine assigns IAs to **weekly recurring
+  coverage requirements** and reuses the same IA across every day a block occurs,
+  falling back to another IA only on a day the first genuinely can't cover (flagged
+  as an inconsistency). Consistency is by construction, not luck.
 
 ---
 
@@ -58,13 +74,19 @@ Status legend: ☐ not started · ◐ in progress · ☑ done + deployed + verif
 IAs stop using `gradeAssignment`/`splitGrade`; they gain:
 ```js
 gradePreferences: string[]   // grade keys, e.g. ['3','4','5']; [] = no preference
+ownLunch: {                  // optional; null/absent = no reserved break
+  duration:    number,       // minutes
+  windowStart: 'HH:MM',      // earliest the break may start
+  windowEnd:   'HH:MM',      // latest the break may END
+} | null
 ```
 - Teachers keep `gradeAssignment`/`splitGrade` unchanged. The staff form shows the
-  grade dropdown for classroom teachers, and a **Grade Preferences** multi-select
-  for IAs (role-conditional, like the existing color field).
+  grade dropdown for classroom teachers, and — for IAs — a **Grade Preferences**
+  multi-select plus the **own-lunch** duration + window fields (role-conditional,
+  like the existing color field).
 - **Migration:** on load, an IA with a legacy `gradeAssignment` and no
   `gradePreferences` → `gradePreferences = [gradeAssignment]`. Leave the old fields
-  in place (inert for IAs) so old files round-trip.
+  in place (inert for IAs) so old files round-trip. `ownLunch` absent = no break.
 
 ### New — coverage plan
 ```js
@@ -114,35 +136,54 @@ The engine writes these; partial coverage is just a shorter contiguous slot run
 ## Placement engine (Phase 3 — the core, high-judgment)
 
 `placeIAs()` — pure data mutation over `SchedState.iaSchedule`, no DOM. Deterministic
-(no `Math.random`, stable sorts) so re-runs on the same inputs are identical.
+(no `Math.random`, stable sorts) so re-runs on the same inputs are identical. The
+engine is organized around **weekly recurring requirements**, not per-day demands —
+that's what delivers cross-day consistency and clean weekly parity.
 
 **Inputs:** `iaCoverage`, `masterSchedule`, IA staff (`gradePreferences`,
-`startTime`/`endTime`), `iaAllocations` (budgets), `gradeBands`.
+`startTime`/`endTime`, `ownLunch`), `iaAllocations` (budgets), `gradeBands`.
 
-**Per day (Mon–Fri):**
-1. **Build demand.** For each coverage row, for each grade in `row.grades`: find the
-   block's occurrence(s) in `masterSchedule[day][grade]` — contiguous run(s) of
-   `blockId` (or `blockId|subId` when `subId` set). Each occurrence is one demand
-   unit: `{ day, grade, blockId, subId, slots:[…], need: row.iasPerGrade, allowedAllocIds }`.
-   A grade with no occurrence of that block that day contributes nothing.
-2. **Order demand** hardest-first: fewest eligible IAs first (mirrors the specials
-   placer's tightest-first logic), tie-break by start time then grade. This keeps a
-   scarce IA from being consumed by an easy demand a constrained one also needed.
-3. **Assign.** For each demand unit, pick `need` IAs, each of whom is:
-   - **HARD:** working hours cover the whole slot run (`startTime ≤ run start`,
-     `endTime ≥ run end`); and **not already assigned** to any overlapping slot that
-     day (no double-booking).
-   - **SOFT, in priority order:** grade ∈ `gradePreferences`; then the IA with the
-     most remaining daily hours (spread the load).
-   Charge each placement to an allowed category chosen to **balance budgets** (the
-   allowed alloc with the most remaining `hoursPerDay` headroom). Write
-   `iaSchedule[day][iaId][slot]` for every slot in the run.
-4. **Record shortfalls.** If fewer than `need` eligible IAs → push
-   `{ day, grade, block, needed, placed }` to a warnings list.
+**Step 0 — Reserve own lunches.** For each IA with `ownLunch`, find a
+`duration`-long free run inside `[windowStart, windowEnd]` (best-effort: the least
+coverage-contended spot; simplest robust = first-fit, ideally the SAME time each
+day). Write it to `iaSchedule` as a sentinel break (`targetType:'own_lunch'`, no
+`allocId`) so it renders on the grid and blocks double-booking. These slots are now
+**unavailable** for coverage and **don't count** toward duty parity or budget. Warn
+if it can't fit inside the window.
 
-**Output:** `iaSchedule` populated; a coverage-warnings array surfaced in a panel on
-the IA Assignment / IA Schedule tab (reuse the consolidated-warnings pattern —
-`_mountWarning`). Over-budget categories are a separate soft warning.
+**Step 1 — Build weekly requirements.** For each coverage row, for each grade in
+`row.grades`, emit one requirement:
+`{ blockId, subId, grade, need: row.iasPerGrade, allowedAllocIds, occurrences: [{day, slots:[…]}, …] }`
+where `occurrences` are that grade's runs of `blockId`(`|subId`) across Mon–Fri.
+A grade/day with no occurrence contributes nothing. `isDuty = blockId ∈ {bt_lunch, bt_recess}`.
+
+**Step 2 — Order requirements** hardest-first: fewest eligible IAs first (mirrors the
+specials placer), tie-break by earliest occurrence then grade. Keeps a scarce IA from
+being spent on an easy requirement a constrained one also needed.
+
+**Step 3 — Assign each requirement to `need` IA(s), reused across all its days.**
+For a candidate IA to take a requirement, per occurrence day they must (HARD):
+working hours cover the run, and not already booked (coverage or own-lunch) in any
+overlapping slot that day. Rank candidates by SOFT goals, **preference always first**:
+   1. **grade ∈ `gradePreferences`** (a real tier boundary — non-preferring IAs are
+      only reached if preferring ones run out). Applies to lunch/recess too.
+   2. **duty parity** *(lunch/recess requirements only)* — within the preference
+      tier, prefer the IA with the least accumulated **minutes of that same type**
+      (separate `lunchMin`/`recessMin` tallies), so lunch and recess each spread.
+   3. **total-load balance** — fewest assigned minutes so far, to even overall hours.
+Assign the chosen IA to **every** occurrence day they're free; on a day they're not
+free, fall back to the next-best candidate for that day only and flag an
+**inconsistency** (`{grade, block, day, ...}`). Charge each placement to an allowed
+category with the most remaining `hoursPerDay` headroom (budget balancing). Write
+`iaSchedule[day][iaId][slot]` for every slot; bump the IA's `lunchMin`/`recessMin`/
+total tallies.
+
+**Step 4 — Record shortfalls.** If fewer than `need` eligible IAs for a requirement
+(on any day) → push `{ day, grade, block, needed, placed }` to the warnings list.
+
+**Output:** `iaSchedule` populated (coverage + own-lunch breaks); warnings arrays for
+**coverage shortfalls**, **schedule inconsistencies**, and **over-budget categories**,
+surfaced in a panel (reuse the consolidated-warnings pattern — `_mountWarning`).
 
 **Trigger:** a **"Place IAs"** button (IA Assignment tab, and/or IA Schedule tab).
 First clears every engine-written `iaSchedule` entry (all of them — manual edits
@@ -154,20 +195,27 @@ Continue?"* Duties are not in `iaSchedule`, so they survive.
 
 ## Phases
 
+All four phases are being built **in-session on Opus** (the user opted not to hand
+any phase to Sonnet). Each still ships and is verified independently — gate +
+browser/harness pass — so the plan stays resumable.
+
 ### Phase 0 — Plan doc ☑
 This file.
 
-### Phase 1 — Staff Roster: Grade Preferences (IA only) ☐
+### Phase 1 — Staff Roster: Grade Preferences + own lunch (IA only) ☐
 - Replace the Primary/Split grade fields **for IAs** with a Grade Preferences
   multi-select (chips or checkboxes over `school.grades`). Classroom teachers keep
   the existing dropdown. Role-conditional show/hide like the color field.
-- Save → `gradePreferences: []`. Add the load-time migration.
-- Staff table + Review card: show an IA's preferences (or "No preference").
+- Add **own-lunch** fields for IAs: duration (min) + window start/end. Optional
+  (blank = no reserved break). → `ownLunch: {duration, windowStart, windowEnd} | null`.
+- Save → `gradePreferences: []` + `ownLunch`. Add the load-time migration.
+- Staff table + Review card: show an IA's preferences (or "No preference") and, if
+  set, their reserved lunch.
 - **Files:** `schedule-setup.js` (form, collect, table, review), `schedule-state.js`
   (migration in load path).
-- **Verify:** add an IA, set prefs, save, reload from file → prefs persist; a
-  legacy file's IA gets its old grade seeded as a preference; teachers unchanged.
-- **Sonnet-suitable:** yes — mechanical, well-scoped, mirrors existing form patterns.
+- **Verify:** add an IA, set prefs + own lunch, save, reload from file → both
+  persist; a legacy file's IA gets its old grade seeded as a preference; teachers
+  unchanged.
 
 ### Phase 2 — IA Assignment tab (config UI, no engine) ☐
 - Nav item + view + renderer + lock rule (see Nav & wiring).
@@ -185,7 +233,6 @@ This file.
   `schedule.css`, `schedule-state.js` (persist `iaCoverage` in file save/load).
 - **Verify:** configure categories + rows; auto-save survives a reload; picking a
   sub-block works; file round-trips `iaCoverage`.
-- **Sonnet-suitable:** yes, given this spec + the existing table code to pattern off.
 
 ### Phase 3 — Placement engine + warnings ☐
 - Implement `placeIAs()` per the spec above. "Place IAs" button + confirm dialog +
@@ -194,12 +241,16 @@ This file.
   algorithms — keep engines together). Reuse `findBlockStart`/`getAllBlockSlots`,
   `timeToMins`/`minsToTime`, the warnings mount.
 - **Verify with a node harness** (like the specials/off-carousel tests): feed a
-  known master schedule + coverage + IAs, assert no double-booking, hours respected,
-  preferences honored when possible, shortfalls reported, budgets balanced. Then a
-  browser pass on real data.
-- **Sonnet-suitable:** **no — keep on Opus.** This is the high-judgment core; subtle
-  bugs (double-booking, overlap math, preference fallback, budget balance) produce
-  plausible-but-wrong schedules that are hard to eyeball. Opus writes + tests it.
+  known master schedule + coverage + IAs, and assert — no double-booking; working
+  hours respected; own lunches placed inside their windows and left uncovered;
+  preferences honored when possible; the **same IA reused across days** (consistency)
+  with fallbacks flagged; **lunch and recess minutes balanced per type** across IAs
+  within a preference tier; shortfalls + inconsistencies + over-budget all reported;
+  budgets balanced. Then a browser pass on real data.
+- The high-judgment core — subtle bugs (overlap math, preference/parity interaction,
+  own-lunch reservation, cross-day reuse) produce plausible-but-wrong schedules that
+  are hard to eyeball, which is why it's tested with an assertion harness, not just a
+  visual check.
 
 ### Phase 4 — IA Schedule tab: edit incl. partial; remove master "Assign IAs" ☐
 - **Remove** the Master Schedule "Assign IAs" mode (`toggleIAMasterMode`, the
@@ -212,8 +263,6 @@ This file.
 - **Files:** `schedule-ia.js`, `schedule-grid.js` (remove the mode), `schedule.css`.
 - **Verify:** edit an assignment to cover half a block; it renders as a partial run;
   reassign IA/category; the master "Assign IAs" button is gone and nothing errors.
-- **Sonnet-suitable:** borderline — the partial-edit UI is fiddly but bounded. OK for
-  Sonnet with a tight spec + the existing custom-time code to copy; else Opus.
 
 ---
 
@@ -247,3 +296,7 @@ This file.
   rebuilds. No partial/incremental placement in v1.
 - Partial-block coverage is a **manual edit**, not a config input — the coverage
   plan requests whole-block coverage; you shorten it by hand on the IA Schedule tab.
+- Each IA's **own lunch** is configured on the **Staff Roster** (not the IA
+  Assignment tab), engine-placed within its window, optional per IA.
+- **Duty parity = lunch + recess only**, by minutes, per type, across the week,
+  within preference tiers, subordinate to budget.
