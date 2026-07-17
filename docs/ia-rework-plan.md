@@ -78,6 +78,7 @@ ownLunch: {                  // optional; null/absent = no reserved break
   duration:    number,       // minutes
   windowStart: 'HH:MM',      // earliest the break may start
   windowEnd:   'HH:MM',      // latest the break may END
+  allocId:     string|null,  // budget category charged for this lunch; null = not charged
 } | null
 ```
 - Teachers keep `gradeAssignment`/`splitGrade` unchanged. The staff form shows the
@@ -146,10 +147,11 @@ that's what delivers cross-day consistency and clean weekly parity.
 **Step 0 — Reserve own lunches.** For each IA with `ownLunch`, find a
 `duration`-long free run inside `[windowStart, windowEnd]` (best-effort: the least
 coverage-contended spot; simplest robust = first-fit, ideally the SAME time each
-day). Write it to `iaSchedule` as a sentinel break (`targetType:'own_lunch'`, no
-`allocId`) so it renders on the grid and blocks double-booking. These slots are now
-**unavailable** for coverage and **don't count** toward duty parity or budget. Warn
-if it can't fit inside the window.
+day). Write it to `iaSchedule` as a sentinel break (`targetType:'own_lunch'`,
+`allocId: ownLunch.allocId || null`) so it renders on the grid and blocks
+double-booking. These slots are **unavailable** for coverage and **don't count**
+toward duty parity — but if `allocId` is set, their minutes **do** count toward that
+category's budget usage (a paid lunch). Warn if it can't fit inside the window.
 
 **Step 1 — Build weekly requirements.** For each coverage row, for each grade in
 `row.grades`, emit one requirement:
@@ -297,6 +299,9 @@ This file.
 - Partial-block coverage is a **manual edit**, not a config input — the coverage
   plan requests whole-block coverage; you shorten it by hand on the IA Schedule tab.
 - Each IA's **own lunch** is configured on the **Staff Roster** (not the IA
-  Assignment tab), engine-placed within its window, optional per IA.
+  Assignment tab), engine-placed within its window, optional per IA. It can be
+  **charged to a budget category** (`ownLunch.allocId`, "Not charged" by default) —
+  the dropdown reads whatever categories exist, so it can be set here or after
+  categories are defined on the IA Assignment tab.
 - **Duty parity = lunch + recess only**, by minutes, per type, across the week,
   within preference tiers, subordinate to budget.

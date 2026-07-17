@@ -1205,6 +1205,11 @@ function showAddStaffForm(existingId) {
             <input type="time" class="input" id="sf-lunch-start" value="${ol.windowStart || ''}" /></span>
           <span class="ownlunch-cell"><span class="ownlunch-lbl">and</span>
             <input type="time" class="input" id="sf-lunch-end" value="${ol.windowEnd || ''}" /></span>
+          <span class="ownlunch-cell"><span class="ownlunch-lbl">Budget</span>
+            <select class="input" id="sf-lunch-alloc">
+              <option value="">Not charged</option>
+              ${(SchedState.iaAllocations || []).map(a => `<option value="${a.id}" ${ol.allocId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')}
+            </select></span>
         </div>
       </div>
       <div class="form-group sf-hours-field">
@@ -1285,6 +1290,7 @@ function showAddStaffForm(existingId) {
           duration:    lunchDur,
           windowStart: document.getElementById('sf-lunch-start').value || startVal,
           windowEnd:   document.getElementById('sf-lunch-end').value   || endVal,
+          allocId:     document.getElementById('sf-lunch-alloc').value || null,
         }
       : null;
 
