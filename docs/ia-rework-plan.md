@@ -239,7 +239,13 @@ same array.)
 - **Verify:** configure categories + rows; auto-save survives a reload; picking a
   sub-block works; file round-trips `iaCoverage`.
 
-### Phase 3 — Placement engine + warnings ☐
+### Phase 3 — Placement engine + warnings ☑
+Engine `placeIAs()` in schedule-ia.js. "Place IAs" button + confirm + report on the
+IA Assignment tab. Verified by an 11-assertion node harness (determinism, no
+double-booking, hours, preference, cross-day consistency, per-type duty parity,
+own-lunch-in-window, over-budget, shortfall) + a browser check of the button flow.
+own_lunch entries render safely on the IA Schedule ("Own lunch" label); full IA
+Schedule rework (partial edit, own-lunch styling, retire old category editor) = Phase 4.
 - Implement `placeIAs()` per the spec above. "Place IAs" button + confirm dialog +
   wipe + run. Coverage-shortfall + over-budget warnings panel.
 - **Files:** `schedule-ia.js` (or `schedule-grid.js` alongside the other placement

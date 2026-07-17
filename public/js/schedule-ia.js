@@ -337,6 +337,7 @@ function buildIATargetPickerHtml() {
 
 function _iaTargetLabel(entry) {
   if (!entry) return '';
+  if (entry.targetType === 'own_lunch') return 'Own lunch';   // engine-reserved IA break
   if (entry.targetType === 'grade') return GRADE_LABELS[entry.targetId] || entry.targetId || '';
   if (entry.targetType === 'class') {
     const t = SchedState.staff.find(s => s.id === entry.targetId);
@@ -1822,6 +1823,14 @@ function renderIAAssignmentView() {
         </div>
         <button class="btn btn-outline btn-sm mt-8" id="ia-add-coverage-row"${blockOpts.length ? '' : ' disabled'}>+ Add block</button>
       </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Place IAs</h2>
+        <p class="form-hint">Assign your IAs across the coverage plan — honoring grade preferences, reserving each IA's own lunch, and balancing lunch/recess duty across the week. <strong>This replaces all current IA assignments.</strong></p>
+        ${_masterBuilt() ? '' : '<p class="text-muted">Build the Master Schedule first — placement needs to know where each block lands.</p>'}
+        <button class="btn btn-primary" id="ia-place-btn"${_masterBuilt() ? '' : ' disabled'}>Place IAs →</button>
+        <div id="ia-place-report" class="ia-place-report"></div>
+      </div>
     </div>
 
     <div class="view-actions">
@@ -1831,6 +1840,24 @@ function renderIAAssignmentView() {
   `;
 
   _wireIAAssignment();
+  if (SchedState._iaPlacementReport) _renderPlacementReport(SchedState._iaPlacementReport);
+}
+
+function _masterBuilt() {
+  const ms = SchedState.masterSchedule || {};
+  return DAYS.some(d => Object.keys(ms[d] || {}).length > 0);
+}
+
+function _renderPlacementReport(rep) {
+  const el = document.getElementById('ia-place-report');
+  if (!el || !rep) return;
+  const rows = [`<div class="ia-place-line ia-place-ok">✓ Placed ${(rep.placed / 60).toFixed(1)} IA hours across the week.</div>`];
+  if (rep.shortfalls.length)      rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.shortfalls.length} coverage gap(s) — not enough available IAs for some blocks.</div>`);
+  if (rep.inconsistencies.length) rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.inconsistencies.length} block(s) covered by different IAs on different days.</div>`);
+  if (rep.overBudget.length)      rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.overBudget.length} category/day over its hours budget.</div>`);
+  if (rep.ownLunchUnplaced.length) rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.ownLunchUnplaced.length} own-lunch reservation(s) couldn't fit their window.</div>`);
+  rows.push(`<button class="btn btn-outline btn-sm mt-8" data-nav="ia">View on IA Schedule →</button>`);
+  el.innerHTML = rows.join('');
 }
 
 function _wireIAAssignment() {
@@ -1896,4 +1923,183 @@ function _wireIAAssignment() {
     });
     saveToLocal(); renderIAAssignmentView();
   });
+
+  // ── Place IAs (wipe + recompute, behind a confirm) ──
+  document.getElementById('ia-place-btn')?.addEventListener('click', () => {
+    if (!confirm('This will replace all current IA assignments, including any you\'ve edited by hand on the IA Schedule. Continue?')) return;
+    const rep = placeIAs();
+    saveToLocal();
+    _renderPlacementReport(rep);
+  });
+}
+
+// ── Phase 3: IA placement engine ──────────────────────────────────────────────
+// placeIAs() assigns IAs across the coverage plan. Pure data mutation over
+// SchedState.iaSchedule; DETERMINISTIC (no Math.random/Date) so re-runs match.
+// Organized around weekly recurring requirements → cross-day consistency + weekly
+// parity. Duties (SchedState.duties) live outside iaSchedule and are untouched.
+const IA_DUTY_BLOCKS = new Set(['bt_lunch', 'bt_recess']);
+
+function _iaSlotMatches(slotVal, blockId, subId) {
+  if (!slotVal) return false;
+  const bar  = slotVal.indexOf('|');
+  const base = bar >= 0 ? slotVal.slice(0, bar) : slotVal;
+  const sub  = bar >= 0 ? slotVal.slice(bar + 1) : null;
+  if (base !== blockId) return false;
+  return subId ? sub === subId : true;
+}
+
+// Contiguous slot-runs where grade G has the target block on `day`.
+function _iaBlockOccurrences(day, grade, blockId, subId) {
+  const slots  = _autoFillSlots(day);
+  const gsched = (SchedState.masterSchedule[day] || {})[grade] || {};
+  const runs = []; let cur = null;
+  slots.forEach(sl => {
+    if (_iaSlotMatches(gsched[sl], blockId, subId)) { if (!cur) { cur = []; runs.push(cur); } cur.push(sl); }
+    else cur = null;
+  });
+  return runs;
+}
+
+function _iaInHours(ia, run) {
+  if (!ia.startTime || !ia.endTime) return true;   // no hours set → always available
+  return timeToMins(run[0]) >= timeToMins(ia.startTime)
+      && timeToMins(run[run.length - 1]) + 5 <= timeToMins(ia.endTime);
+}
+
+function placeIAs() {
+  const sched = SchedState.iaSchedule = {};                 // wipe coverage + own-lunch; duties untouched
+  const ias   = (SchedState.staff || []).filter(s => s.role === 'ia');
+  const allocs = SchedState.iaAllocations || [];
+  const allocById = {}; allocs.forEach(a => { allocById[a.id] = a; });
+  const staffOrder = {}; ias.forEach((ia, i) => { staffOrder[ia.id] = i; });
+  const staffIdx = ia => staffOrder[ia.id];
+
+  const report = { placed: 0, shortfalls: [], inconsistencies: [], overBudget: [], ownLunchUnplaced: [] };
+  const totalMin = {}, dutyMin = {}, allocUsed = {};
+  ias.forEach(ia => { totalMin[ia.id] = 0; dutyMin[ia.id] = { bt_lunch: 0, bt_recess: 0 }; });
+
+  const ensure = (day, iaId) => { (sched[day] = sched[day] || {}); return (sched[day][iaId] = sched[day][iaId] || {}); };
+  const free   = (day, iaId, run) => { const m = (sched[day] || {})[iaId] || {}; return run.every(sl => !m[sl]); };
+  const charge = (allocId, day, mins) => { if (!allocId) return; (allocUsed[allocId] = allocUsed[allocId] || {}); allocUsed[allocId][day] = (allocUsed[allocId][day] || 0) + mins; };
+
+  // ── Step 0: reserve own lunches (unavailable for coverage; not duty; budgeted if allocId) ──
+  ias.forEach(ia => {
+    const ol = ia.ownLunch;
+    if (!ol || !(ol.duration >= 5)) return;
+    const n = Math.ceil(ol.duration / 5);
+    const winS = timeToMins(ol.windowStart || ia.startTime || '11:00');
+    const winE = timeToMins(ol.windowEnd   || ia.endTime   || '13:00');
+    const startsFor = day => {
+      const slots = _autoFillSlots(day); const out = [];
+      for (let i = 0; i + n <= slots.length; i++) {
+        const run = slots.slice(i, i + n);
+        if (timeToMins(run[0]) >= winS && timeToMins(run[n - 1]) + 5 <= winE && _iaInHours(ia, run) && free(day, ia.id, run)) out.push(run[0]);
+      }
+      return out;
+    };
+    const perDay = {}; DAYS.forEach(d => { perDay[d] = startsFor(d); });
+    const common = (perDay[DAYS[0]] || []).find(st => DAYS.every(d => perDay[d].includes(st)));  // same time all days if possible
+    DAYS.forEach(day => {
+      const start = (common && perDay[day].includes(common)) ? common : perDay[day][0];
+      if (!start) { report.ownLunchUnplaced.push({ iaId: ia.id, day }); return; }
+      const slots = _autoFillSlots(day); const si = slots.indexOf(start);
+      const map = ensure(day, ia.id);
+      slots.slice(si, si + n).forEach(sl => { map[sl] = { targetType: 'own_lunch', allocId: ol.allocId || null }; });
+      charge(ol.allocId, day, ol.duration);
+    });
+  });
+
+  // ── Step 1: weekly requirements (one per coverage-row × grade with ≥1 occurrence) ──
+  const reqs = [];
+  (SchedState.iaCoverage || []).forEach(row => {
+    (row.grades || []).forEach(grade => {
+      const occ = [];
+      DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => occ.push({ day, run })));
+      if (!occ.length) return;
+      reqs.push({
+        blockId: row.blockId, subId: row.subId || null, grade,
+        need: Math.max(1, row.iasPerGrade || 1),
+        allowedAllocIds: row.allowedAllocIds || [],
+        isDuty: IA_DUTY_BLOCKS.has(row.blockId), occ,
+      });
+    });
+  });
+
+  // ── Step 2: hardest-first (fewest hours-eligible IAs), deterministic tiebreaks ──
+  reqs.forEach(r => {
+    r._elig = ias.filter(ia => r.occ.some(o => _iaInHours(ia, o.run))).length;
+    r._first = Math.min.apply(null, r.occ.map(o => timeToMins(o.run[0])));
+  });
+  reqs.sort((a, b) => a._elig - b._elig || a._first - b._first
+    || String(a.grade).localeCompare(String(b.grade))
+    || String(a.blockId + (a.subId || '')).localeCompare(String(b.blockId + (b.subId || ''))));
+
+  // rank key (lower is better): [preference tier, duty-type minutes (duty only), total load]
+  const rankKey = (ia, req) => [
+    (ia.gradePreferences || []).includes(req.grade) ? 0 : 1,
+    req.isDuty ? dutyMin[ia.id][req.blockId] : 0,
+    totalMin[ia.id],
+  ];
+  const cmp = (a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]);
+
+  const chooseAlloc = (allowed, day) => {
+    if (!allowed.length) return null;
+    let best = allowed[0], bestRem = -Infinity;
+    allowed.forEach(id => {
+      const a = allocById[id]; if (!a) return;
+      const rem = (a.hoursPerDay || 0) * 60 - ((allocUsed[id] || {})[day] || 0);
+      if (rem > bestRem) { bestRem = rem; best = id; }
+    });
+    return best;
+  };
+  const assign = (day, ia, run, req) => {
+    const allocId = chooseAlloc(req.allowedAllocIds, day);
+    const map = ensure(day, ia.id);
+    run.forEach(sl => { map[sl] = { allocId, targetType: 'grade', targetId: req.grade, note: '' }; });
+    const mins = run.length * 5;
+    totalMin[ia.id] += mins;
+    if (req.isDuty) dutyMin[ia.id][req.blockId] += mins;
+    charge(allocId, day, mins);
+    report.placed += mins;
+  };
+
+  // ── Step 3: assign each requirement, reusing a consistent team across days ──
+  reqs.forEach(req => {
+    const daysCoverable = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
+    const pool = ias.filter(ia => daysCoverable(ia) > 0);
+    // Team = up to `need` IAs, preferring (preference tier, most days coverable, parity, load).
+    const team = pool.slice().sort((a, b) => {
+      const ka = rankKey(a, req), kb = rankKey(b, req);
+      return (ka[0] - kb[0]) || (daysCoverable(b) - daysCoverable(a)) || (ka[1] - kb[1]) || (ka[2] - kb[2]) || (staffIdx(a) - staffIdx(b));
+    }).slice(0, req.need).map(ia => ia.id);
+
+    const usedIAs = new Set();
+    req.occ.forEach(({ day, run }) => {
+      const assignedToday = [];
+      team.forEach(id => {
+        if (assignedToday.length >= req.need) return;
+        const ia = ias.find(x => x.id === id);
+        if (_iaInHours(ia, run) && free(day, id, run)) { assign(day, ia, run, req); assignedToday.push(id); usedIAs.add(id); }
+      });
+      while (assignedToday.length < req.need) {
+        const cand = pool
+          .filter(ia => !assignedToday.includes(ia.id) && _iaInHours(ia, run) && free(day, ia.id, run))
+          .sort((a, b) => cmp(rankKey(a, req), rankKey(b, req)) || (staffIdx(a) - staffIdx(b)))[0];
+        if (!cand) { report.shortfalls.push({ day, grade: req.grade, blockId: req.blockId, subId: req.subId, needed: req.need, placed: assignedToday.length }); break; }
+        assign(day, cand, run, req); assignedToday.push(cand.id); usedIAs.add(cand.id);
+      }
+    });
+    if (usedIAs.size > req.need) report.inconsistencies.push({ grade: req.grade, blockId: req.blockId, subId: req.subId, iasUsed: usedIAs.size, need: req.need });
+  });
+
+  // ── Step 4: over-budget warnings (soft; only when a budget is actually set) ──
+  allocs.forEach(a => {
+    const budget = (a.hoursPerDay || 0) * 60;
+    if (budget <= 0) return;
+    Object.entries(allocUsed[a.id] || {}).forEach(([day, used]) => { if (used > budget) report.overBudget.push({ allocId: a.id, day, usedMin: used, budgetMin: budget }); });
+  });
+
+  SchedState._iaPlacementReport = report;
+  return report;
 }
