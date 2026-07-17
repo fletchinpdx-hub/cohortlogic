@@ -179,16 +179,49 @@ grant execute on function public.security_resolve_passing(text[], text[]) to ser
 -- Locked to service_role — this reveals security posture and must never
 -- be callable by a regular authenticated user, including super admins
 -- through the client (the dashboard reads findings, not this).
+--
+-- v2: also returns each policy's full definition (qual / with_check /
+-- roles / cmd) as a `policies` jsonb array, so the overly-permissive check
+-- inspects real policy BODIES for every table instead of grepping migration
+-- files — the old approach was blind to any policy authored directly in the
+-- SQL Editor (profiles/features/feedback/sessions/events). This makes the
+-- service_role lock even more important: the return value now includes the
+-- literal USING / WITH CHECK expressions, not just policy names.
 -- ─────────────────────────────────────────────────────────────────────
 
-create or replace function public.security_rls_snapshot()
-returns table(table_name text, rls_enabled boolean, policy_count int, policy_names text[])
+-- DROP first: v2 changed the return signature (added the `policies` column),
+-- and create-or-replace cannot change an existing function's return type
+-- (Postgres 42P13). `if exists` keeps this block re-runnable.
+drop function if exists public.security_rls_snapshot();
+
+create function public.security_rls_snapshot()
+returns table(
+  table_name   text,
+  rls_enabled  boolean,
+  policy_count int,
+  policy_names text[],
+  policies     jsonb
+)
 language sql stable security definer set search_path = public as $$
   select
     c.relname::text as table_name,
     c.relrowsecurity as rls_enabled,
     count(p.policyname)::int as policy_count,
-    coalesce(array_agg(p.policyname) filter (where p.policyname is not null), '{}') as policy_names
+    coalesce(array_agg(p.policyname) filter (where p.policyname is not null), '{}') as policy_names,
+    -- Full per-policy detail for the semantic overly-permissive check.
+    coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'name',       p.policyname,
+          'cmd',        p.cmd,
+          'permissive', p.permissive,
+          'roles',      p.roles,
+          'qual',       p.qual,
+          'with_check', p.with_check
+        ) order by p.policyname
+      ) filter (where p.policyname is not null),
+      '[]'::jsonb
+    ) as policies
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
   left join pg_policies p on p.schemaname = 'public' and p.tablename = c.relname
