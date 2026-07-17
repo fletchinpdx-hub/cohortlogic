@@ -431,7 +431,7 @@
 .load-file-banner-title {
   font-size: 15px;
   font-weight: 700;
-  color: var(--navy, #0a2240);
+  color: var(--navy, #1E3A5F);
   margin-bottom: 3px;
 }
 .load-file-banner-sub {
@@ -1885,32 +1885,6 @@
 .no-tool .grid-cell.filled     { cursor: grab; }
 .no-tool .grid-cell.filled:active { cursor: grabbing; }
 
-/* ── Download file button (sidebar footer) ────────────────────── */
-.btn-download-file {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  border: 1.5px solid var(--gray-300);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--gray-700);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: center;
-  transition: background .15s, border-color .15s;
-}
-.btn-download-file:hover { background: #f0fdf4; border-color: #16a34a; color: #15803d; }
-.btn-download-file.btn-download-unsaved {
-  border-color: #f59e0b;
-  background: #fffbeb;
-  color: #92400e;
-}
-.btn-download-file.btn-download-unsaved::before {
-  content: '⚠ ';
-}
-
 /* "You haven't saved a file yet" nag on the Import/Export nav item. Replaces the
    old sidebar download button's amber state — the schedule lives only in this
    browser until a file is downloaded, so this warning is load-bearing. */
@@ -1942,7 +1916,7 @@
   padding: 14px 16px;
   background: #fff;
 }
-.file-guide-work  { border-top: 3px solid #0ea5e9; }
+.file-guide-work  { border-top: 3px solid var(--teal, #2A9D8F); }
 .file-guide-share { border-top: 3px solid #16a34a; }
 .file-guide-head {
   display: flex;
@@ -3302,8 +3276,8 @@
   padding: 2px 8px; border-radius: 20px; border: 1px solid; font-size: 11px; font-weight: 600;
   font-family: inherit; cursor: pointer; transition: filter .12s, box-shadow .12s;
 }
-.ia-budget-chip:hover { filter: brightness(.95); box-shadow: 0 0 0 2px rgba(14, 165, 233, .18); }
-.ia-budget-chip:focus-visible { outline: 2px solid var(--teal, #0ea5e9); outline-offset: 1px; }
+.ia-budget-chip:hover { filter: brightness(.95); box-shadow: 0 0 0 2px rgba(42,157,143,.18); }
+.ia-budget-chip:focus-visible { outline: 2px solid var(--teal, #2A9D8F); outline-offset: 1px; }
 .ia-budget-empty-hint { font-size: 11px; color: var(--gray-500); }
 /* Styling comes from the shared .btn/.btn-outline/.btn-primary classes — this rule
    only pins the button to the right so it never drifts as the chip row wraps. Do

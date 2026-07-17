@@ -420,7 +420,8 @@ public/
 
 ## Brand & tech
 - **Colors:** navy `#1E3A5F`, teal `#2A9D8F`, gold `#E9B949`. Defined once as `--navy` / `--teal` / `--gold` in `css/styles.css` `:root`, and mirrored with identical values by `marketing.css` and by `checkin.css` (as `--ci-navy` / `--ci-teal` / `--ci-gold`). `schedule.css` defines no `:root` — Schedule Builder loads `styles.css` first and inherits it. So the whole site is one palette.
-  - **Use the variables, never a raw hex.** Older values — `#0a2240` (navy), `#0ea5e9` (teal), `#f59e0b` (gold) — still linger in `styles.css`/`schedule.css` as scattered one-offs and as `var(--navy, #0a2240)`-style fallbacks. Those are drift, not the brand; the fallback arm never fires in practice because `:root` always defines the real value.
+  - **Use the variables, never a raw hex.** The stale navy/teal (`#0a2240`, `#0ea5e9`) were swept out of `styles.css`/`schedule.css` on 2026-07-17 — including the copies hiding in `rgba()` form (`rgba(14,165,233,…)` **is** `#0ea5e9`; `rgba(10,34,64,…)` **is** `#0a2240`), which a hex grep silently misses. Any `var(--x, #hex)` fallbacks left behind now carry the *correct* value.
+  - **`#F59E0B` is NOT drift — do not "clean" it.** It survives in three places as a **semantic amber**, and only coincidentally matches the old gold hex: `--ci-score-1` in `checkin.css` (CICO score 1 — scores are 0=red `#EF4444`, 1=amber, 2=green `#22C55E`), `.nav-item-unsaved::after` (the unsaved-file warning), and `.budget-bar-fill.budget-tight` (whose sibling `budget-ok` is likewise a hardcoded green). Recolouring these to `--gold` would corrupt CICO's score display and flatten the warning states. Warning amber and brand gold are different jobs that happen to look alike.
   - This entry itself used to list the old hexes, which is exactly how both intro tours (`js/tour.js`, `js/schedule-tour.js`) shipped off-brand — written from this table rather than from `:root`. Fixed 2026-07-16; both tours now reference `var(--teal, …)` / `var(--navy, …)` so they track the app instead of restating it.
 - **Font:** Nunito (Google Fonts)
 - **Logo:** height 30px, `align-items: flex-start` to prevent stretch
@@ -508,7 +509,6 @@ The `guard_profiles_privileged` trigger blocks direct SQL-editor writes to `role
 - **XLSX export styling** — potential upgrade: switch to the SheetJS **styled/paid build** for cell colors/centering/borders (the free build writes structure/merges but no styles).
 - **Dismissal Duty (`bt_dis`)** — still appears in the Master Schedule palette (Arrival Duty was removed in v142); remove via `PALETTE_EXCLUDE` if it's non-paintable in the user's workflow.
 - **CICO** — re-QA the entry/students/settings/reports flows after the v-Jul-2026 CSP handler migration (see security table note); those interactions were dead in prod and are now fixed but need a real click-through.
-- **FERPA privacy policy page** — older pending item
 - **Teacher-level RLS** — on hold; needs product decisions
 
 ### Other products

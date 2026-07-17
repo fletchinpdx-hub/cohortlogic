@@ -311,7 +311,7 @@ body {
 .next-step-bar {
   display: flex; align-items: center; justify-content: space-between;
   margin-top: 28px; padding: 18px 24px;
-  background: var(--teal-light, #e8f5f4); border: 1px solid rgba(14,165,233,.2);
+  background: var(--teal-light, #e8f5f4); border: 1px solid rgba(42,157,143,.2);
   border-radius: var(--radius); gap: 16px;
 }
 .next-step-hint { font-size: 14px; color: var(--gray-700); margin: 0; }
@@ -537,7 +537,7 @@ body {
   color: var(--navy);
   outline: none;
 }
-.split-teacher-inline::placeholder { color: rgba(10,34,64,0.45); }
+.split-teacher-inline::placeholder { color: rgba(30,58,95,0.45); }
 .split-teacher-inline:focus { background: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.7); }
 
 .results-grid {
@@ -790,10 +790,11 @@ body {
 
 /* ── Import/Export view ────────────────────────────────────────────
    The one place file handling lives, plus the plain-language explainer.
-   Mirrors Schedule Builder's Import/Export view, recoloured to Class
-   Builder's palette (--teal #2A9D8F, not SB's #0ea5e9). Class Builder
-   has THREE file roles to SB's two: the roster comes in, the
-   .cohortlogic round-trips, the .xlsx goes out. */
+   Mirrors Schedule Builder's Import/Export view. Class Builder has THREE
+   file roles to SB's two: the roster comes in, the .cohortlogic
+   round-trips, the .xlsx goes out — hence the extra card and diagram box.
+   Colours come from the brand vars (--teal/--navy/--gold), never raw
+   hexes; see the Brand section of CLAUDE.md. */
 .file-flow {
   display: block;
   width: 100%;
