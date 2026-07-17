@@ -202,7 +202,7 @@ browser/harness pass — so the plan stays resumable.
 ### Phase 0 — Plan doc ☑
 This file.
 
-### Phase 1 — Staff Roster: Grade Preferences + own lunch (IA only) ☐
+### Phase 1 — Staff Roster: Grade Preferences + own lunch (IA only) ☑
 - Replace the Primary/Split grade fields **for IAs** with a Grade Preferences
   multi-select (chips or checkboxes over `school.grades`). Classroom teachers keep
   the existing dropdown. Role-conditional show/hide like the color field.

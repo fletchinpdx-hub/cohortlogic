@@ -292,6 +292,19 @@ function saveToLocal() {
   updateDownloadBadge();
 }
 
+// IA rework migration: files predating Grade Preferences carried a single Primary
+// Grade (`gradeAssignment`) for IAs. Seed that as a one-grade preference so old
+// files keep meaning. Idempotent — only fills when the new fields are absent.
+function _normalizeIAStaff() {
+  (SchedState.staff || []).forEach(s => {
+    if (s.role !== 'ia') return;
+    if (!Array.isArray(s.gradePreferences)) {
+      s.gradePreferences = s.gradeAssignment ? [s.gradeAssignment] : [];
+    }
+    if (s.ownLunch === undefined) s.ownLunch = null;
+  });
+}
+
 function loadFromLocal() {
   try {
     const raw = localStorage.getItem('cl_schedule_data');
@@ -320,6 +333,7 @@ function loadFromLocal() {
       }
     }
     if (data.staff) SchedState.staff = data.staff;
+    _normalizeIAStaff();
     if (data.blockTypes) {
       // Migrate old block types (no 'required' field) to new schema
       const hasNewSchema = data.blockTypes.some(bt => 'required' in bt);
@@ -505,6 +519,7 @@ function loadScheduleFromFile(file) {
         // Always apply shared fields
         if (data.school) Object.assign(SchedState.school, data.school);
         if (data.staff)  SchedState.staff = data.staff;
+        _normalizeIAStaff();
 
         // Apply SB-specific data only when the file actually has SB content
         if (!crossProduct) {

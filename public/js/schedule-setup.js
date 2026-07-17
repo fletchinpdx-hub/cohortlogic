@@ -1068,12 +1068,18 @@ function renderStaff() {
 
 function renderStaffRow(s) {
   const isSpecials = s.role === 'specials_teacher';
+  const isIA       = s.role === 'ia';
   const primaryLabel = s.gradeAssignment ? (GRADE_LABELS[s.gradeAssignment] || s.gradeAssignment) : '—';
   const splitLabel   = s.splitGrade      ? (GRADE_LABELS[s.splitGrade]      || s.splitGrade)      : null;
+  // IAs show their grade preferences (or "No preference"); teachers show primary/split.
+  const iaPrefLabel  = (s.gradePreferences || []).length
+    ? s.gradePreferences.map(g => GRADE_LABELS[g] || g).join(', ')
+    : 'No preference';
   const gradeDisplay = isSpecials
     ? '—'
+    : isIA ? iaPrefLabel
     : splitLabel ? `${primaryLabel} / ${splitLabel}` : primaryLabel;
-  const splitBadge   = !isSpecials && splitLabel ? ' <span class="split-badge">split</span>' : '';
+  const splitBadge   = !isSpecials && !isIA && splitLabel ? ' <span class="split-badge">split</span>' : '';
   const hoursDisplay = (s.startTime && s.endTime)
     ? `${fmtTime12(s.startTime)} – ${fmtTime12(s.endTime)}`
     : '—';
@@ -1140,6 +1146,12 @@ function showAddStaffForm(existingId) {
 
   const currentRole = existing?.role || 'classroom_teacher';
   const isSpecials  = currentRole === 'specials_teacher';
+  const isIA        = currentRole === 'ia';
+  // Primary/Split grade are teacher concepts — hide for specials AND IAs. IAs get
+  // Grade Preferences + own-lunch instead (shown only for role === 'ia').
+  const hideTeacherGrade = isSpecials || isIA;
+  const iaPrefs = existing?.gradePreferences || [];
+  const ol = existing?.ownLunch || {};
   const form = document.getElementById('add-staff-form');
   form.classList.remove('hidden');
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1157,7 +1169,7 @@ function showAddStaffForm(existingId) {
           ).join('')}
         </select>
       </div>
-      <div class="form-group sf-grade-field${isSpecials ? ' hidden' : ''}">
+      <div class="form-group sf-grade-field${hideTeacherGrade ? ' hidden' : ''}">
         <label class="form-label">
           <span class="field-tooltip">
             Primary Grade
@@ -1169,13 +1181,30 @@ function showAddStaffForm(existingId) {
           ${gradeOpts(existing?.gradeAssignment || '', true, 'Building-wide')}
         </select>
       </div>
-      <div class="form-group sf-split-field${isSpecials ? ' hidden' : ''}">
+      <div class="form-group sf-split-field${hideTeacherGrade ? ' hidden' : ''}">
         <label class="form-label">Splits with Grade <span class="form-hint-sm">(optional)</span></label>
         <select class="input" id="sf-split-grade">
           ${gradeOpts(existing?.splitGrade || '', true, '— No split —')}
         </select>
         <div class="split-grade-hint${existing?.splitGrade ? '' : ' hidden'}" id="sf-split-hint">
           This teacher splits time between two grades. Their lunch, recess, and specials will follow the <strong>Primary Grade</strong> above.
+        </div>
+      </div>
+      <div class="form-group sf-iapref-field${isIA ? '' : ' hidden'}" style="flex: 0 0 100%">
+        <label class="form-label">Grade Preferences <span class="form-hint-sm">grades this IA prefers — the scheduler honors them when it can, but may assign elsewhere</span></label>
+        <div class="grade-pref-chips" id="sf-iapref-chips">
+          ${grades.map(g => `<button type="button" class="grade-chip grade-chip-xs ${iaPrefs.includes(g) ? 'active' : ''}" data-grade="${g}">${gradeChipLabel(g)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group sf-ownlunch-field${isIA ? '' : ' hidden'}" style="flex: 0 0 100%">
+        <label class="form-label">Own Lunch <span class="form-hint-sm">reserve this IA's own break — leave minutes blank for none</span></label>
+        <div class="ownlunch-row">
+          <span class="ownlunch-cell"><span class="ownlunch-lbl">Minutes</span>
+            <input type="number" class="input" id="sf-lunch-dur" min="5" step="5" placeholder="—" value="${ol.duration || ''}" style="width:84px" /></span>
+          <span class="ownlunch-cell"><span class="ownlunch-lbl">Any time between</span>
+            <input type="time" class="input" id="sf-lunch-start" value="${ol.windowStart || ''}" /></span>
+          <span class="ownlunch-cell"><span class="ownlunch-lbl">and</span>
+            <input type="time" class="input" id="sf-lunch-end" value="${ol.windowEnd || ''}" /></span>
         </div>
       </div>
       <div class="form-group sf-hours-field">
@@ -1214,13 +1243,21 @@ function showAddStaffForm(existingId) {
     document.getElementById('sf-split-hint')?.classList.toggle('hidden', !this.value);
   });
 
+  form.querySelectorAll('#sf-iapref-chips .grade-chip-xs').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+
   document.getElementById('sf-role').addEventListener('change', function() {
-    const hideForSpecials = this.value === 'specials_teacher';
-    const isIA = this.value === 'ia';
+    const isSpecialsRole = this.value === 'specials_teacher';
+    const isIARole       = this.value === 'ia';
+    // Teacher grade fields: classroom teachers only (hidden for specials AND IAs).
     document.querySelectorAll('.sf-grade-field, .sf-split-field').forEach(el => {
-      el.classList.toggle('hidden', hideForSpecials);
+      el.classList.toggle('hidden', isSpecialsRole || isIARole);
     });
-    document.querySelector('.sf-color-field')?.classList.toggle('hidden', !isIA);
+    // IA-only fields: preferences, own lunch, color.
+    document.querySelectorAll('.sf-iapref-field, .sf-ownlunch-field, .sf-color-field').forEach(el => {
+      el.classList.toggle('hidden', !isIARole);
+    });
   });
 
   document.getElementById('sf-cancel-btn').addEventListener('click', () => {
@@ -1233,17 +1270,37 @@ function showAddStaffForm(existingId) {
     if (!name) { document.getElementById('sf-name').focus(); return; }
 
     const splitGrade = document.getElementById('sf-split-grade').value;
+    const roleVal    = document.getElementById('sf-role').value;
+    const savingIA   = roleVal === 'ia';
+
+    // IA grade preferences (active chips) and own-lunch (blank minutes = none).
+    const gradePreferences = savingIA
+      ? [...form.querySelectorAll('#sf-iapref-chips .grade-chip-xs.active')].map(c => c.dataset.grade)
+      : (existing?.gradePreferences || []);
+    const lunchDur = parseInt(document.getElementById('sf-lunch-dur')?.value, 10);
+    const startVal = document.getElementById('sf-start').value || defaultStart;
+    const endVal   = document.getElementById('sf-end').value   || defaultEnd;
+    const ownLunch = (savingIA && lunchDur >= 5)
+      ? {
+          duration:    lunchDur,
+          windowStart: document.getElementById('sf-lunch-start').value || startVal,
+          windowEnd:   document.getElementById('sf-lunch-end').value   || endVal,
+        }
+      : null;
+
     const member = {
       id:              existing?.id || uid(),
       name,
-      role:            document.getElementById('sf-role').value,
+      role:            roleVal,
       gradeAssignment: document.getElementById('sf-grade').value,
       splitGrade:      splitGrade || null,
-      startTime:       document.getElementById('sf-start').value || defaultStart,
-      endTime:         document.getElementById('sf-end').value   || defaultEnd,
-      color:           document.getElementById('sf-role').value === 'ia'
+      startTime:       startVal,
+      endTime:         endVal,
+      color:           savingIA
                        ? (document.querySelector('.color-dot.selected')?.dataset.color || nextStaffColor())
                        : (existing?.color || '#94a3b8'),
+      gradePreferences,
+      ownLunch,
     };
 
     if (existing) {
