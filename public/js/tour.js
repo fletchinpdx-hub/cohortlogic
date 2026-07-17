@@ -83,30 +83,30 @@
       '#cb-tour-overlay{position:fixed;inset:0;z-index:10000;pointer-events:none;font-family:"Nunito",system-ui,sans-serif}' +
       '#cb-tour-overlay.active{pointer-events:auto}' +
       // Dim layer (used for centered cards with no spotlight)
-      '#cb-tour-dim{position:fixed;inset:0;background:rgba(10,34,64,.55);opacity:0;transition:opacity .2s ease}' +
+      '#cb-tour-dim{position:fixed;inset:0;background:rgba(30,58,95,.55);opacity:0;transition:opacity .2s ease}' +
       '#cb-tour-dim.show{opacity:1}' +
       // Spotlight: box-shadow creates the dim + a cutout hole around the anchor
-      '#cb-tour-spot{position:fixed;border-radius:10px;box-shadow:0 0 0 9999px rgba(10,34,64,.62);' +
-      'outline:3px solid #0ea5e9;outline-offset:2px;transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none}' +
+      '#cb-tour-spot{position:fixed;border-radius:10px;box-shadow:0 0 0 9999px rgba(30,58,95,.62);' +
+      'outline:3px solid var(--teal, #2A9D8F);outline-offset:2px;transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none}' +
       '#cb-tour-spot.hidden{display:none}' +
       // Card
       '#cb-tour-card{position:fixed;width:340px;max-width:calc(100vw - 32px);background:#fff;border-radius:14px;' +
-      'box-shadow:0 18px 50px rgba(10,34,64,.35);padding:20px 20px 16px;box-sizing:border-box;' +
+      'box-shadow:0 18px 50px rgba(30,58,95,.35);padding:20px 20px 16px;box-sizing:border-box;' +
       'opacity:0;transform:translateY(6px);transition:opacity .2s ease,transform .2s ease}' +
       '#cb-tour-card.show{opacity:1;transform:translateY(0)}' +
       '#cb-tour-card .cb-tour-badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;' +
-      'text-transform:uppercase;color:#0ea5e9;margin-bottom:6px}' +
-      '#cb-tour-card h3{margin:0 0 8px;font-size:18px;font-weight:800;color:#0a2240;line-height:1.25}' +
+      'text-transform:uppercase;color:var(--teal, #2A9D8F);margin-bottom:6px}' +
+      '#cb-tour-card h3{margin:0 0 8px;font-size:18px;font-weight:800;color:var(--navy, #1E3A5F);line-height:1.25}' +
       '#cb-tour-card p{margin:0 0 16px;font-size:14px;line-height:1.5;color:#475569}' +
       '#cb-tour-card .cb-tour-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}' +
       '#cb-tour-dots{display:flex;gap:6px}' +
       '#cb-tour-dots span{width:7px;height:7px;border-radius:50%;background:#cbd5e1;transition:background .2s}' +
-      '#cb-tour-dots span.on{background:#0ea5e9}' +
+      '#cb-tour-dots span.on{background:var(--teal, #2A9D8F)}' +
       '#cb-tour-card .cb-tour-btns{display:flex;gap:8px;align-items:center}' +
       '.cb-tour-btn{font-family:inherit;font-weight:700;font-size:13px;border-radius:8px;padding:8px 14px;' +
       'cursor:pointer;border:1px solid transparent;transition:background .15s,border-color .15s}' +
-      '.cb-tour-btn-primary{background:#0ea5e9;color:#fff}' +
-      '.cb-tour-btn-primary:hover{background:#0284c7}' +
+      '.cb-tour-btn-primary{background:var(--teal, #2A9D8F);color:#fff}' +
+      '.cb-tour-btn-primary:hover{background:var(--teal-dark, #21867a)}' +
       '.cb-tour-btn-ghost{background:transparent;color:#64748b;border-color:#e2e8f0}' +
       '.cb-tour-btn-ghost:hover{background:#f1f5f9}' +
       '#cb-tour-skip{position:absolute;top:12px;right:12px;background:none;border:none;color:#94a3b8;' +

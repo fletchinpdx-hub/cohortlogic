@@ -419,7 +419,9 @@ public/
 ---
 
 ## Brand & tech
-- **Colors:** navy (#0a2240), teal (#0ea5e9 / --ci-teal: #2a9d8f), gold (#f59e0b)
+- **Colors:** navy `#1E3A5F`, teal `#2A9D8F`, gold `#E9B949`. Defined once as `--navy` / `--teal` / `--gold` in `css/styles.css` `:root`, and mirrored with identical values by `marketing.css` and by `checkin.css` (as `--ci-navy` / `--ci-teal` / `--ci-gold`). `schedule.css` defines no `:root` — Schedule Builder loads `styles.css` first and inherits it. So the whole site is one palette.
+  - **Use the variables, never a raw hex.** Older values — `#0a2240` (navy), `#0ea5e9` (teal), `#f59e0b` (gold) — still linger in `styles.css`/`schedule.css` as scattered one-offs and as `var(--navy, #0a2240)`-style fallbacks. Those are drift, not the brand; the fallback arm never fires in practice because `:root` always defines the real value.
+  - This entry itself used to list the old hexes, which is exactly how both intro tours (`js/tour.js`, `js/schedule-tour.js`) shipped off-brand — written from this table rather than from `:root`. Fixed 2026-07-16; both tours now reference `var(--teal, …)` / `var(--navy, …)` so they track the app instead of restating it.
 - **Font:** Nunito (Google Fonts)
 - **Logo:** height 30px, `align-items: flex-start` to prevent stretch
 - **No framework** — vanilla HTML/CSS/JS only
