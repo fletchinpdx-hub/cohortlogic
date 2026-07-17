@@ -1129,6 +1129,15 @@
 
 /* IA staff form: grade preferences + own-lunch */
 .grade-pref-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* IA Assignment — "Funded by" category chips (colored by the category, via --ac) */
+.alloc-chip {
+  padding: 3px 9px; border: 1.5px solid var(--gray-200); border-radius: 12px;
+  background: #fff; font-size: 11px; font-weight: 700; color: var(--gray-400);
+  cursor: pointer; transition: border-color .12s, background .12s, color .12s;
+}
+.alloc-chip:hover  { border-color: var(--ac, var(--blue)); color: var(--ac, var(--blue)); }
+.alloc-chip.active { border-color: var(--ac, var(--blue)); background: var(--ac, var(--blue)); color: #fff; }
 .ownlunch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .ownlunch-cell { display: inline-flex; align-items: center; gap: 6px; }
 .ownlunch-lbl { font-size: 12px; color: var(--gray-500); }

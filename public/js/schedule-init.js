@@ -5,6 +5,7 @@ const VIEW_RENDERERS = {
   school:          () => { navigateTo('school');          renderSchoolInfo(); },
   staff:           () => { navigateTo('staff');           renderStaff(); },
   blocks:          () => { navigateTo('blocks');          renderBlocks(); },
+  'ia-assign':     () => { navigateTo('ia-assign');       renderIAAssignmentView(); },
   master:          () => { navigateTo('master');          renderMasterSchedule(); },
   specials:        () => { navigateTo('specials');        renderSpecialsView(); },
   'specials-sched':() => { navigateTo('specials-sched'); renderSpecialsScheduleView(); },

@@ -219,7 +219,10 @@ This file.
   persist; a legacy file's IA gets its old grade seeded as a preference; teachers
   unchanged.
 
-### Phase 2 — IA Assignment tab (config UI, no engine) ☐
+### Phase 2 — IA Assignment tab (config UI, no engine) ☑
+(The IA Schedule tab's old budget bar still edits the same `iaAllocations` for now —
+retired in Phase 4 rather than touched twice. No data divergence: both write the
+same array.)
 - Nav item + view + renderer + lock rule (see Nav & wiring).
 - **Budget categories table:** name + hours/day + color, add/remove rows,
   **auto-save on input** (`saveToLocal` on change, no Save button). Migrate the

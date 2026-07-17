@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Building Schedule Builder — Cohort Logic</title>
-  <link rel="stylesheet" href="css/styles.css?v=173" />
-  <link rel="stylesheet" href="css/schedule.css?v=173" />
+  <link rel="stylesheet" href="css/styles.css?v=174" />
+  <link rel="stylesheet" href="css/schedule.css?v=174" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -32,6 +32,9 @@
         </a>
         <a class="nav-item" data-view="blocks">
           <span class="nav-icon">🟦</span> Block Types
+        </a>
+        <a class="nav-item nav-item-locked" data-view="ia-assign" id="nav-ia-assign">
+          <span class="nav-icon">🧑‍🏫</span> IA Assignment
         </a>
 
         <div class="nav-section-label">PHASE 1 — BUILD</div>
@@ -87,6 +90,7 @@
       <div id="view-school"  class="view active"></div>
       <div id="view-staff"   class="view"></div>
       <div id="view-blocks"  class="view"></div>
+      <div id="view-ia-assign" class="view"></div>
       <div id="view-master"        class="view view-full"></div>
       <div id="view-specials"      class="view"></div>
       <div id="view-specials-sched" class="view view-full"></div>
@@ -96,16 +100,16 @@
     </main>
   </div>
 
-  <script src="js/supabase-config.js?v=173"></script>
-  <script src="js/schedule-state.js?v=173"></script>
-  <script src="js/schedule-setup.js?v=173"></script>
-  <script src="js/schedule-grid.js?v=173"></script>
-  <script src="js/schedule-ia.js?v=173"></script>
-  <script src="js/schedule-specials-view.js?v=173"></script>
-  <script src="js/schedule-class-view.js?v=173"></script>
-  <script src="js/schedule-export.js?v=173"></script>
-  <script src="js/schedule-init.js?v=173"></script>
-  <script src="js/schedule-tour.js?v=173"></script>
-  <script src="js/feedback.js?v=173" data-product="Schedule Builder" data-key="schedule_builder"></script>
+  <script src="js/supabase-config.js?v=174"></script>
+  <script src="js/schedule-state.js?v=174"></script>
+  <script src="js/schedule-setup.js?v=174"></script>
+  <script src="js/schedule-grid.js?v=174"></script>
+  <script src="js/schedule-ia.js?v=174"></script>
+  <script src="js/schedule-specials-view.js?v=174"></script>
+  <script src="js/schedule-class-view.js?v=174"></script>
+  <script src="js/schedule-export.js?v=174"></script>
+  <script src="js/schedule-init.js?v=174"></script>
+  <script src="js/schedule-tour.js?v=174"></script>
+  <script src="js/feedback.js?v=174" data-product="Schedule Builder" data-key="schedule_builder"></script>
 </body>
 </html>

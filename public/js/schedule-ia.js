@@ -1695,3 +1695,205 @@ function wireIAViewEvents(container, ias) {
     );
   });
 }
+
+// ── IA Assignment tab (config: budget categories + coverage plan) ─────────────
+// Both tables AUTO-SAVE on every edit — no Save button. This tab is the config
+// surface the placement engine (Phase 3) reads. (Note: the IA Schedule tab's
+// budget bar still edits the same iaAllocations for now; it's retired in Phase 4.)
+
+// Blocks the coverage plan can target: required instructional blocks + their
+// sub-blocks + lunch/recess/morning-meeting. Specials and arrival/dismissal duty
+// are excluded (specials teachers cover specials; duties aren't grade blocks).
+function _coverableBlockOptions() {
+  const SKIP = new Set(['bt_spec', 'bt_arr', 'bt_dis']);
+  const out = [];
+  (SchedState.blockTypes || []).forEach(bt => {
+    if (SKIP.has(bt.id)) return;
+    if (bt.subBlocks && bt.subBlocks.length) {
+      out.push({ value: bt.id, blockId: bt.id, subId: null, label: bt.name + ' (whole)' });
+      bt.subBlocks.forEach(sb => out.push({
+        value: bt.id + '|' + sb.id, blockId: bt.id, subId: sb.id, label: bt.name + ' – ' + sb.name,
+      }));
+    } else {
+      out.push({ value: bt.id, blockId: bt.id, subId: null, label: bt.name });
+    }
+  });
+  return out;
+}
+
+function _nextAllocColor() {
+  const palette = ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#6366f1'];
+  const used = (SchedState.iaAllocations || []).map(a => a.color);
+  return palette.find(c => !used.includes(c)) || palette[(SchedState.iaAllocations || []).length % palette.length];
+}
+
+function _iaAllocRow(a) {
+  return `
+    <tr data-alloc-id="${a.id}">
+      <td><input type="text" class="input ia-alloc-name" value="${escHtml(a.name || '')}" placeholder="e.g. Title I" data-alloc-id="${a.id}"></td>
+      <td class="req-td-color">
+        <div class="req-color-swatch" style="background:${a.color || '#6366f1'}"></div>
+        <input type="color" class="req-color-input ia-alloc-color" value="${a.color || '#6366f1'}" data-alloc-id="${a.id}">
+      </td>
+      <td><input type="number" class="input ia-alloc-hpd" min="0" step="0.25" value="${a.hoursPerDay != null ? a.hoursPerDay : ''}" placeholder="0" data-alloc-id="${a.id}" style="width:90px"></td>
+      <td><button class="icon-btn ia-alloc-del" data-alloc-id="${a.id}" title="Remove">×</button></td>
+    </tr>`;
+}
+
+function _iaCoverageRow(r, blockOpts, allocs, grades) {
+  const curVal = r.subId ? `${r.blockId}|${r.subId}` : r.blockId;
+  return `
+    <tr data-cov-id="${r.id}">
+      <td>
+        <select class="input ia-cov-block" data-cov-id="${r.id}">
+          ${blockOpts.map(o => `<option value="${o.value}" ${o.value === curVal ? 'selected' : ''}>${escHtml(o.label)}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <div class="grade-pref-chips ia-cov-grades" data-cov-id="${r.id}">
+          ${grades.map(g => `<button type="button" class="grade-chip grade-chip-xs ${(r.grades || []).includes(g) ? 'active' : ''}" data-grade="${g}">${gradeChipLabel(g)}</button>`).join('')}
+        </div>
+      </td>
+      <td><input type="number" class="input ia-cov-count" min="1" step="1" value="${r.iasPerGrade || 1}" data-cov-id="${r.id}" style="width:70px"></td>
+      <td>
+        <div class="grade-pref-chips ia-cov-allocs" data-cov-id="${r.id}">
+          ${allocs.length
+            ? allocs.map(a => `<button type="button" class="alloc-chip ${(r.allowedAllocIds || []).includes(a.id) ? 'active' : ''}" data-alloc-id="${a.id}" style="--ac:${a.color || '#6366f1'}">${escHtml(a.name || '(unnamed)')}</button>`).join('')
+            : '<span class="text-muted" style="font-size:11px">Add categories above</span>'}
+        </div>
+      </td>
+      <td><button class="icon-btn ia-cov-del" data-cov-id="${r.id}" title="Remove">×</button></td>
+    </tr>`;
+}
+
+function renderIAAssignmentView() {
+  if (!SchedState.iaAllocations) SchedState.iaAllocations = [];
+  if (!SchedState.iaCoverage)    SchedState.iaCoverage    = [];
+  const allocs    = SchedState.iaAllocations;
+  const coverage  = SchedState.iaCoverage;
+  const grades    = gradesSorted();
+  const blockOpts = _coverableBlockOptions();
+
+  document.getElementById('view-ia-assign').innerHTML = `
+    <div class="view-header">
+      <h1>IA Assignment</h1>
+      <p class="view-subtitle">Set your budget categories, then plan which blocks need IA coverage. Everything here saves automatically.</p>
+    </div>
+
+    <div class="setup-form">
+      <div class="form-section">
+        <h2 class="form-section-title">Budget Categories</h2>
+        <p class="form-hint">Funding buckets and the IA hours per day each covers. The coverage plan below draws from these.</p>
+        <div class="req-table-wrap">
+          <table class="req-table">
+            <thead><tr>
+              <th class="req-th-block">Category</th>
+              <th class="req-th-color">Color</th>
+              <th class="req-th-band" style="width:130px">Hours / day</th>
+              <th class="req-th-actions" style="width:60px"></th>
+            </tr></thead>
+            <tbody id="ia-alloc-tbody">
+              ${allocs.length ? allocs.map(_iaAllocRow).join('') : '<tr><td colspan="4" class="text-muted" style="padding:12px">No categories yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-outline btn-sm mt-8" id="ia-add-alloc-row">+ Add category</button>
+      </div>
+
+      <div class="form-section">
+        <h2 class="form-section-title">Coverage Plan</h2>
+        <p class="form-hint">One row per block that needs an IA. Pick the block, the grades to cover, how many IAs each grade needs, and which budget categories may fund it.</p>
+        ${blockOpts.length ? '' : '<p class="text-muted">Add block types first — the coverage plan draws its blocks from the Block Types tab, plus lunch and recess.</p>'}
+        <div class="req-table-wrap">
+          <table class="req-table">
+            <thead><tr>
+              <th style="min-width:170px">Block</th>
+              <th style="min-width:150px">Grades covered</th>
+              <th style="width:110px">IAs / grade</th>
+              <th style="min-width:160px">Funded by</th>
+              <th style="width:60px"></th>
+            </tr></thead>
+            <tbody id="ia-coverage-tbody">
+              ${coverage.length
+                ? coverage.map(r => _iaCoverageRow(r, blockOpts, allocs, grades)).join('')
+                : '<tr><td colspan="5" class="text-muted" style="padding:12px">No coverage rows yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-outline btn-sm mt-8" id="ia-add-coverage-row"${blockOpts.length ? '' : ' disabled'}>+ Add block</button>
+      </div>
+    </div>
+
+    <div class="view-actions">
+      <button class="btn btn-outline" data-nav="blocks">← Back to Block Types</button>
+      <button class="btn btn-primary" data-nav="master">Continue to Master Schedule →</button>
+    </div>
+  `;
+
+  _wireIAAssignment();
+}
+
+function _wireIAAssignment() {
+  const findAlloc = id => (SchedState.iaAllocations || []).find(a => a.id === id);
+  const findCov   = id => (SchedState.iaCoverage || []).find(r => r.id === id);
+
+  // ── Budget categories ──
+  document.querySelectorAll('.ia-alloc-name').forEach(inp => {
+    inp.addEventListener('input',  () => { const a = findAlloc(inp.dataset.allocId); if (a) { a.name = inp.value; saveToLocal(); } });
+    // Re-render on blur so the coverage rows' "Funded by" chip labels update.
+    inp.addEventListener('change', () => renderIAAssignmentView());
+  });
+  document.querySelectorAll('.ia-alloc-hpd').forEach(inp => inp.addEventListener('input', () => {
+    const a = findAlloc(inp.dataset.allocId); if (a) { const v = parseFloat(inp.value); a.hoursPerDay = isNaN(v) ? 0 : v; saveToLocal(); }
+  }));
+  document.querySelectorAll('.ia-alloc-color').forEach(inp => {
+    inp.addEventListener('input',  () => { const sw = inp.closest('td')?.querySelector('.req-color-swatch'); if (sw) sw.style.background = inp.value; });
+    inp.addEventListener('change', () => { const a = findAlloc(inp.dataset.allocId); if (a) { a.color = inp.value; saveToLocal(); renderIAAssignmentView(); } });
+  });
+  document.querySelectorAll('.ia-alloc-del').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.allocId;
+    SchedState.iaAllocations = (SchedState.iaAllocations || []).filter(a => a.id !== id);
+    (SchedState.iaCoverage || []).forEach(r => { r.allowedAllocIds = (r.allowedAllocIds || []).filter(x => x !== id); });
+    saveToLocal(); renderIAAssignmentView();
+  }));
+  document.getElementById('ia-add-alloc-row')?.addEventListener('click', () => {
+    if (!SchedState.iaAllocations) SchedState.iaAllocations = [];
+    SchedState.iaAllocations.push({ id: 'ia_' + uid(), name: '', color: _nextAllocColor(), hoursPerDay: 0 });
+    saveToLocal(); renderIAAssignmentView();
+  });
+
+  // ── Coverage plan ──
+  document.querySelectorAll('.ia-cov-block').forEach(sel => sel.addEventListener('change', () => {
+    const r = findCov(sel.dataset.covId); if (!r) return;
+    const [bid, sid] = sel.value.split('|'); r.blockId = bid; r.subId = sid || null; saveToLocal();
+  }));
+  document.querySelectorAll('.ia-cov-count').forEach(inp => inp.addEventListener('input', () => {
+    const r = findCov(inp.dataset.covId); if (r) { const v = parseInt(inp.value, 10); r.iasPerGrade = (isNaN(v) || v < 1) ? 1 : v; saveToLocal(); }
+  }));
+  document.querySelectorAll('.ia-cov-grades .grade-chip-xs').forEach(chip => chip.addEventListener('click', () => {
+    const wrap = chip.closest('.ia-cov-grades'); const r = findCov(wrap.dataset.covId); if (!r) return;
+    chip.classList.toggle('active');
+    r.grades = [...wrap.querySelectorAll('.grade-chip-xs.active')].map(c => c.dataset.grade);
+    saveToLocal();
+  }));
+  document.querySelectorAll('.ia-cov-allocs .alloc-chip').forEach(chip => chip.addEventListener('click', () => {
+    const wrap = chip.closest('.ia-cov-allocs'); const r = findCov(wrap.dataset.covId); if (!r) return;
+    chip.classList.toggle('active');
+    r.allowedAllocIds = [...wrap.querySelectorAll('.alloc-chip.active')].map(c => c.dataset.allocId);
+    saveToLocal();
+  }));
+  document.querySelectorAll('.ia-cov-del').forEach(btn => btn.addEventListener('click', () => {
+    SchedState.iaCoverage = (SchedState.iaCoverage || []).filter(r => r.id !== btn.dataset.covId);
+    saveToLocal(); renderIAAssignmentView();
+  }));
+  document.getElementById('ia-add-coverage-row')?.addEventListener('click', () => {
+    const opts = _coverableBlockOptions(); if (!opts.length) return;
+    if (!SchedState.iaCoverage) SchedState.iaCoverage = [];
+    SchedState.iaCoverage.push({
+      id: uid(), blockId: opts[0].blockId, subId: opts[0].subId,
+      grades: [], iasPerGrade: 1,
+      allowedAllocIds: (SchedState.iaAllocations || []).map(a => a.id),  // default: all categories allowed
+    });
+    saveToLocal(); renderIAAssignmentView();
+  });
+}

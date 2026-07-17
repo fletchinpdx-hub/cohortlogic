@@ -95,6 +95,10 @@ const SchedState = {
     { id: 'ia_title', name: 'Title',              color: '#ec4899', hoursPerWeek: 0 },
   ],
 
+  // iaCoverage: [{ id, blockId, subId|null, grades[], iasPerGrade, allowedAllocIds[] }]
+  // The IA Assignment tab's coverage plan; drives the placement engine.
+  iaCoverage: [],
+
   // iaSchedule[day][iaId][slot] = { allocId, grade, activity } | undefined
   iaSchedule: {},
 
@@ -178,11 +182,12 @@ function updateSidebarStatus() {
     classSchedNav.classList.toggle('nav-item-locked', !hasMaster);
   }
 
+  const hasIAs = SchedState.staff.some(s => s.role === 'ia');
   const iaNav = document.getElementById('nav-ia') || document.querySelector('[data-view="ia"]');
-  if (iaNav) {
-    const hasIAs = SchedState.staff.some(s => s.role === 'ia');
-    iaNav.classList.toggle('nav-item-locked', !hasIAs);
-  }
+  if (iaNav) iaNav.classList.toggle('nav-item-locked', !hasIAs);
+
+  const iaAssignNav = document.getElementById('nav-ia-assign');
+  if (iaAssignNav) iaAssignNav.classList.toggle('nav-item-locked', !hasIAs);
 
   const exportNav = document.getElementById('nav-export') || document.querySelector('[data-view="export"]');
   if (exportNav) {
@@ -277,6 +282,7 @@ function saveToLocal() {
     conflicts:           SchedState.conflicts,
     specialsSchedule:    SchedState.specialsSchedule,
     iaAllocations:       SchedState.iaAllocations,
+    iaCoverage:          SchedState.iaCoverage,
     iaSchedule:          SchedState.iaSchedule,
     duties:              SchedState.duties,
     iaStalePurgeCount:   SchedState.iaStalePurgeCount || 0,
@@ -351,6 +357,8 @@ function loadFromLocal() {
     if (data.conflicts)        SchedState.conflicts        = data.conflicts;
     if (data.specialsSchedule) SchedState.specialsSchedule = data.specialsSchedule;
     if (data.iaAllocations)    SchedState.iaAllocations    = data.iaAllocations;
+    if (data.iaCoverage)       SchedState.iaCoverage       = data.iaCoverage;
+    if (!SchedState.iaCoverage) SchedState.iaCoverage      = [];
     if (data.iaSchedule)       SchedState.iaSchedule       = data.iaSchedule;
     if (data.duties)           SchedState.duties           = data.duties;
     if (data.iaStalePurgeCount) SchedState.iaStalePurgeCount = data.iaStalePurgeCount;
@@ -422,6 +430,7 @@ function _migrateToCohortLogic(raw) {
         conflicts:        raw.conflicts        || {},
         specialsSchedule: raw.specialsSchedule || {},
         iaAllocations:    raw.iaAllocations    || [],
+        iaCoverage:       raw.iaCoverage       || [],
         iaSchedule:       raw.iaSchedule       || {},
       },
       classes: null,
@@ -483,6 +492,7 @@ function downloadScheduleFile() {
       conflicts:        SchedState.conflicts,
       specialsSchedule: SchedState.specialsSchedule,
       iaAllocations:    SchedState.iaAllocations,
+      iaCoverage:       SchedState.iaCoverage,
       iaSchedule:       SchedState.iaSchedule,
       duties:           SchedState.duties,
     },
@@ -538,6 +548,7 @@ function loadScheduleFromFile(file) {
             if (data.schedule.conflicts)        SchedState.conflicts        = data.schedule.conflicts;
             if (data.schedule.specialsSchedule) SchedState.specialsSchedule = data.schedule.specialsSchedule;
             if (data.schedule.iaAllocations)    SchedState.iaAllocations    = data.schedule.iaAllocations;
+            if (data.schedule.iaCoverage)       SchedState.iaCoverage       = data.schedule.iaCoverage;
             if (data.schedule.iaSchedule)       SchedState.iaSchedule       = data.schedule.iaSchedule;
             if (data.schedule.duties)           SchedState.duties           = data.schedule.duties;
           }
@@ -556,6 +567,7 @@ function loadScheduleFromFile(file) {
         if (!SchedState.school.altDays)         SchedState.school.altDays         = [];
         if (!SchedState.school.district)        SchedState.school.district        = '';
         if (!SchedState.specialsSchedule)       SchedState.specialsSchedule       = {};
+        if (!SchedState.iaCoverage)             SchedState.iaCoverage             = [];
 
         saveToLocal();
         localStorage.setItem('cl_schedule_downloaded', '1');
