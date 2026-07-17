@@ -263,7 +263,16 @@ Schedule rework (partial edit, own-lunch styling, retire old category editor) = 
   are hard to eyeball, which is why it's tested with an assertion harness, not just a
   visual check.
 
-### Phase 4 — IA Schedule tab: edit incl. partial; remove master "Assign IAs" ☐
+### Phase 4 — IA Schedule tab: edit incl. partial; remove master "Assign IAs" ☑
+Done in two parts. 4a: removed the master-grid "Assign IAs" mode entirely (button,
+side panel, onPointerDown/switchDay branches, and ~320 lines of dead mode functions
+in schedule-ia.js — kept `_getIAPartialTime`; read-only IA indicator dots stay). The
+IA Schedule "go to master" buttons now navigate to the IA Assignment config. 4b:
+`openIAAssignmentEditor` gained an IA-reassign dropdown and a start/end "time within
+the block" selector (partial coverage), with a no-double-booking guard on save;
+own-lunch entries edit category/note only. Old inline category editor on the IA
+Schedule budget bar is now redundant (still edits the same data) — could be dropped
+in a later cleanup, but the authoritative editor is the IA Assignment tab.
 - **Remove** the Master Schedule "Assign IAs" mode (`toggleIAMasterMode`, the
   `#ia-mode-toggle-btn`, `openIABlockPanel` path). Check-refs will catch stragglers.
 - IA Schedule editor (`openIAAssignmentEditor`) gains **partial-time** editing:

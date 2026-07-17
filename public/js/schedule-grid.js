@@ -738,7 +738,6 @@ function renderMasterSchedule() {
             <button class="btn btn-outline btn-sm" id="undo-btn" title="Undo last change (⌘Z)" disabled>↩ Undo</button>
             <button class="btn btn-outline btn-sm" id="copy-day-btn">Copy day to…</button>
             <button class="btn btn-primary btn-sm" id="master-save-btn">Save</button>
-            <button class="btn btn-outline btn-sm" id="ia-mode-toggle-btn">Assign IAs</button>
           </div>
         </div>
 
@@ -789,15 +788,6 @@ function renderMasterSchedule() {
         </div>
       </div>
 
-      <div class="ia-block-panel ia-panel-hidden" id="ia-block-panel">
-        <div class="ia-panel-hdr">
-          <span class="ia-panel-hdr-title">IA Assignments</span>
-          <button class="ia-panel-close" id="ia-panel-close-btn" title="Exit IA mode">×</button>
-        </div>
-        <div class="ia-panel-body" id="ia-panel-body">
-          <p class="ia-panel-hint">Click any filled block in the schedule to assign an IA.</p>
-        </div>
-      </div>
     </div>
   `;
 
@@ -824,17 +814,9 @@ function renderMasterSchedule() {
   showConflictBanner();
   showSpecialsCoverageBanner();
   document.getElementById('copy-day-btn').addEventListener('click', showCopyDayMenu);
-
-  document.getElementById('ia-mode-toggle-btn').addEventListener('click', toggleIAMasterMode);
-  document.getElementById('ia-panel-close-btn').addEventListener('click', () => {
-    if (iaMasterState.active) toggleIAMasterMode();
-  });
-  // Restore IA panel if mode was already active (e.g. after day switch triggers re-render)
-  if (iaMasterState.active) {
-    document.getElementById('ia-block-panel').classList.remove('ia-panel-hidden');
-    const tb = document.getElementById('ia-mode-toggle-btn');
-    if (tb) { tb.textContent = '× Exit IA Mode'; tb.classList.add('btn-active-ia'); }
-  }
+  // IA assignment is no longer edited on the master grid — it's automatic (Place IAs
+  // on the IA Assignment tab) and adjusted on the IA Schedule tab. The master grid
+  // still shows read-only IA indicator dots via getIAsForBlock.
 }
 
 function buildTbodyHtml() {
@@ -1145,14 +1127,6 @@ function wireGridPointer() {
 }
 
 function onPointerDown(e) {
-  if (iaMasterState.active) {
-    const filled = e.target.closest('.grid-cell.filled');
-    if (!filled) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    openIABlockPanel(filled.dataset.grade, filled.dataset.time);
-    return;
-  }
 
   // Resize handle — drag the bottom edge of a block to extend or shrink it
   if (!gridUI.activeBtId) {
@@ -3288,12 +3262,6 @@ function switchDay(day) {
   document.querySelectorAll('.day-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.day === day));
   rebuildTbody();
-  if (iaMasterState.active) {
-    iaMasterState.grade = null; iaMasterState.startSlot = null;
-    document.querySelectorAll('.grid-cell.ia-selected').forEach(c => c.classList.remove('ia-selected'));
-    const pb = document.getElementById('ia-panel-body');
-    if (pb) pb.innerHTML = '<p class="ia-panel-hint">Click any filled block in the schedule to assign an IA.</p>';
-  }
 }
 
 // ── Copy day ──────────────────────────────────────────────────────────────────

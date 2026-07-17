@@ -1,10 +1,9 @@
 // ── IA Schedule feature ─────────────────────────────────────────────────────
 // Extracted from schedule-grid.js (monolith split, see docs/monolith-split-plan.md).
 // Loaded after schedule-grid.js — shares its global scope (classic scripts, no
-// build step). Core grid code (onPointerDown, switchDay, wireGridPointer, etc.)
-// still references iaMasterState/toggleIAMasterMode/openIABlockPanel defined
-// here; that's safe because those references only run at user-interaction time,
-// long after every script has loaded — never at load time.
+// build step). IA assignment is automatic (Place IAs on the IA Assignment tab);
+// this tab views + edits the result. The old master-grid "Assign IAs" mode was
+// removed in the IA rework.
 
 // ── IA Schedule ───────────────────────────────────────────────────────────────
 
@@ -19,14 +18,6 @@ const iaSchedUI = {
 const iaDrag = { active: false, allocId: null, targetType: null, targetId: null };
 
 // State for IA assignment mode in the master schedule
-const iaMasterState = {
-  active:    false,
-  grade:     null,   // grade key of selected block
-  btId:      null,   // block type id of selected block
-  startSlot: null,   // first 5-min slot of selected block
-  endSlot:   null,   // last 5-min slot of selected block
-};
-
 function getIAHoursUsed(allocId) {
   let count = 0;
   const ias = SchedState.iaSchedule || {};
@@ -189,7 +180,7 @@ function renderIAScheduleView() {
            <div class="ia-empty-icon">📋</div>
            <p>No assignments yet for this IA.</p>
            <p class="ia-empty-sub">Go to the Master Schedule, click <strong>Assign IAs</strong>, then click any block to assign this IA to it.</p>
-           <button class="btn btn-primary btn-sm ia-empty-go-btn" id="ia-empty-go-btn">← Go to Master Schedule</button>
+           <button class="btn btn-primary btn-sm ia-empty-go-btn" id="ia-empty-go-btn">Set up IA coverage →</button>
          </div>`;
     contentHtml = `
       <div class="ia-view-picker-row">
@@ -230,7 +221,7 @@ function renderIAScheduleView() {
           <p class="grid-subtitle">Click any assignment to edit or delete it. To add new assignments, go to the Master Schedule and click a block. Budget categories below track how IA time is spent — click one to edit it.</p>
         </div>
         <div class="ia-view-top-actions">
-          <button class="btn btn-primary btn-sm" id="ia-go-master-btn">← Assign in Master Schedule</button>
+          <button class="btn btn-primary btn-sm" id="ia-go-master-btn">Edit coverage plan →</button>
           <button class="btn btn-outline btn-sm" id="ia-summary-csv-btn">Download CSV</button>
           <button class="btn btn-outline btn-sm" id="ia-print-btn">Print</button>
         </div>
@@ -839,18 +830,30 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
 
   const run    = _iaAssignmentRun(day, iaId, slot);
   const ia     = (SchedState.staff || []).find(s => s.id === iaId);
+  const ias    = (SchedState.staff || []).filter(s => s.role === 'ia');
   const allocs = SchedState.iaAllocations || [];
   const target = _iaTargetLabel(entry);
   const grade  = entry.targetType === 'grade' ? entry.targetId : null;
+  const isOwnLunch = entry.targetType === 'own_lunch';
   const btId   = grade ? getBlock(day, grade, slot) : null;
   const btName = btId ? getBtName(btId) : '';
   const startSlot = run[0];
   const endMins   = timeToMins(run[run.length - 1]) + 5;
   const timeStr   = `${fmtTime12(startSlot)} – ${fmtTime12(minsToTime(endMins))} · ${endMins - timeToMins(startSlot)} min`;
 
+  // For a grade assignment, the run can be shortened to part of its underlying
+  // block. blockSlots = the full block that contains this assignment for the grade.
+  const blockSlots = grade ? getAllBlockSlots(day, grade, findBlockStart(day, grade, slot)) : run;
+  const blockEnds  = blockSlots.map(s => minsToTime(timeToMins(s) + 5));   // candidate END times
+
   const allocOpts = allocs.map(a =>
     `<option value="${escHtml(a.id)}"${a.id === entry.allocId ? ' selected' : ''}>${escHtml(a.name)}</option>`
   ).join('');
+  const iaOpts = ias.map(x =>
+    `<option value="${escHtml(x.id)}"${x.id === iaId ? ' selected' : ''}>${escHtml(x.name)}</option>`
+  ).join('');
+  const startOpts = blockSlots.map(s => `<option value="${s}"${s === startSlot ? ' selected' : ''}>${fmtTime12(s)}</option>`).join('');
+  const endOpts   = blockEnds.map(s => `<option value="${s}"${timeToMins(s) === endMins ? ' selected' : ''}>${fmtTime12(s)}</option>`).join('');
 
   const panel = document.createElement('div');
   panel.id = 'ia-assign-editor';
@@ -865,6 +868,19 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
         <div><strong>${escHtml(target || '(assignment)')}</strong>${btName ? ' · ' + escHtml(btName) : ''}</div>
         <div class="ia-editor-time">${escHtml(timeStr)}</div>
       </div>
+      ${isOwnLunch ? '' : `
+      <div class="override-field-row">
+        <label class="override-label">IA</label>
+        <select id="iae-ia" class="override-select">${iaOpts}</select>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Time within the block</label>
+        <div class="ia-editor-range">
+          <select id="iae-start" class="override-select">${startOpts}</select>
+          <span class="ia-editor-dash">–</span>
+          <select id="iae-end" class="override-select">${endOpts}</select>
+        </div>
+      </div>`}
       <div class="override-field-row">
         <label class="override-label">Budget category</label>
         <select id="iae-alloc" class="override-select">${allocOpts || '<option value="">(no categories)</option>'}</select>
@@ -886,25 +902,49 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
   let top  = rect.bottom + window.scrollY + 4;
   let left = rect.left   + window.scrollX;
   if (left + 300 > vw) left = Math.max(8, vw - 308);
-  if (rect.bottom + 240 > vh) top = rect.top + window.scrollY - 244;
+  if (rect.bottom + 300 > vh) top = Math.max(8, rect.top + window.scrollY - 304);
   panel.style.top  = top  + 'px';
   panel.style.left = left + 'px';
 
   const close = () => panel.remove();
   document.getElementById('iae-close').addEventListener('click', close);
   document.getElementById('iae-cancel').addEventListener('click', close);
+
   document.getElementById('iae-save').addEventListener('click', () => {
     const newAlloc = document.getElementById('iae-alloc').value;
     const newNote  = document.getElementById('iae-note').value.trim();
-    run.forEach(s => {
-      const e = map[s];
-      if (!e) return;
-      if (newAlloc) e.allocId = newAlloc;
-      if (newNote) e.note = newNote; else delete e.note;
-    });
+
+    // Own lunch: only category/note editable in place.
+    if (isOwnLunch) {
+      run.forEach(s => { const e = map[s]; if (!e) return; if (newAlloc) e.allocId = newAlloc; if (newNote) e.note = newNote; else delete e.note; });
+      saveToLocal(); renderIAScheduleView(); return;
+    }
+
+    const newIaId = document.getElementById('iae-ia').value;
+    const sStart  = document.getElementById('iae-start').value;
+    const sEnd    = document.getElementById('iae-end').value;
+    if (timeToMins(sEnd) <= timeToMins(sStart)) { alert('End time must be after start time.'); return; }
+    // target slots = block slots within [sStart, sEnd)
+    const targetSlots = blockSlots.filter(s => timeToMins(s) >= timeToMins(sStart) && timeToMins(s) < timeToMins(sEnd));
+
+    // Remove the OLD assignment first (so re-timing the same IA doesn't self-collide).
+    run.forEach(s => { delete map[s]; });
+
+    // No double-booking: the target IA must be free on the target slots.
+    const targetMap = ((SchedState.iaSchedule[day] = SchedState.iaSchedule[day] || {})[newIaId] = (SchedState.iaSchedule[day] || {})[newIaId] || {});
+    const clash = targetSlots.some(s => targetMap[s]);
+    if (clash) {
+      // put the old assignment back, then bail
+      run.forEach(s => { map[s] = { allocId: entry.allocId, targetType: 'grade', targetId: grade, note: entry.note || '' }; });
+      alert('That IA is already assigned somewhere during this time. Pick a different IA or time.');
+      return;
+    }
+    const finalNote = newNote || '';
+    targetSlots.forEach(s => { targetMap[s] = { allocId: newAlloc || entry.allocId || null, targetType: 'grade', targetId: grade, note: finalNote }; });
     saveToLocal();
     renderIAScheduleView();
   });
+
   document.getElementById('iae-delete').addEventListener('click', () => {
     if (!confirm('Delete this IA assignment? This removes it from the IA schedule.')) return;
     run.forEach(s => { delete map[s]; });
@@ -940,160 +980,6 @@ function getAllBlockSlots(day, grade, startSlot) {
 }
 
 // Toggle IA assignment mode on/off in the master schedule.
-function toggleIAMasterMode() {
-  iaMasterState.active = !iaMasterState.active;
-  const panel = document.getElementById('ia-block-panel');
-  const btn   = document.getElementById('ia-mode-toggle-btn');
-  if (!panel || !btn) return;
-  if (iaMasterState.active) {
-    panel.classList.remove('ia-panel-hidden');
-    btn.textContent = '× Exit IA Mode';
-    btn.classList.add('btn-active-ia');
-  } else {
-    panel.classList.add('ia-panel-hidden');
-    btn.textContent = 'Assign IAs';
-    btn.classList.remove('btn-active-ia');
-    iaMasterState.grade = null;
-    iaMasterState.startSlot = null;
-    iaMasterState.endSlot = null;
-    iaMasterState.btId = null;
-    document.querySelectorAll('.grid-cell.ia-selected').forEach(c => c.classList.remove('ia-selected'));
-    const body = document.getElementById('ia-panel-body');
-    if (body) body.innerHTML = '<p class="ia-panel-hint">Click any filled block in the schedule to assign an IA.</p>';
-  }
-}
-
-// Called when user clicks a filled block in IA mode — populates the right panel.
-function openIABlockPanel(grade, slot) {
-  const day   = gridUI.activeDay;
-  const btId  = getBlock(day, grade, slot);
-  if (!btId) return;
-  const startSlot = findBlockStart(day, grade, slot);
-  const slots     = getAllBlockSlots(day, grade, startSlot);
-  const endSlot   = slots[slots.length - 1];
-
-  // Highlight selected cells
-  document.querySelectorAll('.grid-cell.ia-selected').forEach(c => c.classList.remove('ia-selected'));
-  slots.forEach(s => {
-    const cell = document.querySelector(`#sched-tbody td[data-grade="${grade}"][data-time="${s}"]`);
-    if (cell) cell.classList.add('ia-selected');
-  });
-
-  iaMasterState.grade     = grade;
-  iaMasterState.btId      = btId;
-  iaMasterState.startSlot = startSlot;
-  iaMasterState.endSlot   = endSlot;
-
-  const panelBody = document.getElementById('ia-panel-body');
-  if (!panelBody) return;
-  panelBody.innerHTML = buildIABlockPanelHtml(day, grade, startSlot, endSlot, btId, slots);
-  wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots);
-}
-
-// Build the HTML for the IA assignment panel for a specific block.
-function buildIABlockPanelHtml(day, grade, startSlot, endSlot, btId, slots) {
-  const ias    = SchedState.staff.filter(s => s.role === 'ia');
-  const allocs = SchedState.iaAllocations || [];
-  const assignments = getIAsForBlock(day, grade, startSlot);
-
-  // Block header info
-  const btName = getBtName(btId);
-  const bt     = SchedState.blockTypes.find(b => b.id === btId || btId.startsWith(b.id + '|'));
-  const color  = bt?.color || getBtColor(btId) || '#6b7280';
-  const gradeLabel = GRADE_LABELS[grade] || grade;
-  const endMins    = timeToMins(endSlot) + 5;
-  const duration   = endMins - timeToMins(startSlot);
-  const timeStr    = `${fmtTime12(startSlot)} – ${fmtTime12(minsToTime(endMins))} · ${duration} min`;
-
-  // Current assignments chips
-  const assignChips = assignments.length
-    ? assignments.map(({ ia, alloc }) => {
-        const allocColor = alloc?.color || '#6b7280';
-        const partial    = _getIAPartialTime(day, ia.id, startSlot, slots);
-        const timeLabel  = partial
-          ? `${fmtTime12(partial.start)} – ${fmtTime12(partial.end)}`
-          : 'full block';
-        return `<div class="ia-assign-chip">
-          <span class="ia-assign-chip-dot" style="background:${allocColor}"></span>
-          <div class="ia-assign-chip-info">
-            <span class="ia-assign-chip-name">${escHtml(ia.name)}</span>
-            <span class="ia-assign-chip-meta">${escHtml(alloc?.name || '')} · ${timeLabel}</span>
-          </div>
-          <button class="ia-assign-chip-remove" data-remove-ia="${ia.id}">×</button>
-        </div>`;
-      }).join('')
-    : '<p class="ia-panel-no-assign">No IAs assigned yet.</p>';
-
-  // IA picker buttons
-  const iaPicker = ias.length
-    ? ias.map(ia => `<button class="ia-picker-btn" data-pick-ia="${ia.id}">${escHtml(ia.name)}</button>`).join('')
-    : '<p class="ia-panel-no-staff">No IAs on staff. Add IAs in Staff Roster.</p>';
-
-  // Budget category picker
-  const allocPicker = allocs.length
-    ? allocs.map(a =>
-        `<button class="ia-alloc-pick-btn" data-pick-alloc="${a.id}" style="border-color:${a.color}55;color:${a.color}">
-          <span class="ia-alloc-pick-dot" style="background:${a.color}"></span>${escHtml(a.name)}
-        </button>`).join('')
-    : '<p class="ia-panel-no-alloc">No budget categories yet. Add them in IA Schedules.</p>';
-
-  // Time selects for custom range
-  const startOpts = slots.map(s => `<option value="${s}">${fmtTime12(s)}</option>`).join('');
-  const endOpts   = slots.map((s, i) => {
-    const sel = i === slots.length - 1 ? ' selected' : '';
-    return `<option value="${s}"${sel}>${fmtTime12(minsToTime(timeToMins(s) + 5))}</option>`;
-  }).join('');
-
-  // Days of week — which days have the same block type at the same start time for this grade
-  const baseBtId  = btId.split('|')[0];
-  const DAY_SHORT = { Mon: 'M', Tue: 'T', Wed: 'W', Thu: 'Th', Fri: 'F' };
-  const availDays = DAYS.filter(d => {
-    const slotBt = ((SchedState.masterSchedule[d] || {})[grade] || {})[startSlot];
-    return slotBt && slotBt.split('|')[0] === baseBtId;
-  });
-  const dayChips = availDays.map(d =>
-    `<button class="ia-day-chip active${d === day ? ' ia-day-today' : ''}" data-day-chip="${d}">${DAY_SHORT[d] || d.slice(0,2)}</button>`
-  ).join('');
-
-  return `
-    <div class="ia-panel-block-hdr" style="border-left:3px solid ${color}">
-      <div class="ia-panel-block-name" style="color:${color}">${escHtml(btName)}</div>
-      <div class="ia-panel-block-grade">${escHtml(gradeLabel)}</div>
-      <div class="ia-panel-block-time">${escHtml(timeStr)}</div>
-    </div>
-
-    <div class="ia-panel-section-lbl">Assigned IAs</div>
-    <div class="ia-assign-chips" id="ia-assign-chips">${assignChips}</div>
-
-    <div class="ia-panel-section-lbl">Add IA</div>
-    <div class="ia-panel-add-form">
-      <div class="ia-panel-field-lbl">Instructional Assistant</div>
-      <div class="ia-picker-btns" id="ia-picker-btns">${iaPicker}</div>
-
-      <div class="ia-panel-field-lbl">Budget Category</div>
-      <div class="ia-alloc-pick-btns" id="ia-alloc-pick-btns">${allocPicker}</div>
-
-      <div class="ia-panel-field-lbl">Time in Block</div>
-      <div class="ia-time-mode-row">
-        <label class="ia-time-radio-lbl"><input type="radio" name="ia-time-mode" value="full" checked> Full block</label>
-        <label class="ia-time-radio-lbl"><input type="radio" name="ia-time-mode" value="custom"> Custom</label>
-      </div>
-      <div class="ia-custom-time-row ia-custom-hidden" id="ia-custom-time-row">
-        <select id="ia-custom-start" class="ia-time-select">${startOpts}</select>
-        <span class="ia-time-to">to</span>
-        <select id="ia-custom-end" class="ia-time-select">${endOpts}</select>
-      </div>
-
-      <div class="ia-panel-field-lbl">Days</div>
-      <div class="ia-day-chips-row" id="ia-day-chips-row">${dayChips}</div>
-
-      <div class="ia-panel-field-lbl">Note <span class="ia-optional-lbl">(optional)</span></div>
-      <textarea class="ia-assign-note-input" id="ia-assign-note" rows="2" placeholder="e.g. Push-in support, reading group"></textarea>
-
-      <button class="btn btn-primary btn-sm ia-confirm-btn" id="ia-confirm-assign-btn" disabled>Assign</button>
-    </div>`;
-}
-
 // Returns partial time info if an IA is assigned to only part of the block, else null.
 function _getIAPartialTime(day, iaId, startSlot, slots) {
   const iaSlots = ((SchedState.iaSchedule[day] || {})[iaId] || {});
@@ -1106,164 +992,6 @@ function _getIAPartialTime(day, iaId, startSlot, slots) {
   if (first === slots[0] && last === slots[slots.length - 1]) return null;
   return { start: first, end: minsToTime(timeToMins(last) + 5) };
 }
-
-// Wire events for the IA block assignment panel.
-function wireIABlockPanel(day, grade, startSlot, endSlot, btId, slots) {
-  const selectedIAIds = new Set();
-  let selectedAllocId = null;
-  const confirmBtn    = document.getElementById('ia-confirm-assign-btn');
-
-  // Pre-fill from existing assignments on this block
-  const preExisting = getIAsForBlock(day, grade, startSlot);
-  if (preExisting.length) {
-    preExisting.forEach(({ ia, alloc }) => {
-      selectedIAIds.add(ia.id);
-      if (!selectedAllocId && alloc) selectedAllocId = alloc.id;
-    });
-  }
-
-  function updateConfirm() {
-    if (confirmBtn) confirmBtn.disabled = !(selectedIAIds.size > 0 && selectedAllocId);
-  }
-
-  // IA picker — multi-select toggle
-  document.querySelectorAll('[data-pick-ia]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.pickIa;
-      if (selectedIAIds.has(id)) selectedIAIds.delete(id);
-      else selectedIAIds.add(id);
-      btn.classList.toggle('active', selectedIAIds.has(id));
-      updateConfirm();
-    });
-  });
-
-  // Budget picker
-  document.querySelectorAll('[data-pick-alloc]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      selectedAllocId = btn.dataset.pickAlloc;
-      document.querySelectorAll('[data-pick-alloc]').forEach(b =>
-        b.classList.toggle('active', b.dataset.pickAlloc === selectedAllocId));
-      updateConfirm();
-    });
-  });
-
-  // Reflect pre-existing selections in UI
-  if (preExisting.length) {
-    selectedIAIds.forEach(id => {
-      document.querySelector(`[data-pick-ia="${id}"]`)?.classList.add('active');
-    });
-    if (selectedAllocId) {
-      document.querySelectorAll('[data-pick-alloc]').forEach(b =>
-        b.classList.toggle('active', b.dataset.pickAlloc === selectedAllocId));
-    }
-    const note = preExisting[0]?.entry?.note || '';
-    const noteEl = document.getElementById('ia-assign-note');
-    if (noteEl && note) noteEl.value = note;
-    updateConfirm();
-  }
-
-  // Time mode toggle
-  document.querySelectorAll('input[name="ia-time-mode"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      const customRow = document.getElementById('ia-custom-time-row');
-      if (customRow) customRow.classList.toggle('ia-custom-hidden', radio.value !== 'custom');
-    });
-  });
-
-  // Day chips — track selection, all pre-selected
-  const baseBtId    = btId.split('|')[0];
-  const selectedDays = new Set(
-    DAYS.filter(d => {
-      const slotBt = ((SchedState.masterSchedule[d] || {})[grade] || {})[startSlot];
-      return slotBt && slotBt.split('|')[0] === baseBtId;
-    })
-  );
-  document.querySelectorAll('[data-day-chip]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const d = btn.dataset.dayChip;
-      if (selectedDays.has(d)) selectedDays.delete(d);
-      else selectedDays.add(d);
-      btn.classList.toggle('active', selectedDays.has(d));
-    });
-  });
-
-  // Remove assignment
-  document.querySelectorAll('[data-remove-ia]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      removeBlockIAAssignment(day, btn.dataset.removeIa, grade, slots);
-      openIABlockPanel(grade, startSlot);
-    });
-  });
-
-  // Confirm assignment
-  if (confirmBtn) {
-    confirmBtn.addEventListener('click', () => {
-      if (!selectedIAIds.size || !selectedAllocId) return;
-      const timeMode = document.querySelector('input[name="ia-time-mode"]:checked')?.value;
-      const cs   = document.getElementById('ia-custom-start')?.value;
-      const ce   = document.getElementById('ia-custom-end')?.value;
-      const note = document.getElementById('ia-assign-note')?.value.trim() || '';
-
-      Array.from(selectedIAIds).forEach(iaId => {
-        Array.from(selectedDays).forEach(assignDay => {
-          const daySlots = getAllBlockSlots(assignDay, grade, startSlot);
-          if (!daySlots.length) return;
-          let assignSlots = daySlots;
-          if (timeMode === 'custom' && cs && ce) {
-            const si = daySlots.indexOf(cs), ei = daySlots.indexOf(ce);
-            if (si >= 0 && ei >= si) assignSlots = daySlots.slice(si, ei + 1);
-          }
-          commitIAAssignment(assignDay, grade, iaId, selectedAllocId, assignSlots, note);
-        });
-      });
-
-      openIABlockPanel(grade, startSlot);
-    });
-  }
-}
-
-// Write IA assignment to state and refresh the cell indicator.
-function commitIAAssignment(day, grade, iaId, allocId, assignSlots, note) {
-  if (!SchedState.iaSchedule[day])       SchedState.iaSchedule[day] = {};
-  if (!SchedState.iaSchedule[day][iaId]) SchedState.iaSchedule[day][iaId] = {};
-  assignSlots.forEach(slot => {
-    SchedState.iaSchedule[day][iaId][slot] = { allocId, targetType: 'grade', targetId: grade, note: note || '' };
-  });
-  refreshIAIndicator(day, grade, iaMasterState.startSlot);
-  saveToLocal();
-}
-
-// Remove an IA's grade-level assignment from a block's slots.
-function removeBlockIAAssignment(day, iaId, grade, blockSlots) {
-  if (!SchedState.iaSchedule[day]?.[iaId]) return;
-  blockSlots.forEach(slot => {
-    const e = SchedState.iaSchedule[day][iaId][slot];
-    if (e && e.targetType === 'grade' && e.targetId === grade) {
-      delete SchedState.iaSchedule[day][iaId][slot];
-    }
-  });
-  refreshIAIndicator(day, grade, iaMasterState.startSlot);
-  saveToLocal();
-}
-
-// Update the IA indicator dots on a block's start cell in the DOM.
-function refreshIAIndicator(day, grade, startSlot) {
-  if (!startSlot || !grade) return;
-  const cell = document.querySelector(`#sched-tbody td[data-grade="${grade}"][data-time="${startSlot}"]`);
-  if (!cell) return;
-  cell.querySelector('.ia-block-ind')?.remove();
-  const assignments = getIAsForBlock(day, grade, startSlot);
-  if (assignments.length) {
-    const ind = document.createElement('span');
-    ind.className = 'ia-block-ind';
-    ind.innerHTML = assignments.map(({ ia, alloc }) =>
-      `<span class="ia-ind-dot" style="background:${alloc?.color || '#6b7280'}" title="${escHtml(ia.name + (alloc ? ' · ' + alloc.name : ''))}"></span>`
-    ).join('');
-    cell.appendChild(ind);
-  }
-}
-
-// ── Individual IA week-view grid ──────────────────────────────────────────────
 
 function buildIndividualIAGrid(iaId) {
   const allSlotSet = new Set();
@@ -1663,14 +1391,10 @@ function wireIAViewEvents(container, ias) {
     });
   });
 
-  // Navigate to master schedule and activate IA mode
-  function goToMasterWithIA() {
-    navigateTo('master');
-    renderMasterSchedule();
-    if (!iaMasterState.active) toggleIAMasterMode();
-  }
-  document.getElementById('ia-go-master-btn')?.addEventListener('click', goToMasterWithIA);
-  document.getElementById('ia-empty-go-btn')?.addEventListener('click', goToMasterWithIA);
+  // Coverage is configured on the IA Assignment tab now (not the master grid).
+  function goToIAConfig() { navigateTo('ia-assign'); renderIAAssignmentView(); }
+  document.getElementById('ia-go-master-btn')?.addEventListener('click', goToIAConfig);
+  document.getElementById('ia-empty-go-btn')?.addEventListener('click', goToIAConfig);
 
   // Back / forward buttons
   document.getElementById('ia-back-btn')?.addEventListener('click', () => {
