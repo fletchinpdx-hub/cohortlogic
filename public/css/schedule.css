@@ -1157,6 +1157,14 @@
 .ia-issues-sec ul { margin: 0; padding-left: 18px; }
 .ia-issues-sec li { font-size: 12.5px; line-height: 1.55; color: #78350f; margin-bottom: 3px; }
 
+/* Open (empty) IA-schedule cells are clickable to add an assignment */
+.ia-cell.empty, .ia-ind-cell.empty { cursor: pointer; position: relative; }
+.ia-cell.empty:hover, .ia-ind-cell.empty:hover { background: var(--gray-50); box-shadow: inset 0 0 0 1px var(--gray-200); }
+.ia-cell.empty:hover::after, .ia-ind-cell.empty:hover::after {
+  content: '+'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--gray-400); font-size: 12px; font-weight: 700; pointer-events: none;
+}
+
 /* IA assignment editor — partial-time range row */
 .ia-editor-range { display: flex; align-items: center; gap: 8px; }
 .ia-editor-range .override-select { flex: 1; }
