@@ -1635,10 +1635,15 @@ function _iaAllocRow(a) {
     </tr>`;
 }
 
-function _iaCoverageRow(r, blockOpts, allocs, grades) {
+function _iaCoverageRow(r, blockOpts, allocs, grades, idx, total) {
   const curVal = r.subId ? `${r.blockId}|${r.subId}` : r.blockId;
   return `
     <tr data-cov-id="${r.id}">
+      <td class="ia-cov-priority">
+        <span class="ia-cov-rank">${idx + 1}</span>
+        <button class="icon-btn ia-cov-up" data-cov-id="${r.id}" title="Move up"${idx === 0 ? ' disabled' : ''}>↑</button>
+        <button class="icon-btn ia-cov-down" data-cov-id="${r.id}" title="Move down"${idx === total - 1 ? ' disabled' : ''}>↓</button>
+      </td>
       <td>
         <select class="input ia-cov-block" data-cov-id="${r.id}">
           ${blockOpts.map(o => `<option value="${o.value}" ${o.value === curVal ? 'selected' : ''}>${escHtml(o.label)}</option>`).join('')}
@@ -1697,11 +1702,12 @@ function renderIAAssignmentView() {
 
       <div class="form-section">
         <h2 class="form-section-title">Coverage Plan</h2>
-        <p class="form-hint">One row per block that needs an IA. Pick the block, the grades to cover, how many IAs each grade needs, and which budget categories may fund it.</p>
+        <p class="form-hint">One row per block that needs an IA. Pick the block, the grades to cover, how many IAs each grade needs, and which budget categories may fund it. <strong>IAs are staffed top-to-bottom — the higher a row, the earlier it gets IAs.</strong> Use the ↑ ↓ arrows to set priority.</p>
         ${blockOpts.length ? '' : '<p class="text-muted">Add block types first — the coverage plan draws its blocks from the Block Types tab, plus lunch and recess.</p>'}
         <div class="req-table-wrap">
           <table class="req-table">
             <thead><tr>
+              <th style="width:64px">Priority</th>
               <th style="min-width:170px">Block</th>
               <th style="min-width:150px">Grades covered</th>
               <th style="width:110px">IAs / grade</th>
@@ -1710,8 +1716,8 @@ function renderIAAssignmentView() {
             </tr></thead>
             <tbody id="ia-coverage-tbody">
               ${coverage.length
-                ? coverage.map(r => _iaCoverageRow(r, blockOpts, allocs, grades)).join('')
-                : '<tr><td colspan="5" class="text-muted" style="padding:12px">No coverage rows yet.</td></tr>'}
+                ? coverage.map((r, i) => _iaCoverageRow(r, blockOpts, allocs, grades, i, coverage.length)).join('')
+                : '<tr><td colspan="6" class="text-muted" style="padding:12px">No coverage rows yet.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1807,6 +1813,17 @@ function _wireIAAssignment() {
     SchedState.iaCoverage = (SchedState.iaCoverage || []).filter(r => r.id !== btn.dataset.covId);
     saveToLocal(); renderIAAssignmentView();
   }));
+  // Reorder rows — the list order IS the coverage fill priority (top = staffed first).
+  const moveCov = (covId, dir) => {
+    const list = SchedState.iaCoverage || [];
+    const i = list.findIndex(r => r.id === covId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    saveToLocal(); renderIAAssignmentView();
+  };
+  document.querySelectorAll('.ia-cov-up').forEach(btn => btn.addEventListener('click', () => moveCov(btn.dataset.covId, -1)));
+  document.querySelectorAll('.ia-cov-down').forEach(btn => btn.addEventListener('click', () => moveCov(btn.dataset.covId, 1)));
   document.getElementById('ia-add-coverage-row')?.addEventListener('click', () => {
     const opts = _coverableBlockOptions(); if (!opts.length) return;
     if (!SchedState.iaCoverage) SchedState.iaCoverage = [];
@@ -1927,8 +1944,8 @@ function placeIAs() {
     });
   }
 
-  // Own lunch inside its window, AFTER kid-lunch coverage so a lunch-covering IA
-  // takes their own break around it. Spread across IAs via reservePersonalTime.
+  // Own lunch inside its window — reserved BEFORE coverage so IAs always get a lunch,
+  // but demand-aware (reservePersonalTime) so it dodges the busiest coverage times.
   function reserveOwnLunches() {
     ias.forEach(ia => {
       const ol = ia.ownLunch;
@@ -1967,32 +1984,29 @@ function placeIAs() {
   }
 
   // ── Weekly requirements (one per coverage-row × grade with ≥1 occurrence) ──
+  // rowIndex = the row's position in the coverage plan; it is the PRIMARY priority
+  // (the user orders the list). Within a row, hardest-to-staff grade goes first.
   const reqs = [];
-  (SchedState.iaCoverage || []).forEach(row => {
+  (SchedState.iaCoverage || []).forEach((row, rowIndex) => {
     (row.grades || []).forEach(grade => {
       const occ = [];
       DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => occ.push({ day, run })));
       if (!occ.length) return;
       reqs.push({
-        blockId: row.blockId, subId: row.subId || null, grade,
+        rowIndex, blockId: row.blockId, subId: row.subId || null, grade,
         need: Math.max(1, row.iasPerGrade || 1),
         allowedAllocIds: row.allowedAllocIds || [],
         isDuty: IA_DUTY_BLOCKS.has(row.blockId), occ,
       });
     });
   });
-
-  // hardest-first ordering (fewest hours-eligible IAs), deterministic tiebreaks
-  const sortReqs = list => {
-    list.forEach(r => {
-      r._elig = ias.filter(ia => r.occ.some(o => _iaInHours(ia, o.run))).length;
-      r._first = Math.min.apply(null, r.occ.map(o => timeToMins(o.run[0])));
-    });
-    list.sort((a, b) => a._elig - b._elig || a._first - b._first
-      || String(a.grade).localeCompare(String(b.grade))
-      || String(a.blockId + (a.subId || '')).localeCompare(String(b.blockId + (b.subId || ''))));
-    return list;
-  };
+  // Order: coverage-list position (user priority) first, then hardest-first within a row.
+  reqs.forEach(r => {
+    r._elig  = ias.filter(ia => r.occ.some(o => _iaInHours(ia, o.run))).length;
+    r._first = Math.min.apply(null, r.occ.map(o => timeToMins(o.run[0])));
+  });
+  reqs.sort((a, b) => a.rowIndex - b.rowIndex || a._elig - b._elig || a._first - b._first
+    || String(a.grade).localeCompare(String(b.grade)));
 
   const rankKey = (ia, req) => [
     (ia.gradePreferences || []).includes(req.grade) ? 0 : 1,
@@ -2051,16 +2065,13 @@ function placeIAs() {
   };
 
   // ── Priority order (user-specified) ──
-  // 1. Kids' lunches take top priority for IA staffing.
-  const lunchReqs = reqs.filter(r => r.blockId === 'bt_lunch');
-  const otherReqs = reqs.filter(r => r.blockId !== 'bt_lunch');
-  sortReqs(lunchReqs).forEach(placeReq);
-  // 2. Then the IAs get their own lunches, fitted around the lunch coverage above.
+  // IAs get their own lunch + break first (demand-aware, so they dodge the busiest
+  // coverage times), then ALL coverage is filled in the coverage-plan's ROW ORDER —
+  // the list is the single knob for coverage priority (put a row higher to staff it
+  // sooner). No block type is special-cased any more.
   reserveOwnLunches();
-  // 3. Then their breaks.
   reserveBreaks();
-  // 4. Then everything else (recess, instruction, …).
-  sortReqs(otherReqs).forEach(placeReq);
+  reqs.forEach(placeReq);
 
   // ── Over-budget warnings (soft; only when a budget is actually set) ──
   allocs.forEach(a => {

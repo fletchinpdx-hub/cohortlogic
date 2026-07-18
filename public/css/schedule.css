@@ -1157,6 +1157,12 @@
 .ia-issues-sec ul { margin: 0; padding-left: 18px; }
 .ia-issues-sec li { font-size: 12.5px; line-height: 1.55; color: #78350f; margin-bottom: 3px; }
 
+/* IA coverage plan — priority (reorder) cell */
+.ia-cov-priority { white-space: nowrap; text-align: center; }
+.ia-cov-rank { display: inline-block; min-width: 16px; font-weight: 700; color: var(--gray-500); font-size: 12px; margin-right: 2px; }
+.ia-cov-up, .ia-cov-down { padding: 1px 4px; font-size: 12px; line-height: 1; }
+.ia-cov-up[disabled], .ia-cov-down[disabled] { opacity: .3; cursor: default; }
+
 /* Open (empty) IA-schedule cells are clickable to add an assignment */
 .ia-cell.empty, .ia-ind-cell.empty { cursor: pointer; position: relative; }
 .ia-cell.empty:hover, .ia-ind-cell.empty:hover { background: var(--gray-50); box-shadow: inset 0 0 0 1px var(--gray-200); }
