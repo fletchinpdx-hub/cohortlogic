@@ -1035,6 +1035,30 @@ function _computeSchoolInfoWarnings(s) {
 
 
 // ── Step 2: Staff Roster ─────────────────────────────────────────────────────
+// Undo stack for the Staff Roster — a snapshot of SchedState.staff is pushed before
+// each add / edit / remove, so the Undo button can walk changes back. Session-only.
+let _staffUndoStack = [];
+function _pushStaffUndo() {
+  _staffUndoStack.push(JSON.stringify(SchedState.staff));
+  if (_staffUndoStack.length > 25) _staffUndoStack.shift();
+}
+function _refreshStaffUndoBtn() {
+  const btn = document.getElementById('staff-undo-btn');
+  if (btn) btn.disabled = _staffUndoStack.length === 0;
+}
+function _undoStaff() {
+  if (!_staffUndoStack.length) return;
+  SchedState.staff = JSON.parse(_staffUndoStack.pop());
+  saveToLocal();
+  const wrap = document.getElementById('staff-table-wrap');
+  if (wrap) wrap.innerHTML = renderStaffTable();
+  const cnt = document.getElementById('staff-count-label');
+  if (cnt) cnt.textContent = `${SchedState.staff.length} added`;
+  updateSidebarStatus();   // IA-dependent nav locks track the roster
+  wireStaffTable();
+  _refreshStaffUndoBtn();
+}
+
 function renderStaff() {
   document.getElementById('view-staff').innerHTML = `
     <div class="view-header">
@@ -1044,6 +1068,7 @@ function renderStaff() {
 
     <div class="staff-toolbar">
       <button class="btn btn-primary" id="add-staff-btn">+ Add Staff Member</button>
+      <button class="btn btn-outline btn-sm" id="staff-undo-btn" title="Undo the last roster change">↩ Undo</button>
       <span class="text-muted" id="staff-count-label">${SchedState.staff.length} added</span>
     </div>
 
@@ -1061,9 +1086,11 @@ function renderStaff() {
   `;
 
   document.getElementById('add-staff-btn').addEventListener('click', () => showAddStaffForm());
+  document.getElementById('staff-undo-btn').addEventListener('click', _undoStaff);
   document.getElementById('staff-back-btn').addEventListener('click', () => { navigateTo('school'); renderSchoolInfo(); });
   document.getElementById('staff-next-btn').addEventListener('click', saveStaffAndContinue);
   wireStaffTable();
+  _refreshStaffUndoBtn();
 }
 
 function renderStaffRow(s) {
@@ -1309,6 +1336,7 @@ function showAddStaffForm(existingId) {
       ownLunch,
     };
 
+    _pushStaffUndo();
     if (existing) {
       const idx = SchedState.staff.findIndex(s => s.id === existingId);
       SchedState.staff[idx] = member;
@@ -1321,6 +1349,8 @@ function showAddStaffForm(existingId) {
     document.getElementById('staff-table-wrap').innerHTML = renderStaffTable();
     document.getElementById('staff-count-label').textContent = `${SchedState.staff.length} added`;
     wireStaffTable();
+    _refreshStaffUndoBtn();
+    updateSidebarStatus();
     saveToLocal();
   });
 }
@@ -1328,10 +1358,13 @@ function showAddStaffForm(existingId) {
 function wireStaffTable() {
   document.querySelectorAll('.remove-staff-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      _pushStaffUndo();
       SchedState.staff = SchedState.staff.filter(s => s.id !== btn.dataset.id);
       document.getElementById('staff-table-wrap').innerHTML = renderStaffTable();
       document.getElementById('staff-count-label').textContent = `${SchedState.staff.length} added`;
       wireStaffTable();
+      _refreshStaffUndoBtn();
+      updateSidebarStatus();
       saveToLocal();
     });
   });
