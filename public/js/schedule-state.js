@@ -308,6 +308,8 @@ function _normalizeIAStaff() {
       s.gradePreferences = s.gradeAssignment ? [s.gradeAssignment] : [];
     }
     if (s.ownLunch === undefined) s.ownLunch = null;
+    // Breaks default: 1 × 15 min per IA. Older files predate this — seed the default.
+    if (s.breaks === undefined) s.breaks = { count: 1, duration: 15 };
   });
 }
 

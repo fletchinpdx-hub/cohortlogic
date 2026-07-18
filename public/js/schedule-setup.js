@@ -1179,6 +1179,7 @@ function showAddStaffForm(existingId) {
   const hideTeacherGrade = isSpecials || isIA;
   const iaPrefs = existing?.gradePreferences || [];
   const ol = existing?.ownLunch || {};
+  const br = existing?.breaks || {};   // { count, duration } — default 1 × 15 min
   const form = document.getElementById('add-staff-form');
   form.classList.remove('hidden');
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1237,6 +1238,13 @@ function showAddStaffForm(existingId) {
               <option value="">Not charged</option>
               ${(SchedState.iaAllocations || []).map(a => `<option value="${a.id}" ${ol.allocId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')}
             </select></span>
+        </div>
+        <div class="ownlunch-row" style="margin-top:8px">
+          <span class="ownlunch-cell"><span class="ownlunch-lbl">Breaks</span>
+            <input type="number" class="input" id="sf-break-count" min="0" max="6" step="1" value="${br.count != null ? br.count : 1}" style="width:64px" /></span>
+          <span class="ownlunch-cell"><span class="ownlunch-lbl">of</span>
+            <input type="number" class="input" id="sf-break-dur" min="5" step="5" value="${br.duration || 15}" style="width:72px" /><span class="ownlunch-lbl">min per day</span></span>
+          <span class="ownlunch-cell"><span class="ownlunch-lbl" style="color:var(--gray-400)">never in the first or last hour</span></span>
         </div>
       </div>
       <div class="form-group sf-hours-field">
@@ -1320,6 +1328,13 @@ function showAddStaffForm(existingId) {
           allocId:     document.getElementById('sf-lunch-alloc').value || null,
         }
       : null;
+    // Breaks: default 1 × 15 min; count 0 = no breaks. Never in the first/last hour (engine-enforced).
+    const breaks = savingIA
+      ? {
+          count:    Math.max(0, parseInt(document.getElementById('sf-break-count')?.value, 10) || 0),
+          duration: Math.max(5, parseInt(document.getElementById('sf-break-dur')?.value, 10) || 15),
+        }
+      : undefined;
 
     const member = {
       id:              existing?.id || uid(),
@@ -1334,6 +1349,7 @@ function showAddStaffForm(existingId) {
                        : (existing?.color || '#94a3b8'),
       gradePreferences,
       ownLunch,
+      breaks,
     };
 
     _pushStaffUndo();

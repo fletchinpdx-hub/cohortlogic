@@ -79,7 +79,8 @@ function _migrateIASchedule() {
 function _iaPlacementIssuesHtml() {
   const rep = SchedState._iaPlacementReport;
   if (!rep) return '';
-  const total = rep.shortfalls.length + rep.inconsistencies.length + rep.overBudget.length + rep.ownLunchUnplaced.length;
+  const breaksUnplaced = rep.breaksUnplaced || [];
+  const total = rep.shortfalls.length + rep.inconsistencies.length + rep.overBudget.length + rep.ownLunchUnplaced.length + breaksUnplaced.length;
   if (!total) return '';
 
   const dayShort   = d => d.slice(0, 3);
@@ -118,6 +119,13 @@ function _iaPlacementIssuesHtml() {
     const items = Object.entries(g).map(([id, days]) =>
       `<li><strong>${escHtml(iaName(id))}</strong> — own lunch couldn't fit: ${days.map(dayShort).join(', ')}</li>`).join('');
     sections.push(`<div class="ia-issues-sec"><div class="ia-issues-h">Own lunch not placed</div><ul>${items}</ul></div>`);
+  }
+  if (breaksUnplaced.length) {
+    const g = {};
+    breaksUnplaced.forEach(o => { (g[o.iaId] = g[o.iaId] || []).push(o.day); });
+    const items = Object.entries(g).map(([id, days]) =>
+      `<li><strong>${escHtml(iaName(id))}</strong> — a break couldn't fit: ${[...new Set(days)].map(dayShort).join(', ')}</li>`).join('');
+    sections.push(`<div class="ia-issues-sec"><div class="ia-issues-h">Breaks not placed</div><ul>${items}</ul></div>`);
   }
 
   return `<details class="ia-issues-panel" open>
@@ -382,7 +390,8 @@ function buildIATargetPickerHtml() {
 
 function _iaTargetLabel(entry) {
   if (!entry) return '';
-  if (entry.targetType === 'own_lunch') return 'Own lunch';   // engine-reserved IA break
+  if (entry.targetType === 'own_lunch') return 'Own lunch';   // engine-reserved IA lunch
+  if (entry.targetType === 'break')     return 'Break';        // engine-reserved IA break
   if (entry.targetType === 'grade') return GRADE_LABELS[entry.targetId] || entry.targetId || '';
   if (entry.targetType === 'class') {
     const t = SchedState.staff.find(s => s.id === entry.targetId);
@@ -1753,7 +1762,7 @@ function placeIAs() {
   const staffOrder = {}; ias.forEach((ia, i) => { staffOrder[ia.id] = i; });
   const staffIdx = ia => staffOrder[ia.id];
 
-  const report = { placed: 0, shortfalls: [], inconsistencies: [], overBudget: [], ownLunchUnplaced: [] };
+  const report = { placed: 0, shortfalls: [], inconsistencies: [], overBudget: [], ownLunchUnplaced: [], breaksUnplaced: [] };
   const totalMin = {}, dutyMin = {}, allocUsed = {};
   ias.forEach(ia => { totalMin[ia.id] = 0; dutyMin[ia.id] = { bt_lunch: 0, bt_recess: 0 }; });
 
@@ -1761,34 +1770,70 @@ function placeIAs() {
   const free   = (day, iaId, run) => { const m = (sched[day] || {})[iaId] || {}; return run.every(sl => !m[sl]); };
   const charge = (allocId, day, mins) => { if (!allocId) return; (allocUsed[allocId] = allocUsed[allocId] || {}); allocUsed[allocId][day] = (allocUsed[allocId][day] || 0) + mins; };
 
-  // ── Step 0: reserve own lunches (unavailable for coverage; not duty; budgeted if allocId) ──
-  ias.forEach(ia => {
-    const ol = ia.ownLunch;
-    if (!ol || !(ol.duration >= 5)) return;
-    const n = Math.ceil(ol.duration / 5);
-    const winS = timeToMins(ol.windowStart || ia.startTime || '11:00');
-    const winE = timeToMins(ol.windowEnd   || ia.endTime   || '13:00');
-    const startsFor = day => {
-      const slots = _autoFillSlots(day); const out = [];
-      for (let i = 0; i + n <= slots.length; i++) {
-        const run = slots.slice(i, i + n);
-        if (timeToMins(run[0]) >= winS && timeToMins(run[n - 1]) + 5 <= winE && _iaInHours(ia, run) && free(day, ia.id, run)) out.push(run[0]);
-      }
-      return out;
-    };
-    const perDay = {}; DAYS.forEach(d => { perDay[d] = startsFor(d); });
-    const common = (perDay[DAYS[0]] || []).find(st => DAYS.every(d => perDay[d].includes(st)));  // same time all days if possible
-    DAYS.forEach(day => {
-      const start = (common && perDay[day].includes(common)) ? common : perDay[day][0];
-      if (!start) { report.ownLunchUnplaced.push({ iaId: ia.id, day }); return; }
-      const slots = _autoFillSlots(day); const si = slots.indexOf(start);
-      const map = ensure(day, ia.id);
-      slots.slice(si, si + n).forEach(sl => { map[sl] = { targetType: 'own_lunch', allocId: ol.allocId || null }; });
-      charge(ol.allocId, day, ol.duration);
+  // Reserve each IA's own lunch inside its window (same time all days when possible),
+  // AFTER kid-lunch coverage so a lunch-covering IA takes their own break around it.
+  function reserveOwnLunches() {
+    ias.forEach(ia => {
+      const ol = ia.ownLunch;
+      if (!ol || !(ol.duration >= 5)) return;
+      const n = Math.ceil(ol.duration / 5);
+      const winS = timeToMins(ol.windowStart || ia.startTime || '11:00');
+      const winE = timeToMins(ol.windowEnd   || ia.endTime   || '13:00');
+      const startsFor = day => {
+        const slots = _autoFillSlots(day); const out = [];
+        for (let i = 0; i + n <= slots.length; i++) {
+          const run = slots.slice(i, i + n);
+          if (timeToMins(run[0]) >= winS && timeToMins(run[n - 1]) + 5 <= winE && _iaInHours(ia, run) && free(day, ia.id, run)) out.push(run[0]);
+        }
+        return out;
+      };
+      const perDay = {}; DAYS.forEach(d => { perDay[d] = startsFor(d); });
+      const common = (perDay[DAYS[0]] || []).find(st => DAYS.every(d => perDay[d].includes(st)));
+      DAYS.forEach(day => {
+        const start = (common && perDay[day].includes(common)) ? common : perDay[day][0];
+        if (!start) { report.ownLunchUnplaced.push({ iaId: ia.id, day }); return; }
+        const slots = _autoFillSlots(day); const si = slots.indexOf(start);
+        const map = ensure(day, ia.id);
+        slots.slice(si, si + n).forEach(sl => { map[sl] = { targetType: 'own_lunch', allocId: ol.allocId || null }; });
+        charge(ol.allocId, day, ol.duration);
+      });
     });
-  });
+  }
 
-  // ── Step 1: weekly requirements (one per coverage-row × grade with ≥1 occurrence) ──
+  // Reserve IA breaks (default 1 × 15 min, configurable). Never in the first or last
+  // hour of the IA's day; multiple breaks are spread across the middle of the day.
+  function reserveBreaks() {
+    ias.forEach(ia => {
+      const cfg   = ia.breaks || { count: 1, duration: 15 };
+      const count = cfg.count == null ? 1 : Math.max(0, cfg.count);
+      const dur   = cfg.duration >= 5 ? cfg.duration : 15;
+      if (count <= 0) return;
+      const n    = Math.ceil(dur / 5);
+      const winS = timeToMins(ia.startTime || '08:00') + 60;   // exclude first hour
+      const winE = timeToMins(ia.endTime   || '14:30') - 60;   // exclude last hour
+      if (winE - winS < dur) { DAYS.forEach(day => report.breaksUnplaced.push({ iaId: ia.id, day, reason: 'day too short' })); return; }
+      DAYS.forEach(day => {
+        const slots = _autoFillSlots(day);
+        for (let k = 0; k < count; k++) {
+          const segS = winS + Math.floor((winE - winS) * k / count);
+          const segE = winS + Math.floor((winE - winS) * (k + 1) / count);
+          let placed = false;
+          for (let i = 0; i + n <= slots.length; i++) {
+            const run = slots.slice(i, i + n);
+            const rs = timeToMins(run[0]), re = timeToMins(run[n - 1]) + 5;
+            if (rs >= segS && re <= Math.min(segE, winE) && _iaInHours(ia, run) && free(day, ia.id, run)) {
+              const map = ensure(day, ia.id);
+              run.forEach(sl => { map[sl] = { targetType: 'break' }; });
+              placed = true; break;
+            }
+          }
+          if (!placed) report.breaksUnplaced.push({ iaId: ia.id, day });
+        }
+      });
+    });
+  }
+
+  // ── Weekly requirements (one per coverage-row × grade with ≥1 occurrence) ──
   const reqs = [];
   (SchedState.iaCoverage || []).forEach(row => {
     (row.grades || []).forEach(grade => {
@@ -1804,16 +1849,18 @@ function placeIAs() {
     });
   });
 
-  // ── Step 2: hardest-first (fewest hours-eligible IAs), deterministic tiebreaks ──
-  reqs.forEach(r => {
-    r._elig = ias.filter(ia => r.occ.some(o => _iaInHours(ia, o.run))).length;
-    r._first = Math.min.apply(null, r.occ.map(o => timeToMins(o.run[0])));
-  });
-  reqs.sort((a, b) => a._elig - b._elig || a._first - b._first
-    || String(a.grade).localeCompare(String(b.grade))
-    || String(a.blockId + (a.subId || '')).localeCompare(String(b.blockId + (b.subId || ''))));
+  // hardest-first ordering (fewest hours-eligible IAs), deterministic tiebreaks
+  const sortReqs = list => {
+    list.forEach(r => {
+      r._elig = ias.filter(ia => r.occ.some(o => _iaInHours(ia, o.run))).length;
+      r._first = Math.min.apply(null, r.occ.map(o => timeToMins(o.run[0])));
+    });
+    list.sort((a, b) => a._elig - b._elig || a._first - b._first
+      || String(a.grade).localeCompare(String(b.grade))
+      || String(a.blockId + (a.subId || '')).localeCompare(String(b.blockId + (b.subId || ''))));
+    return list;
+  };
 
-  // rank key (lower is better): [preference tier, duty-type minutes (duty only), total load]
   const rankKey = (ia, req) => [
     (ia.gradePreferences || []).includes(req.grade) ? 0 : 1,
     req.isDuty ? dutyMin[ia.id][req.blockId] : 0,
@@ -1842,11 +1889,10 @@ function placeIAs() {
     report.placed += mins;
   };
 
-  // ── Step 3: assign each requirement, reusing a consistent team across days ──
-  reqs.forEach(req => {
+  // Place one requirement, reusing a consistent team across all its days.
+  const placeReq = req => {
     const daysCoverable = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
     const pool = ias.filter(ia => daysCoverable(ia) > 0);
-    // Team = up to `need` IAs, preferring (preference tier, most days coverable, parity, load).
     const team = pool.slice().sort((a, b) => {
       const ka = rankKey(a, req), kb = rankKey(b, req);
       return (ka[0] - kb[0]) || (daysCoverable(b) - daysCoverable(a)) || (ka[1] - kb[1]) || (ka[2] - kb[2]) || (staffIdx(a) - staffIdx(b));
@@ -1869,9 +1915,21 @@ function placeIAs() {
       }
     });
     if (usedIAs.size > req.need) report.inconsistencies.push({ grade: req.grade, blockId: req.blockId, subId: req.subId, iasUsed: usedIAs.size, need: req.need });
-  });
+  };
 
-  // ── Step 4: over-budget warnings (soft; only when a budget is actually set) ──
+  // ── Priority order (user-specified) ──
+  // 1. Kids' lunches take top priority for IA staffing.
+  const lunchReqs = reqs.filter(r => r.blockId === 'bt_lunch');
+  const otherReqs = reqs.filter(r => r.blockId !== 'bt_lunch');
+  sortReqs(lunchReqs).forEach(placeReq);
+  // 2. Then the IAs get their own lunches, fitted around the lunch coverage above.
+  reserveOwnLunches();
+  // 3. Then their breaks.
+  reserveBreaks();
+  // 4. Then everything else (recess, instruction, …).
+  sortReqs(otherReqs).forEach(placeReq);
+
+  // ── Over-budget warnings (soft; only when a budget is actually set) ──
   allocs.forEach(a => {
     const budget = (a.hoursPerDay || 0) * 60;
     if (budget <= 0) return;

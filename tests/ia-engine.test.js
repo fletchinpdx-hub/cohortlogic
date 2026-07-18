@@ -31,10 +31,10 @@ function build() {
   return {
     masterSchedule: ms,
     staff: [
-      { id: 'A', role: 'ia', name: 'Ada',  startTime: '08:00', endTime: '10:30', gradePreferences: ['3'] },
-      { id: 'B', role: 'ia', name: 'Ben',  startTime: '08:00', endTime: '10:30', gradePreferences: ['4'] },
-      { id: 'C', role: 'ia', name: 'Cy',   startTime: '08:00', endTime: '14:30', gradePreferences: [], ownLunch: { duration: 30, windowStart: '12:00', windowEnd: '13:00', allocId: 'gen' } },
-      { id: 'E', role: 'ia', name: 'El',   startTime: '08:00', endTime: '14:30', gradePreferences: [] },
+      { id: 'A', role: 'ia', name: 'Ada',  startTime: '08:00', endTime: '10:30', gradePreferences: ['3'], breaks:{count:0} },
+      { id: 'B', role: 'ia', name: 'Ben',  startTime: '08:00', endTime: '10:30', gradePreferences: ['4'], breaks:{count:0} },
+      { id: 'C', role: 'ia', name: 'Cy',   startTime: '08:00', endTime: '14:30', gradePreferences: [], breaks:{count:0}, ownLunch: { duration: 30, windowStart: '12:00', windowEnd: '13:00', allocId: 'gen' } },
+      { id: 'E', role: 'ia', name: 'El',   startTime: '08:00', endTime: '14:30', gradePreferences: [], breaks:{count:0} },
     ],
     iaAllocations: [ { id: 'gen', name: 'Gen Ed', hoursPerDay: 100 }, { id: 'title', name: 'Title', hoursPerDay: 0.1 } ],
     iaCoverage: [
