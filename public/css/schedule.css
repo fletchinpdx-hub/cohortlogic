@@ -1145,6 +1145,18 @@
 .ia-place-ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
 .ia-place-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
 
+/* IA Schedule — placement issues detail panel */
+.ia-issues-panel { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; margin: 0 0 12px; overflow: hidden; }
+.ia-issues-summary { cursor: pointer; list-style: none; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #92400e; }
+.ia-issues-summary::-webkit-details-marker { display: none; }
+.ia-issues-summary::before { content: '▸ '; }
+.ia-issues-panel[open] .ia-issues-summary::before { content: '▾ '; }
+.ia-issues-body { padding: 0 12px 10px; }
+.ia-issues-sec { margin-top: 8px; }
+.ia-issues-h { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #b45309; margin-bottom: 2px; }
+.ia-issues-sec ul { margin: 0; padding-left: 18px; }
+.ia-issues-sec li { font-size: 12.5px; line-height: 1.55; color: #78350f; margin-bottom: 3px; }
+
 /* IA assignment editor — partial-time range row */
 .ia-editor-range { display: flex; align-items: center; gap: 8px; }
 .ia-editor-range .override-select { flex: 1; }

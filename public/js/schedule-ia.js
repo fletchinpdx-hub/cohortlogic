@@ -73,6 +73,59 @@ function _migrateIASchedule() {
   });
 }
 
+// Detailed placement-issue list for the IA Schedule tab, from the last Place IAs
+// run (SchedState._iaPlacementReport). Groups the raw report into readable lines.
+// Session-only — the report isn't persisted, so it clears on reload/re-place.
+function _iaPlacementIssuesHtml() {
+  const rep = SchedState._iaPlacementReport;
+  if (!rep) return '';
+  const total = rep.shortfalls.length + rep.inconsistencies.length + rep.overBudget.length + rep.ownLunchUnplaced.length;
+  if (!total) return '';
+
+  const dayShort   = d => d.slice(0, 3);
+  const blockLabel = (blockId, subId) => getBtName(subId ? blockId + '|' + subId : blockId);
+  const gradeLabel = g => GRADE_LABELS[g] || g;
+  const iaName     = id => (SchedState.staff.find(s => s.id === id) || {}).name || 'IA';
+  const allocName  = id => (SchedState.iaAllocations.find(a => a.id === id) || {}).name || 'category';
+  const sections = [];
+
+  if (rep.shortfalls.length) {
+    const g = {};
+    rep.shortfalls.forEach(s => {
+      const k = `${s.grade}|${s.blockId}|${s.subId || ''}`;
+      g[k] = g[k] || { grade: s.grade, blockId: s.blockId, subId: s.subId, days: [], needed: s.needed, placed: s.placed };
+      g[k].days.push(s.day); g[k].placed = Math.min(g[k].placed, s.placed);
+    });
+    const items = Object.values(g).map(x =>
+      `<li><strong>${escHtml(gradeLabel(x.grade))} · ${escHtml(blockLabel(x.blockId, x.subId))}</strong> — short ${x.days.map(dayShort).join(', ')} (${x.needed} needed, ${x.placed} placed)</li>`).join('');
+    sections.push(`<div class="ia-issues-sec"><div class="ia-issues-h">Coverage gaps — not enough available IAs</div><ul>${items}</ul></div>`);
+  }
+  if (rep.inconsistencies.length) {
+    const items = rep.inconsistencies.map(i =>
+      `<li><strong>${escHtml(gradeLabel(i.grade))} · ${escHtml(blockLabel(i.blockId, i.subId))}</strong> — covered by ${i.iasUsed} different IAs across the week (${i.need} wanted)</li>`).join('');
+    sections.push(`<div class="ia-issues-sec"><div class="ia-issues-h">Different IAs on different days</div><ul>${items}</ul></div>`);
+  }
+  if (rep.overBudget.length) {
+    const g = {};
+    rep.overBudget.forEach(o => { g[o.allocId] = g[o.allocId] || { days: [], usedMin: 0, budgetMin: o.budgetMin }; g[o.allocId].days.push(o.day); g[o.allocId].usedMin = Math.max(g[o.allocId].usedMin, o.usedMin); });
+    const items = Object.entries(g).map(([id, x]) =>
+      `<li><strong>${escHtml(allocName(id))}</strong> over budget ${x.days.map(dayShort).join(', ')} (up to ${x.usedMin} min/day vs ${x.budgetMin} min budget)</li>`).join('');
+    sections.push(`<div class="ia-issues-sec"><div class="ia-issues-h">Over budget</div><ul>${items}</ul></div>`);
+  }
+  if (rep.ownLunchUnplaced.length) {
+    const g = {};
+    rep.ownLunchUnplaced.forEach(o => { (g[o.iaId] = g[o.iaId] || []).push(o.day); });
+    const items = Object.entries(g).map(([id, days]) =>
+      `<li><strong>${escHtml(iaName(id))}</strong> — own lunch couldn't fit: ${days.map(dayShort).join(', ')}</li>`).join('');
+    sections.push(`<div class="ia-issues-sec"><div class="ia-issues-h">Own lunch not placed</div><ul>${items}</ul></div>`);
+  }
+
+  return `<details class="ia-issues-panel" open>
+      <summary class="ia-issues-summary">⚠ ${total} placement issue${total === 1 ? '' : 's'} to review</summary>
+      <div class="ia-issues-body">${sections.join('')}</div>
+    </details>`;
+}
+
 function renderIAScheduleView() {
   const container = document.getElementById('view-ia');
   if (!container) return;
@@ -218,7 +271,7 @@ function renderIAScheduleView() {
       <div class="ia-view-top-bar">
         <div>
           <h1 class="grid-title">IA Schedules</h1>
-          <p class="grid-subtitle">Click any assignment to edit or delete it. To add new assignments, go to the Master Schedule and click a block. Budget categories below track how IA time is spent — click one to edit it.</p>
+          <p class="grid-subtitle">Click any assignment to reassign, shorten, or delete it. Assignments are placed automatically — use <strong>Place IAs</strong> on the IA Assignment tab to (re)generate them.</p>
         </div>
         <div class="ia-view-top-actions">
           <button class="btn btn-primary btn-sm" id="ia-go-master-btn">Edit coverage plan →</button>
@@ -227,6 +280,7 @@ function renderIAScheduleView() {
         </div>
       </div>
       ${staleBanner}
+      ${_iaPlacementIssuesHtml()}
       ${allocBar}
       ${subTabsHtml}
       <div class="ia-view-content">
