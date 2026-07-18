@@ -1771,8 +1771,58 @@ function placeIAs() {
   const free   = (day, iaId, run) => { const m = (sched[day] || {})[iaId] || {}; return run.every(sl => !m[sl]); };
   const charge = (allocId, day, mins) => { if (!allocId) return; (allocUsed[allocId] = allocUsed[allocId] || {}); allocUsed[allocId][day] = (allocUsed[allocId][day] || 0) + mins; };
 
-  // Reserve each IA's own lunch inside its window (same time all days when possible),
-  // AFTER kid-lunch coverage so a lunch-covering IA takes their own break around it.
+  // Per-slot coverage demand (IA-slots needed at each time) — a proxy for how busy
+  // each moment is. Personal time (lunch/break) is steered AWAY from high-demand
+  // times AND spread across IAs, so we don't strip coverage from the same window for
+  // everyone (the old first-fit clustered every lunch at the window's start).
+  const demand = {}; DAYS.forEach(d => { demand[d] = {}; });
+  (SchedState.iaCoverage || []).forEach(row => {
+    const need = Math.max(1, row.iasPerGrade || 1);
+    (row.grades || []).forEach(grade => {
+      DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => {
+        run.forEach(sl => { demand[day][sl] = (demand[day][sl] || 0) + need; });
+      }));
+    });
+  });
+  const busy = {}; DAYS.forEach(d => { busy[d] = {}; });
+  // Cost of putting a personal block on `run`: overlap with other IAs' personal time
+  // dominates (×1000, forces a spread), demand is the secondary tiebreak.
+  const runCost = (day, run) => run.reduce((c, sl) => c + (busy[day][sl] || 0) * 1000 + (demand[day][sl] || 0), 0);
+  const bumpBusy = (day, run) => run.forEach(sl => { busy[day][sl] = (busy[day][sl] || 0) + 1; });
+
+  // Reserve an n-slot personal block for `ia` inside [winS, winE): lowest-cost run
+  // (spread + low-demand), preferring the same clock time every day for consistency.
+  function reservePersonalTime(ia, n, winS, winE, makeEntry, onUnplaced, onPlaced) {
+    const candByDay = {};
+    DAYS.forEach(day => {
+      const slots = _autoFillSlots(day); const cands = [];
+      for (let i = 0; i + n <= slots.length; i++) {
+        const run = slots.slice(i, i + n);
+        if (timeToMins(run[0]) >= winS && timeToMins(run[n - 1]) + 5 <= winE && _iaInHours(ia, run) && free(day, ia.id, run)) cands.push(run);
+      }
+      candByDay[day] = cands;
+    });
+    const commonStarts = [...new Set((candByDay[DAYS[0]] || []).map(r => r[0]))]
+      .filter(st => DAYS.every(d => candByDay[d].some(r => r[0] === st)));
+    let chosen = null, best = Infinity;
+    commonStarts.forEach(st => {
+      const cost = DAYS.reduce((c, d) => c + runCost(d, candByDay[d].find(r => r[0] === st)), 0);
+      if (cost < best) { best = cost; chosen = st; }
+    });
+    DAYS.forEach(day => {
+      const run = chosen
+        ? candByDay[day].find(r => r[0] === chosen)
+        : candByDay[day].slice().sort((a, b) => runCost(day, a) - runCost(day, b) || timeToMins(a[0]) - timeToMins(b[0]))[0];
+      if (!run) { onUnplaced(day); return; }
+      const map = ensure(day, ia.id);
+      run.forEach(sl => { map[sl] = makeEntry(); });
+      bumpBusy(day, run);
+      if (onPlaced) onPlaced(day, run);
+    });
+  }
+
+  // Own lunch inside its window, AFTER kid-lunch coverage so a lunch-covering IA
+  // takes their own break around it. Spread across IAs via reservePersonalTime.
   function reserveOwnLunches() {
     ias.forEach(ia => {
       const ol = ia.ownLunch;
@@ -1780,29 +1830,15 @@ function placeIAs() {
       const n = Math.ceil(ol.duration / 5);
       const winS = timeToMins(ol.windowStart || ia.startTime || '11:00');
       const winE = timeToMins(ol.windowEnd   || ia.endTime   || '13:00');
-      const startsFor = day => {
-        const slots = _autoFillSlots(day); const out = [];
-        for (let i = 0; i + n <= slots.length; i++) {
-          const run = slots.slice(i, i + n);
-          if (timeToMins(run[0]) >= winS && timeToMins(run[n - 1]) + 5 <= winE && _iaInHours(ia, run) && free(day, ia.id, run)) out.push(run[0]);
-        }
-        return out;
-      };
-      const perDay = {}; DAYS.forEach(d => { perDay[d] = startsFor(d); });
-      const common = (perDay[DAYS[0]] || []).find(st => DAYS.every(d => perDay[d].includes(st)));
-      DAYS.forEach(day => {
-        const start = (common && perDay[day].includes(common)) ? common : perDay[day][0];
-        if (!start) { report.ownLunchUnplaced.push({ iaId: ia.id, day }); return; }
-        const slots = _autoFillSlots(day); const si = slots.indexOf(start);
-        const map = ensure(day, ia.id);
-        slots.slice(si, si + n).forEach(sl => { map[sl] = { targetType: 'own_lunch', allocId: ol.allocId || null }; });
-        charge(ol.allocId, day, ol.duration);
-      });
+      reservePersonalTime(ia, n, winS, winE,
+        () => ({ targetType: 'own_lunch', allocId: ol.allocId || null }),
+        day => report.ownLunchUnplaced.push({ iaId: ia.id, day }),
+        (day, run) => charge(ol.allocId, day, run.length * 5));
     });
   }
 
-  // Reserve IA breaks (default 1 × 15 min, configurable). Never in the first or last
-  // hour of the IA's day; multiple breaks are spread across the middle of the day.
+  // Breaks (default 1 × 15 min, configurable). Never in the first or last hour;
+  // multiple breaks split the middle of the day into segments, each spread + low-demand.
   function reserveBreaks() {
     ias.forEach(ia => {
       const cfg   = ia.breaks || { count: 1, duration: 15 };
@@ -1813,24 +1849,14 @@ function placeIAs() {
       const winS = timeToMins(ia.startTime || '08:00') + 60;   // exclude first hour
       const winE = timeToMins(ia.endTime   || '14:30') - 60;   // exclude last hour
       if (winE - winS < dur) { DAYS.forEach(day => report.breaksUnplaced.push({ iaId: ia.id, day, reason: 'day too short' })); return; }
-      DAYS.forEach(day => {
-        const slots = _autoFillSlots(day);
-        for (let k = 0; k < count; k++) {
-          const segS = winS + Math.floor((winE - winS) * k / count);
-          const segE = winS + Math.floor((winE - winS) * (k + 1) / count);
-          let placed = false;
-          for (let i = 0; i + n <= slots.length; i++) {
-            const run = slots.slice(i, i + n);
-            const rs = timeToMins(run[0]), re = timeToMins(run[n - 1]) + 5;
-            if (rs >= segS && re <= Math.min(segE, winE) && _iaInHours(ia, run) && free(day, ia.id, run)) {
-              const map = ensure(day, ia.id);
-              run.forEach(sl => { map[sl] = { targetType: 'break' }; });
-              placed = true; break;
-            }
-          }
-          if (!placed) report.breaksUnplaced.push({ iaId: ia.id, day });
-        }
-      });
+      for (let k = 0; k < count; k++) {
+        const segS = winS + Math.floor((winE - winS) * k / count);
+        const segE = Math.min(winS + Math.floor((winE - winS) * (k + 1) / count), winE);
+        reservePersonalTime(ia, n, segS, segE,
+          () => ({ targetType: 'break' }),
+          day => report.breaksUnplaced.push({ iaId: ia.id, day }),
+          null);
+      }
     });
   }
 
