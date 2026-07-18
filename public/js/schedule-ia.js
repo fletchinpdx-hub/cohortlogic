@@ -1133,7 +1133,8 @@ function buildIndividualIAGrid(iaId) {
         nextEntry.targetId !== entry.targetId;
 
       const alloc      = (SchedState.iaAllocations || []).find(a => a.id === entry.allocId);
-      const gradeLabel = grade ? (GRADE_LABELS[grade] || grade) : '';
+      // Grade assignments show the grade; own-lunch / break show their own label.
+      const gradeLabel = grade ? (GRADE_LABELS[grade] || grade) : _iaTargetLabel(entry);
       const note       = entry.note || '';
       const inner      = isCont ? '' : `
         <div class="ia-ind-cell-grade">${escHtml(gradeLabel)}</div>

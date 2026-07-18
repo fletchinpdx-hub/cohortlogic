@@ -34,7 +34,12 @@ cd /Users/michaelfletcher/dev/cohortlogic
 bash scripts/security-audit.sh
 ```
 
-This prints human-readable progress to stderr and a JSON array to stdout — one object per check: `{ check_id, category, severity, title, detail, evidence, pass }`. Capture the JSON; you'll upsert every object in step 5.
+This prints human-readable progress to stderr and a JSON array to stdout — one object per check: `{ check_id, category, severity, title, detail, evidence, pass }`. Capture the JSON; you'll upsert every object in step 5. The script covers four deterministic, curl-based layers (no service-role key needed for any of them):
+- **Deploy exposure + allowlist** (`deploy_exposure`) — every secret/infra path must 404 on the live site; `wrangler.toml` deploys only `public/`.
+- **Security headers** (`security_headers`) — CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy / Permissions-Policy must be present on the LIVE response (they're set in `public/_headers` but can silently drop on Cloudflare config drift), and CSP `script-src` must not carry `unsafe-inline` (`style-src` intentionally does — not checked).
+- **Anonymous RLS effectiveness probe** (`rls.anon-read.<table>`, category `rls_audit`) — hits the REST API with the **public publishable key** as an unauthenticated caller and asserts every PII table returns **zero rows**. This is the empirical complement to step 2's policy-definition reading: step 2 proves policies are *configured* right, this proves they *work*. A `rls.anon-read.<table>` failure with `severity: critical` means live student data is readable with the public key — the worst-case FERPA leak; treat it like the deploy-exposure incidents. (Count-only via `Content-Range`, so no PII is ever pulled or stored.) An inconclusive probe (unexpected HTTP status) is a `medium`, usually meaning a table was renamed or lost its `id` column — reconcile the `PII_TABLES` list in the script.
+
+Because these flow through the same JSON, step 5 upserts them automatically — no extra handling.
 
 ### 2. RLS / policy audit (Supabase)
 
@@ -63,7 +68,11 @@ Returns one row per tracked table: `{ table_name, rls_enabled, policy_count, pol
 
 **Graceful fallback:** if a row's `policies` field is absent/null (the DB still has the pre-v2 function), revert to the old behavior for that run — read policy definitions from `supabase/migrations/`, and for any table whose live policies have no on-disk source (`profiles`/`features`/`feedback`/`sessions`/`events`) emit `rls.policy-source-unverifiable` (`medium`) rather than silently passing. Once v2 is live that fallback finding is obsolete (the per-table checks now cover those tables) and won't re-appear, so resolve any lingering `rls.policy-source-unverifiable` by hand the first time.
 
-Sanity-check the returned table list against what's actually in `CLAUDE.md`'s "Key Supabase tables" section and the migrations under `supabase/migrations/`. Emit this as its own check every run — `check_id: "rls.snapshot-incomplete"` — not only when something's wrong: `pass: true` when every table you'd expect from CLAUDE.md is present in the snapshot, `pass: false` (`medium`) listing whichever are missing otherwise. (It must be emitted both ways so a later run where the gap is fixed can auto-resolve the finding via `security_resolve_passing` — that only clears a check_id that's present in this run's results.) Note: `security_rls_snapshot()` only reports ordinary tables (`relkind = 'r'`) — compat views like `cico_students` are deliberately excluded and won't appear here; don't flag them as missing.
+Sanity-check the returned table list against what's actually in `CLAUDE.md`'s "Key Supabase tables" section and the migrations under `supabase/migrations/`. This is a **two-way** comparison — emit BOTH checks every run (pass or fail) so a later run that fixes the gap auto-resolves the finding via `security_resolve_passing`, which only clears a check_id present in this run's results:
+- **Missing** (`check_id: "rls.snapshot-incomplete"`): `pass: true` when every table you'd expect from CLAUDE.md is present in the snapshot; `pass: false` (`medium`) listing whichever are missing otherwise.
+- **Undocumented** (`check_id: "rls.undocumented-table"`): the inverse and the more dangerous direction — a table **present in the snapshot but NOT in CLAUDE.md's expected set** means someone added a table (potentially holding PII) without a documented RLS decision or a look from this audit. `pass: false` (`medium`) listing the undocumented table name(s); `pass: true` when the snapshot contains nothing beyond the expected set. When it fails, don't just log it — actually inspect that table's `policies` for the over-permissive rules above and add it to CLAUDE.md's "Key Supabase tables" (and, if it holds PII, to the script's `PII_TABLES` anon-probe list) so it's covered going forward.
+
+Note: `security_rls_snapshot()` only reports ordinary tables (`relkind = 'r'`) — compat views like `cico_students` are deliberately excluded and won't appear here; don't flag them as missing (nor as undocumented).
 
 ### 3. Credential rotation + MFA posture
 
