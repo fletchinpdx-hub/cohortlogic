@@ -61,7 +61,7 @@ function renderSpecialRow(sp, idx) {
         <label class="form-label">Teacher</label>
         <div class="sp-teacher-list">${teacherHtml}</div>
       </div>
-      <button class="btn-icon remove-sp-btn" data-sp-id="${sp.id}" title="Remove">×</button>
+      <button class="remove-x remove-sp-btn" data-sp-id="${sp.id}" title="Remove">×</button>
     </div>
   `;
 }
@@ -330,7 +330,7 @@ function renderLunchRow(lp) {
         <span class="period-sep">for</span>
         <input type="number" class="input input-sm period-dur" style="width:64px" min="5" max="120" step="5" value="${lp.duration}" data-id="${lp.id}" />
         <span class="period-sep">min</span>
-        <button class="remove-period-btn btn-icon" data-id="${lp.id}" data-ptype="lunch">×</button>
+        <button class="remove-x remove-period-btn" data-id="${lp.id}" data-ptype="lunch">×</button>
       </div>
       <div class="period-grades">
         <span class="period-grades-label">Grades:</span>
@@ -598,7 +598,7 @@ function renderAltDayRow(ad) {
           Lunch/recess differ
         </label>
       </div>
-      <button class="remove-alt-day btn-icon" data-day="${ad.day}" style="color:#ef4444">×</button>
+      <button class="remove-x remove-alt-day" data-day="${ad.day}">×</button>
     </div>
   `;
 }
@@ -1684,7 +1684,7 @@ function renderBandRow(band) {
       <div class="band-grade-chips">
         ${gradesSorted().map(g => `<span class="grade-chip-xs ${band.grades.includes(g) ? 'active' : ''}" data-grade="${g}" data-band-id="${band.id}">${gradeChipLabel(g)}</span>`).join('')}
       </div>
-      <button class="btn-icon remove-band-btn" data-band-id="${band.id}" title="Remove band">×</button>
+      <button class="remove-x remove-band-btn" data-band-id="${band.id}" title="Remove band">×</button>
     </div>
   `;
 }
@@ -1717,7 +1717,7 @@ function renderPairingRow(p, reqBTs, grades) {
       <div class="pairing-grade-chips">
         ${grades.map(g => `<span class="grade-chip-xs ${(p.grades || []).includes(g) ? 'active' : ''}" data-grade="${g}">${gradeChipLabel(g)}</span>`).join('')}
       </div>
-      <button class="btn-icon remove-pairing-btn" title="Remove">×</button>
+      <button class="remove-x remove-pairing-btn" title="Remove">×</button>
     </div>`;
 }
 
@@ -1782,7 +1782,7 @@ function renderSubTable(bt, bands) {
             <tr class="sub-row" data-sub-id="${sub.id}" data-parent-id="${bt.id}">
               <td><input type="text" class="sub-name-input" value="${escHtml(sub.name)}" placeholder="Sub-block name"></td>
               ${bands.map(b => `<td><input type="number" class="sub-min-input" data-sub-id="${sub.id}" data-band-id="${b.id}" data-parent-id="${bt.id}" min="0" max="300" step="5" value="${((bt.subBandMinutes || {})[sub.id] || {})[b.id] || 0}"></td>`).join('')}
-              <td><button class="btn-icon del-sub-btn" data-parent-id="${bt.id}" data-sub-id="${sub.id}" title="Remove">×</button></td>
+              <td><button class="remove-x del-sub-btn" data-parent-id="${bt.id}" data-sub-id="${sub.id}" title="Remove">×</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -1813,7 +1813,7 @@ function renderReqRow(bt, bands) {
       <td class="req-td-actions">
         <button class="btn-sm req-sub-toggle" data-bt-id="${bt.id}">${hasSubs ? `Sub-blocks (${bt.subBlocks.length})` : 'Sub-blocks'}</button>
         ${!hasSubs ? `<button class="btn-sm req-split-toggle${anySplitEnabled ? ' req-split-active' : ''}" data-bt-id="${bt.id}" title="Configure split sessions">Split</button>` : ''}
-        <button class="btn-icon req-delete-btn" data-bt-id="${bt.id}" title="Remove block">×</button>
+        <button class="remove-x req-delete-btn" data-bt-id="${bt.id}" title="Remove block">×</button>
       </td>
     </tr>
     <tr class="req-sub-row ${hasSubs ? '' : 'hidden'}" data-parent-id="${bt.id}" id="req-sub-row-${bt.id}">
@@ -1947,7 +1947,7 @@ function renderBlocks() {
                 </td>
                 <td class="req-td-actions" style="display:table-cell;white-space:nowrap">
                   <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
-                  <button class="icon-btn remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
+                  <button class="remove-x remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
                 </td>
               </tr>`;
             }).join('')}

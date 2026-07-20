@@ -323,7 +323,7 @@ function buildIAPaletteHtml(allocs) {
           <span class="ia-alloc-name">${escHtml(alloc.name)}</span>
           <span class="ia-alloc-hpd-badge">${hpd > 0 ? hpd + 'h/day' : '—'}</span>
           <button class="ia-alloc-edit-btn" data-edit-alloc="${alloc.id}" title="Edit">✏</button>
-          <button class="ia-alloc-delete" data-delete-alloc="${alloc.id}" title="Remove">×</button>
+          <button class="remove-x ia-alloc-delete" data-delete-alloc="${alloc.id}" title="Remove">×</button>
         </div>
         <div class="ia-alloc-edit-form hidden" id="ia-edit-form-${alloc.id}">
           <input class="ia-alloc-input ia-edit-name-input" value="${escHtml(alloc.name)}" maxlength="30" placeholder="Name" data-alloc-id="${alloc.id}" />
@@ -1683,7 +1683,7 @@ function _iaAllocRow(a) {
         <input type="color" class="req-color-input ia-alloc-color" value="${a.color || '#6366f1'}" data-alloc-id="${a.id}">
       </td>
       <td><input type="number" class="input ia-alloc-hpd" min="0" step="0.25" value="${a.hoursPerDay != null ? a.hoursPerDay : ''}" placeholder="0" data-alloc-id="${a.id}" style="width:90px"></td>
-      <td><button class="icon-btn ia-alloc-del" data-alloc-id="${a.id}" title="Remove">×</button></td>
+      <td><button class="remove-x ia-alloc-del" data-alloc-id="${a.id}" title="Remove">×</button></td>
     </tr>`;
 }
 
@@ -1714,7 +1714,7 @@ function _iaCoverageRow(r, blockOpts, allocs, grades, idx, total) {
             : '<span class="text-muted" style="font-size:11px">Add categories above</span>'}
         </div>
       </td>
-      <td><button class="ia-cov-del" data-cov-id="${r.id}" title="Delete this coverage row">Remove</button></td>
+      <td><button class="remove-x ia-cov-del" data-cov-id="${r.id}" title="Delete this coverage row">×</button></td>
     </tr>`;
 }
 
@@ -1773,7 +1773,7 @@ function renderIAAssignmentView() {
               <th style="min-width:150px">Grades covered</th>
               <th style="width:110px">IAs / grade</th>
               <th style="min-width:160px">Funded by</th>
-              <th style="width:84px"></th>
+              <th style="width:44px"></th>
             </tr></thead>
             <tbody id="ia-coverage-tbody">
               ${coverage.length

@@ -1165,15 +1165,22 @@
 
 /* Coverage-row delete: a clear labeled danger control (the bare grey × was too
    easy to miss). Border + red hover so it reads as "remove this row". */
-.ia-cov-del {
-  color: var(--danger, #dc2626);
-  border: 1px solid var(--gray-200);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 12px;
+/* Canonical row-level remove control — a light grey × that turns red on hover.
+   ONE look across every product (mirrored in styles.css + checkin.css). Elements
+   keep their functional class for JS wiring; .remove-x supplies only the visuals,
+   and the glyph should be ×. Don't restyle per-feature — add .remove-x instead. */
+.remove-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
   line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: #9ca3af;
+  transition: color .12s, background .12s;
 }
-.ia-cov-del:hover { background: var(--danger, #dc2626); border-color: var(--danger, #dc2626); color: #fff; }
+.remove-x:hover { color: #dc2626; background: #fef2f2; }
 
 .ia-cov-hint {
   margin: 8px 0 0;
@@ -2486,20 +2493,8 @@
   text-overflow: ellipsis;
 }
 
-.ia-alloc-delete {
-  background: none;
-  border: none;
-  color: var(--gray-400);
-  cursor: pointer;
-  font-size: 17px;
-  line-height: 1;
-  padding: 0 2px;
-  opacity: 0;
-  flex-shrink: 0;
-  transition: opacity .1s, color .1s;
-}
-.ia-alloc-item:hover .ia-alloc-delete { opacity: 1; }
-.ia-alloc-delete:hover { color: #ef4444; }
+/* .ia-alloc-delete now uses the shared .remove-x visuals; only layout kept. */
+.ia-alloc-delete { flex-shrink: 0; }
 
 .ia-alloc-hours-row {
   display: flex;

@@ -38,7 +38,7 @@ function renderStudentList() {
       <td class="col-actions">
         <div class="row-actions">
           <button class="action-btn student-edit-btn" data-student-id="${s.id}" title="Edit">✏️</button>
-          <button class="action-btn danger student-delete-btn" data-student-id="${s.id}" title="Remove">🗑</button>
+          <button class="remove-x student-delete-btn" data-student-id="${s.id}" title="Remove">×</button>
         </div>
       </td>
     </tr>

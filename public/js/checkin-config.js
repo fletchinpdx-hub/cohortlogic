@@ -41,7 +41,7 @@ function renderSchedulesList() {
       ${s.is_default
         ? '<span class="config-row-badge">Default</span>'
         : `<button class="config-row-action schedule-default-btn" data-schedule-id="${s.id}">Set default</button>`}
-      <button class="config-row-delete schedule-delete-btn" data-schedule-id="${s.id}" title="Remove">✕</button>
+      <button class="remove-x schedule-delete-btn" data-schedule-id="${s.id}" title="Remove">×</button>
     </div>
   `).join('');
 
@@ -156,7 +156,7 @@ function renderCategoriesList() {
     <div class="config-row">
       <span class="config-row-name">${escHtml(cat.name)}</span>
       <span class="config-row-meta">Order ${cat.display_order}</span>
-      <button class="config-row-delete category-delete-btn" data-category-id="${cat.id}" title="Remove">✕</button>
+      <button class="remove-x category-delete-btn" data-category-id="${cat.id}" title="Remove">×</button>
     </div>
   `).join('');
 
@@ -237,7 +237,7 @@ function renderIncidentTypesList() {
         <span style="font-weight:400;margin-left:6px;">${escHtml(t.description)}</span>
       </span>
       <span class="config-row-meta">${t.tracks_minutes ? '⏱ mins' : 'no mins'}</span>
-      <button class="config-row-delete incident-type-delete-btn" data-incident-type-id="${t.id}" title="Remove">✕</button>
+      <button class="remove-x incident-type-delete-btn" data-incident-type-id="${t.id}" title="Remove">×</button>
     </div>
   `).join('');
 

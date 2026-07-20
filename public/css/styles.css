@@ -264,6 +264,23 @@ body {
 .competency-item select { border: 1px solid var(--gray-200); border-radius: 4px; padding: 3px 6px; font-size: 12px; }
 .competency-item .remove-btn { color: var(--gray-400); cursor: pointer; border: none; background: none; font-size: 16px; line-height: 1; padding: 2px; }
 .competency-item .remove-btn:hover { color: var(--red); }
+
+/* Canonical row-level remove control — a light grey × that turns red on hover.
+   ONE look across every product (mirrored in schedule.css + checkin.css). Elements
+   keep their functional class for JS wiring; .remove-x supplies only the visuals,
+   and the glyph should be ×. Don't restyle per-feature — add .remove-x instead. */
+.remove-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: #9ca3af;
+  transition: color .12s, background .12s;
+}
+.remove-x:hover { color: #dc2626; background: #fef2f2; }
 .competency-item input[type="number"] { border: 1px solid var(--gray-200); border-radius: 4px; background: #fff; outline: none; }
 .competency-item input[type="number"]:focus { border-color: var(--teal); }
 .comp-priority-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray-600); white-space: nowrap; cursor: pointer; }
@@ -352,8 +369,8 @@ body {
 .flag-yes { color: var(--red); font-weight: 600; font-size: 12px; }
 .flag-no  { color: var(--gray-400); font-size: 12px; }
 .student-row-actions { white-space: nowrap; text-align: right; }
-.student-edit-btn, .student-delete-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 4px; opacity: 0.4; transition: opacity .15s; }
-.student-edit-btn:hover, .student-delete-btn:hover { opacity: 1; }
+.student-edit-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 4px; opacity: 0.4; transition: opacity .15s; }
+.student-edit-btn:hover { opacity: 1; }
 .edit-field-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .edit-field-row label { width: 130px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--gray-700); }
 .edit-field-row .input { flex: 1; }

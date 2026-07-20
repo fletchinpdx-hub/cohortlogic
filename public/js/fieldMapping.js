@@ -70,7 +70,7 @@ function renderCompetencies() {
         <label class="comp-priority-label" title="Prioritize this field in balancing">
           <input type="checkbox" class="comp-priority" ${c.priority ? 'checked' : ''} /> Priority
         </label>
-        <button class="remove-btn" title="Remove">×</button>
+        <button class="remove-x remove-btn" title="Remove">×</button>
       </div>
     `;
   }).join('');

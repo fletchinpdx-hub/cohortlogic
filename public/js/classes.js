@@ -129,7 +129,7 @@ function renderSplitList(grades) {
         ${grades.map(g => `<option value="${g}" ${sc.grades[1] === g ? 'selected' : ''}>${gradeLabel(g)}</option>`).join('')}
       </select>
       <input type="text" class="input input-sm split-teacher" placeholder="Teacher name" value="${sc.teacher}" style="flex:1;" />
-      <button class="remove-btn split-remove" title="Remove split class">×</button>
+      <button class="remove-x split-remove" title="Remove split class">×</button>
     </div>
   `).join('');
 }

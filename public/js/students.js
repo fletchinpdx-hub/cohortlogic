@@ -89,7 +89,7 @@ function renderStudentTable() {
       }).join('')}
       <td class="student-row-actions">
         <button class="student-edit-btn" data-id="${s.id}" title="Edit">✏️</button>
-        <button class="student-delete-btn" data-id="${s.id}" title="Delete">🗑️</button>
+        <button class="remove-x student-delete-btn" data-id="${s.id}" title="Delete">×</button>
       </td>
     </tr>
   `).join('');

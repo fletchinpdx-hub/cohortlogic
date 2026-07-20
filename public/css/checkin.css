@@ -826,6 +826,23 @@ textarea.cico-input { resize: vertical; }
 }
 .config-row-delete:hover { color: var(--ci-red); background: var(--ci-red-soft); }
 
+/* Canonical row-level remove control — a light grey × that turns red on hover.
+   ONE look across every product (mirrored in styles.css + schedule.css). Elements
+   keep their functional class for JS wiring; .remove-x supplies only the visuals,
+   and the glyph should be ×. Don't restyle per-feature — add .remove-x instead. */
+.remove-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: #9ca3af;
+  transition: color .12s, background .12s;
+}
+.remove-x:hover { color: #dc2626; background: #fef2f2; }
+
 .config-row-badge {
   font-size: 11px;
   font-weight: 700;
