@@ -99,6 +99,7 @@ function _recessLunchFingerprint(s) {
 
 function renderSchoolInfo() {
   const s = SchedState.school;
+  const iad = s.iaDefaults || {};   // defaults for new IAs (Staff Roster)
   _recessLunchSnapshot = _recessLunchFingerprint(s);
 
   document.getElementById('view-school').innerHTML = `
@@ -188,6 +189,57 @@ function renderSchoolInfo() {
 
         </div>
 
+      </div>
+
+      <!-- IA Defaults -->
+      <div class="form-section">
+        <h2 class="form-section-title">IA Defaults</h2>
+        <p class="form-hint">Starting values for new Instructional Assistants on the Staff Roster. You can still change any of these per IA. Editing these later only affects IAs you add afterward.</p>
+        <div class="time-bounds-grid">
+          <div class="time-bound-row">
+            <span class="time-bound-label">Contract Hours</span>
+            <div class="time-bound-inputs">
+              <div class="form-group form-group-sm">
+                <label class="form-label">Start</label>
+                <input type="time" class="input" id="ia-def-start" value="${iad.startTime || s.studentCampusStart || '07:45'}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">End</label>
+                <input type="time" class="input" id="ia-def-end" value="${iad.endTime || s.dismissal || '14:30'}" />
+              </div>
+            </div>
+          </div>
+          <div class="time-bound-row">
+            <span class="time-bound-label">Lunch</span>
+            <div class="time-bound-inputs">
+              <div class="form-group form-group-sm">
+                <label class="form-label">Any time between</label>
+                <input type="time" class="input" id="ia-def-lunch-start" value="${iad.lunchWindowStart || '11:00'}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">and</label>
+                <input type="time" class="input" id="ia-def-lunch-end" value="${iad.lunchWindowEnd || '13:00'}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">Duration (min)</label>
+                <input type="number" class="input" id="ia-def-lunch-dur" min="0" step="5" value="${iad.lunchDuration != null ? iad.lunchDuration : 30}" />
+              </div>
+            </div>
+          </div>
+          <div class="time-bound-row">
+            <span class="time-bound-label">Breaks</span>
+            <div class="time-bound-inputs">
+              <div class="form-group form-group-sm">
+                <label class="form-label">Count / day</label>
+                <input type="number" class="input" id="ia-def-break-count" min="0" max="6" step="1" value="${iad.breakCount != null ? iad.breakCount : 1}" />
+              </div>
+              <div class="form-group form-group-sm">
+                <label class="form-label">Duration (min)</label>
+                <input type="number" class="input" id="ia-def-break-dur" min="5" step="5" value="${iad.breakDuration || 15}" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Lunch Periods -->
@@ -895,6 +947,17 @@ function saveSchoolAndContinue() {
   s.dayStart = s.firstBell;
   s.dayEnd   = s.dismissal;
 
+  // IA defaults — starting values for NEW IAs (existing IAs are untouched).
+  s.iaDefaults = {
+    startTime:        document.getElementById('ia-def-start').value,
+    endTime:          document.getElementById('ia-def-end').value,
+    lunchWindowStart: document.getElementById('ia-def-lunch-start').value,
+    lunchWindowEnd:   document.getElementById('ia-def-lunch-end').value,
+    lunchDuration:    Math.max(0, parseInt(document.getElementById('ia-def-lunch-dur').value, 10) || 0),
+    breakCount:       Math.max(0, parseInt(document.getElementById('ia-def-break-count').value, 10) || 0),
+    breakDuration:    Math.max(5, parseInt(document.getElementById('ia-def-break-dur').value, 10) || 15),
+  };
+
   s.altDays = [];
   document.querySelectorAll('.alt-day-row').forEach(row => {
     const lsCb = row.querySelector('.alt-late-start-cb');
@@ -1298,6 +1361,19 @@ function showAddStaffForm(existingId) {
     document.querySelectorAll('.sf-iapref-field, .sf-ownlunch-field, .sf-color-field').forEach(el => {
       el.classList.toggle('hidden', !isIARole);
     });
+    // For a NEW IA, seed hours/lunch/breaks from the School Info IA Defaults.
+    // (Existing IAs keep their own values — this only fires on a fresh add.)
+    if (isIARole && !existing) {
+      const d = SchedState.school.iaDefaults || {};
+      const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
+      setVal('sf-start', d.startTime);
+      setVal('sf-end', d.endTime);
+      setVal('sf-lunch-dur', d.lunchDuration);
+      setVal('sf-lunch-start', d.lunchWindowStart);
+      setVal('sf-lunch-end', d.lunchWindowEnd);
+      setVal('sf-break-count', d.breakCount);
+      setVal('sf-break-dur', d.breakDuration);
+    }
   });
 
   document.getElementById('sf-cancel-btn').addEventListener('click', () => {
