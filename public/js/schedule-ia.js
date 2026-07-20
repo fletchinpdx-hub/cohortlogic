@@ -2300,18 +2300,15 @@ function placeIAs() {
   reqs.sort((a, b) => a.rowIndex - b.rowIndex || a._elig - b._elig || a._first - b._first
     || String(a.grade).localeCompare(String(b.grade)));
 
-  // Instructional blocks: grade preference LEADS (an aide works with their grade),
-  // then load. Duty blocks (recess/lunch/arrival/dismissal): SPREAD by accumulated
-  // duty minutes FIRST so an aide who prefers every grade can't soak up all the duty;
-  // grade preference is still a factor (breaks ties among equally-loaded aides).
-  const dutyDayMin = {}; DAYS.forEach(d => { dutyDayMin[d] = {}; });   // duty minutes per IA, per day
   const pref = (ia, req) => (ia.gradePreferences || []).includes(req.grade) ? 0 : 1;
-  // Duty ranking, best-first: (1) least duty ALREADY THAT DAY — so an aide already on
-  // a recess yields to a free one, spreading duty within the day; (2) least duty across
-  // the WEEK; (3) grade preference (still a factor); (4) overall load. Instructional:
-  // grade preference leads, then load.
-  const rankKey = (ia, req, day) => req.isDuty
-    ? [((dutyDayMin[day] || {})[ia.id] || 0), (dutyMin[ia.id][req.blockId] || 0), pref(ia, req), totalMin[ia.id]]
+  // Ranking, best-first. Instructional: grade preference LEADS (an aide works with
+  // their grade), then load. Duty (recess/lunch/arrival/dismissal): least accumulated
+  // duty of THIS type FIRST — so different duties spread across different aides and no
+  // aide who prefers every grade soaks up all of it — then grade preference (a factor,
+  // not a monopoly), then load. dutyMin accumulates a FULL week per assignment, so once
+  // an aide takes one duty their next-duty rank drops and the next duty goes elsewhere.
+  const rankKey = (ia, req) => req.isDuty
+    ? [(dutyMin[ia.id][req.blockId] || 0), pref(ia, req), totalMin[ia.id]]
     : [pref(ia, req), totalMin[ia.id]];
   const cmp = (a, b) => { for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return a[i] - b[i]; } return 0; };
 
@@ -2331,27 +2328,23 @@ function placeIAs() {
     run.forEach(sl => { map[sl] = { allocId, targetType: req.targetType || 'grade', targetId: req.targetId != null ? req.targetId : req.grade, note: '' }; });
     const mins = run.length * 5;
     totalMin[ia.id] += mins;
-    if (req.isDuty) {
-      dutyMin[ia.id][req.blockId] = (dutyMin[ia.id][req.blockId] || 0) + mins;
-      dutyDayMin[day][ia.id] = (dutyDayMin[day][ia.id] || 0) + mins;
-    }
+    if (req.isDuty) dutyMin[ia.id][req.blockId] = (dutyMin[ia.id][req.blockId] || 0) + mins;
     charge(allocId, day, mins);
     report.placed += mins;
   };
 
-  // Place one requirement.
-  //   • Instructional blocks reuse ONE consistent team all week (the same IA keeps
-  //     the class every day).
-  //   • Duty blocks (recess / lunch supervision) instead ROTATE day-to-day: each day
-  //     picks the lowest-duty available IA, so recess is shared across aides rather
-  //     than one person doing it every day. dutyMin (updated after each assignment)
-  //     drives the rotation; grade preference still ranks first, so a preferred IA is
-  //     favored, and the rotation spreads among equally-preferring/eligible aides.
+  // Place one requirement. EVERY requirement — instructional AND duty (recess/lunch) —
+  // reuses ONE consistent team all week: the same aide keeps the same block/grade every
+  // day, so an aide's slot never shows lunch some days and recess others. Spread across
+  // aides comes from the TEAM SELECTION (ranked by `rankKey`), not from day-to-day
+  // rotation: because dutyMin accumulates a full week per duty assignment, each new duty
+  // is picked up by a different, less-loaded aide. A substitute is only used on a day the
+  // team can't cover, and that (rare) day-to-day inconsistency is reported.
   const placeReq = req => {
     const daysCoverable = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
     const pool = ias.filter(ia => daysCoverable(ia) > 0);
-    const team = req.isDuty ? [] : pool.slice().sort((a, b) =>
-      (pref(a, req) - pref(b, req)) || (daysCoverable(b) - daysCoverable(a)) || (totalMin[a.id] - totalMin[b.id]) || (staffIdx(a) - staffIdx(b))
+    const team = pool.slice().sort((a, b) =>
+      cmp(rankKey(a, req), rankKey(b, req)) || (daysCoverable(b) - daysCoverable(a)) || (staffIdx(a) - staffIdx(b))
     ).slice(0, req.need).map(ia => ia.id);
 
     const usedIAs = new Set();
@@ -2365,13 +2358,12 @@ function placeIAs() {
       while (assignedToday.length < req.need) {
         const cand = pool
           .filter(ia => !assignedToday.includes(ia.id) && _iaInHours(ia, run) && free(day, ia.id, run))
-          .sort((a, b) => cmp(rankKey(a, req, day), rankKey(b, req, day)) || (staffIdx(a) - staffIdx(b)))[0];
+          .sort((a, b) => cmp(rankKey(a, req), rankKey(b, req)) || (staffIdx(a) - staffIdx(b)))[0];
         if (!cand) { report.shortfalls.push({ day, grade: req.grade, blockId: req.blockId, subId: req.subId, needed: req.need, placed: assignedToday.length }); break; }
         assign(day, cand, run, req); assignedToday.push(cand.id); usedIAs.add(cand.id);
       }
     });
-    // Duty blocks are INTENTIONALLY rotated across days — that's not an inconsistency.
-    if (!req.isDuty && usedIAs.size > req.need) report.inconsistencies.push({ grade: req.grade, blockId: req.blockId, subId: req.subId, iasUsed: usedIAs.size, need: req.need });
+    if (usedIAs.size > req.need) report.inconsistencies.push({ grade: req.grade, blockId: req.blockId, subId: req.subId, iasUsed: usedIAs.size, need: req.need });
   };
 
   // ── Priority order (user-specified) ──
