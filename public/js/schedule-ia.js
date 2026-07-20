@@ -84,7 +84,7 @@ function _iaPlacementIssuesHtml() {
   if (!total) return '';
 
   const dayShort   = d => d.slice(0, 3);
-  const blockLabel = (blockId, subId) => getBtName(subId ? blockId + '|' + subId : blockId);
+  const blockLabel = (blockId, subId) => _iaBlockLabel(blockId, subId);
   const gradeLabel = g => GRADE_LABELS[g] || g;
   const iaName     = id => (SchedState.staff.find(s => s.id === id) || {}).name || 'IA';
   const allocName  = id => (SchedState.iaAllocations.find(a => a.id === id) || {}).name || 'category';
@@ -1608,15 +1608,55 @@ function wireIAViewEvents(container, ias) {
 // surface the placement engine (Phase 3) reads. (Note: the IA Schedule tab's
 // budget bar still edits the same iaAllocations for now; it's retired in Phase 4.)
 
+// One-time migration: legacy coverage rows targeted recess as a single block
+// (blockId 'bt_recess', no subId). Split each into the two variants so old files
+// adopt the lunch/standalone distinction without losing their counts/funding.
+// Idempotent — rows already carrying a variant subId are left untouched. Called
+// from renderIAAssignmentView so it catches every load path (local + file import).
+function _migrateRecessCoverage() {
+  const list = SchedState.iaCoverage;
+  if (!Array.isArray(list) || !list.length) return;
+  let changed = false;
+  const out = [];
+  list.forEach(r => {
+    if (r.blockId === 'bt_recess' && !_isRecessVariant(r.subId)) {
+      changed = true;
+      const clone = extra => ({
+        ...r,
+        grades: [...(r.grades || [])],
+        allowedAllocIds: [...(r.allowedAllocIds || [])],
+        ...extra,
+      });
+      out.push(clone({ subId: IA_RECESS_LUNCH }));         // keeps original id
+      out.push(clone({ id: uid(), subId: IA_RECESS_FREE }));
+    } else {
+      out.push(r);
+    }
+  });
+  if (changed) { SchedState.iaCoverage = out; saveToLocal(); }
+}
+
+// (blockId, subId) → human label, aware of the recess variants above.
+function _iaBlockLabel(blockId, subId) {
+  if (blockId === 'bt_recess' && _isRecessVariant(subId)) {
+    return subId === IA_RECESS_LUNCH ? 'Recess (connected to lunch)' : 'Recess (standalone)';
+  }
+  return getBtName(subId ? blockId + '|' + subId : blockId);
+}
+
 // Blocks the coverage plan can target: required instructional blocks + their
 // sub-blocks + lunch/recess/morning-meeting. Specials and arrival/dismissal duty
 // are excluded (specials teachers cover specials; duties aren't grade blocks).
+// Recess is emitted as two variants (see IA_RECESS_* above).
 function _coverableBlockOptions() {
   const SKIP = new Set(['bt_spec', 'bt_arr', 'bt_dis']);
   const out = [];
   (SchedState.blockTypes || []).forEach(bt => {
     if (SKIP.has(bt.id)) return;
-    if (bt.subBlocks && bt.subBlocks.length) {
+    if (bt.id === 'bt_recess') {
+      out.push({ value: `bt_recess|${IA_RECESS_LUNCH}`, blockId: 'bt_recess', subId: IA_RECESS_LUNCH, label: 'Recess (connected to lunch)' });
+      out.push({ value: `bt_recess|${IA_RECESS_FREE}`,  blockId: 'bt_recess', subId: IA_RECESS_FREE,  label: 'Recess (standalone)' });
+    } else if (bt.subBlocks && bt.subBlocks.length) {
       out.push({ value: bt.id, blockId: bt.id, subId: null, label: bt.name + ' (whole)' });
       bt.subBlocks.forEach(sb => out.push({
         value: bt.id + '|' + sb.id, blockId: bt.id, subId: sb.id, label: bt.name + ' – ' + sb.name,
@@ -1681,10 +1721,19 @@ function _iaCoverageRow(r, blockOpts, allocs, grades, idx, total) {
 function renderIAAssignmentView() {
   if (!SchedState.iaAllocations) SchedState.iaAllocations = [];
   if (!SchedState.iaCoverage)    SchedState.iaCoverage    = [];
+  _migrateRecessCoverage();
   const allocs    = SchedState.iaAllocations;
   const coverage  = SchedState.iaCoverage;
   const grades    = gradesSorted();
   const blockOpts = _coverableBlockOptions();
+
+  // Nudge if only one recess variant is covered — the other may have been forgotten.
+  const recessRows = coverage.filter(r => r.blockId === 'bt_recess' && _isRecessVariant(r.subId));
+  const hasLunchRecess = recessRows.some(r => r.subId === IA_RECESS_LUNCH);
+  const hasFreeRecess  = recessRows.some(r => r.subId === IA_RECESS_FREE);
+  const recessHint = (recessRows.length && !(hasLunchRecess && hasFreeRecess))
+    ? `<p class="ia-cov-hint">⚠ You've added a coverage row for ${hasLunchRecess ? 'the lunch-connected recess' : 'standalone recess'} but not ${hasLunchRecess ? 'standalone recess' : 'the lunch-connected recess'}. If that recess also needs an IA, add the other row.</p>`
+    : '';
 
   document.getElementById('view-ia-assign').innerHTML = `
     <div class="view-header">
@@ -1733,6 +1782,7 @@ function renderIAAssignmentView() {
             </tbody>
           </table>
         </div>
+        ${recessHint}
         <button class="btn btn-outline btn-sm mt-8" id="ia-add-coverage-row"${blockOpts.length ? '' : ' disabled'}>+ Add block</button>
       </div>
 
@@ -1863,6 +1913,17 @@ function _wireIAAssignment() {
 // parity. Duties (SchedState.duties) live outside iaSchedule and are untouched.
 const IA_DUTY_BLOCKS = new Set(['bt_lunch', 'bt_recess']);
 
+// Recess coverage is split into two virtual variants so the plan can staff the
+// lunch-connected recess differently from standalone recesses (e.g. 2 IAs vs 1).
+// These live only in the coverage plan as a pseudo-subId — the master schedule
+// still stores plain `bt_recess`; each occurrence is classified at fill time via
+// _recessBlockInfo()'s lunchAdjacent flag. Sentinels are '__'-prefixed so they
+// never collide with real sub-block ids (uid()s). Defined here (in the engine
+// region) because _iaBlockOccurrences depends on them.
+const IA_RECESS_LUNCH = '__recess_lunch';
+const IA_RECESS_FREE  = '__recess_free';
+function _isRecessVariant(subId) { return subId === IA_RECESS_LUNCH || subId === IA_RECESS_FREE; }
+
 function _iaSlotMatches(slotVal, blockId, subId) {
   if (!slotVal) return false;
   const bar  = slotVal.indexOf('|');
@@ -1873,15 +1934,25 @@ function _iaSlotMatches(slotVal, blockId, subId) {
 }
 
 // Contiguous slot-runs where grade G has the target block on `day`.
+// For recess variants, runs are formed on the base bt_recess block then filtered
+// by whether each run is the lunch-connected recess (via _recessBlockInfo).
 function _iaBlockOccurrences(day, grade, blockId, subId) {
   const slots  = _autoFillSlots(day);
   const gsched = (SchedState.masterSchedule[day] || {})[grade] || {};
+  const recessVariant = (blockId === 'bt_recess' && _isRecessVariant(subId)) ? subId : null;
+  const matchSub = recessVariant ? null : subId;   // form runs on base block, classify after
   const runs = []; let cur = null;
   slots.forEach(sl => {
-    if (_iaSlotMatches(gsched[sl], blockId, subId)) { if (!cur) { cur = []; runs.push(cur); } cur.push(sl); }
+    if (_iaSlotMatches(gsched[sl], blockId, matchSub)) { if (!cur) { cur = []; runs.push(cur); } cur.push(sl); }
     else cur = null;
   });
-  return runs;
+  if (!recessVariant) return runs;
+  const wantLunch = recessVariant === IA_RECESS_LUNCH;
+  return runs.filter(run => {
+    const info = (typeof _recessBlockInfo === 'function') ? _recessBlockInfo(day, grade, run[0]) : null;
+    // Unknown classification → treat as standalone, so it still gets covered.
+    return info ? (!!info.lunchAdjacent === wantLunch) : !wantLunch;
+  });
 }
 
 function _iaInHours(ia, run) {
