@@ -536,9 +536,10 @@ function buildIAGrid(day, ias) {
         const nextDuty = nextSlot ? dutyMap[ia.id]?.[nextSlot] : null;
         const isCont = prevDuty?.id === duty.id;
         const isEnd  = nextDuty?.id !== duty.id;
-        const inner  = isCont ? '' : `
+        const inner  = isCont ? '' : `<div class="ia-cell-inner">
           <div class="ia-cell-label ia-duty-name">${escHtml(duty.name)}</div>
-          ${duty.location ? `<div class="ia-cell-grade ia-duty-loc">${escHtml(duty.location)}</div>` : ''}`;
+          ${duty.location ? `<div class="ia-cell-grade ia-duty-loc">${escHtml(duty.location)}</div>` : ''}
+        </div>`;
         const styleStr = [
           `background:${color}22`,
           `border-left:3px dashed ${color}`,
@@ -578,11 +579,13 @@ function buildIAGrid(day, ias) {
       const targetLabel = _iaTargetLabel(entry);
       const note    = entry.note || '';
 
-      const inner = isCont ? '' : `
+      // Face capped to 3 short lines (note lives in the tooltip) so content never
+      // exceeds a block's height; wrapper is absolutely positioned (see CSS).
+      const inner = isCont ? '' : `<div class="ia-cell-inner">
         <div class="ia-cell-label">${escHtml(alloc?.name || '')}</div>
         ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}
         ${btName ? `<div class="ia-cell-block">${escHtml(btName)}</div>` : ''}
-        ${note ? `<div class="ia-cell-note">${escHtml(note)}</div>` : ''}`;
+      </div>`;
       const title = [alloc?.name, targetLabel, btName, note].filter(Boolean).join(' · ');
 
       const styleStr = [
@@ -841,10 +844,10 @@ function _updateIACellDOM(cell, day, iaId, slot, depth) {
     cell.className     = `ia-cell filled${isCont ? ' cont' : ''}`;
     cell.style.cssText = `background:${color}22;border-left:3px solid ${color};border-right:1px solid ${color}40`;
     cell.title         = [alloc?.name, targetLabel, btName].filter(Boolean).join(' • ');
-    cell.innerHTML     = isCont ? '' : `
+    cell.innerHTML     = isCont ? '' : `<div class="ia-cell-inner">
       <div class="ia-cell-label">${escHtml(alloc?.name || '')}</div>
       ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}
-      ${btName ? `<div class="ia-cell-block">${escHtml(btName)}</div>` : ''}`;
+      ${btName ? `<div class="ia-cell-block">${escHtml(btName)}</div>` : ''}</div>`;
   }
 
   const nextCell = slotIdx >= 0 && slotIdx < allCells.length - 1 ? allCells[slotIdx + 1] : null;
@@ -1299,11 +1302,11 @@ function buildIndividualIAGrid(iaId) {
       // Grade assignments show the grade; own-lunch / break show their own label.
       const gradeLabel = grade ? (GRADE_LABELS[grade] || grade) : _iaTargetLabel(entry);
       const note       = entry.note || '';
-      const inner      = isCont ? '' : `
+      const inner      = isCont ? '' : `<div class="ia-ind-cell-inner">
         <div class="ia-ind-cell-grade">${escHtml(gradeLabel)}</div>
         ${bt ? `<div class="ia-ind-cell-block">${escHtml(bt.name)}</div>` : ''}
         ${alloc ? `<span class="ia-ind-alloc-dot" style="background:${alloc.color}" title="${escHtml(alloc.name)}"></span>` : ''}
-        ${note ? `<div class="ia-ind-cell-note">${escHtml(note)}</div>` : ''}`;
+        ${note ? `<div class="ia-ind-cell-note">${escHtml(note)}</div>` : ''}</div>`;
 
       const styleStr = [
         `background:${color}18`,
@@ -1702,11 +1705,25 @@ function _normalizeCoverageScope() {
   if (!Array.isArray(list)) return;
   let changed = false;
   list.forEach(r => {
+    if (r.kind) return;   // personal-time rows have no block/scope
     if (r.scope !== 'grade' && r.scope !== 'school') {
       r.scope = _isSchoolWideEligible(r.blockId) ? 'school' : 'grade';
       changed = true;
     }
   });
+  if (changed) saveToLocal();
+}
+
+// The coverage plan also carries two special "personal time" steps — reserving each
+// IA's own lunch and their breaks — so their PRIORITY can be ordered inline with
+// coverage (drag them above/below coverage rows). Seed them at the TOP if absent,
+// which preserves the historical behavior of reserving personal time first.
+function _ensureIAPersonalRows() {
+  const list = SchedState.iaCoverage;
+  if (!Array.isArray(list)) return;
+  let changed = false;
+  if (!list.some(r => r.kind === 'ia_breaks')) { list.unshift({ id: uid(), kind: 'ia_breaks' }); changed = true; }
+  if (!list.some(r => r.kind === 'ia_lunch'))  { list.unshift({ id: uid(), kind: 'ia_lunch'  }); changed = true; }
   if (changed) saveToLocal();
 }
 
@@ -1766,14 +1783,30 @@ function _iaAllocRow(a) {
 }
 
 function _iaCoverageRow(r, blockOpts, allocs, grades, idx, total) {
-  const curVal = r.subId ? `${r.blockId}|${r.subId}` : r.blockId;
-  return `
-    <tr data-cov-id="${r.id}">
+  const priorityCell = `
       <td class="ia-cov-priority">
         <span class="ia-cov-rank">${idx + 1}</span>
         <button class="icon-btn ia-cov-up" data-cov-id="${r.id}" title="Move up"${idx === 0 ? ' disabled' : ''}>↑</button>
         <button class="icon-btn ia-cov-down" data-cov-id="${r.id}" title="Move down"${idx === total - 1 ? ' disabled' : ''}>↓</button>
-      </td>
+      </td>`;
+  // Personal-time steps (IA's own lunch / breaks): reorderable priority only, no
+  // block/grade/count/funding. Where they sit in the list is WHEN they're reserved
+  // relative to coverage.
+  if (r.kind === 'ia_lunch' || r.kind === 'ia_breaks') {
+    const isLunch = r.kind === 'ia_lunch';
+    const label = isLunch ? "IA's own lunch" : "IA's breaks";
+    const hint  = isLunch ? 'reserve each aide’s lunch here' : 'reserve each aide’s breaks here';
+    return `
+    <tr data-cov-id="${r.id}" class="ia-cov-special">
+      ${priorityCell}
+      <td colspan="4"><span class="ia-cov-special-label">${isLunch ? '🍴' : '☕'} ${escHtml(label)}</span> <span class="ia-cov-special-hint">— ${hint} (set durations on Staff Roster)</span></td>
+      <td></td>
+    </tr>`;
+  }
+  const curVal = r.subId ? `${r.blockId}|${r.subId}` : r.blockId;
+  return `
+    <tr data-cov-id="${r.id}">
+      ${priorityCell}
       <td>
         <select class="input ia-cov-block" data-cov-id="${r.id}">
           ${blockOpts.map(o => `<option value="${o.value}" ${o.value === curVal ? 'selected' : ''}>${escHtml(o.label)}</option>`).join('')}
@@ -1808,6 +1841,7 @@ function renderIAAssignmentView() {
   if (!SchedState.iaCoverage)    SchedState.iaCoverage    = [];
   _migrateRecessCoverage();
   _normalizeCoverageScope();
+  _ensureIAPersonalRows();
   const allocs    = SchedState.iaAllocations;
   const coverage  = SchedState.iaCoverage;
   const grades    = gradesSorted();
@@ -1904,6 +1938,24 @@ function _renderPlacementReport(rep) {
   if (rep.inconsistencies.length) rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.inconsistencies.length} block(s) covered by different IAs on different days.</div>`);
   if (rep.overBudget.length)      rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.overBudget.length} category/day over its hours budget.</div>`);
   if (rep.ownLunchUnplaced.length) rows.push(`<div class="ia-place-line ia-place-warn">⚠ ${rep.ownLunchUnplaced.length} own-lunch reservation(s) couldn't fit their window.</div>`);
+
+  // Budget-time allocation status: peak day used vs. each category's daily limit.
+  if (rep.budget && rep.budget.length) {
+    const bars = rep.budget.map(b => {
+      const used = (b.peakMin / 60).toFixed(1);
+      const hasBudget = b.budgetMin > 0;
+      const bud = hasBudget ? (b.budgetMin / 60).toFixed(1) + ' h' : 'no limit';
+      const over = hasBudget && b.peakMin > b.budgetMin;
+      const pct = hasBudget ? Math.min(100, Math.round((b.peakMin / b.budgetMin) * 100)) : (b.peakMin > 0 ? 100 : 0);
+      return `<div class="ia-budget-row">
+        <span class="ia-budget-dot" style="background:${b.color || '#6366f1'}"></span>
+        <span class="ia-budget-name">${escHtml(b.name || '(unnamed)')}</span>
+        <span class="ia-budget-bar"><span class="ia-budget-fill${over ? ' over' : ''}" style="width:${pct}%;background:${over ? '#dc2626' : (b.color || '#6366f1')}"></span></span>
+        <span class="ia-budget-num${over ? ' over' : ''}">${used} / ${bud} per day</span>
+      </div>`;
+    }).join('');
+    rows.push(`<div class="ia-budget-block"><div class="ia-budget-title">Budget allocation — busiest day used vs. daily limit</div>${bars}</div>`);
+  }
   rows.push(`<button class="btn btn-outline btn-sm mt-8" data-nav="ia">View on IA Schedule →</button>`);
   el.innerHTML = rows.join('');
 }
@@ -2119,6 +2171,7 @@ function placeIAs() {
   // everyone (the old first-fit clustered every lunch at the window's start).
   const demand = {}; DAYS.forEach(d => { demand[d] = {}; });
   (SchedState.iaCoverage || []).forEach(row => {
+    if (row.kind) return;   // personal-time steps carry no coverage demand
     const need = Math.max(1, row.iasPerGrade || 1);
     if (row.scope === 'school') {
       DAYS.forEach(day => _iaSchoolBlockOccurrences(day, row.blockId).forEach(run => {
@@ -2213,6 +2266,7 @@ function placeIAs() {
   // (the user orders the list). Within a row, hardest-to-staff grade goes first.
   const reqs = [];
   (SchedState.iaCoverage || []).forEach((row, rowIndex) => {
+    if (row.kind) return;   // personal-time steps produce no coverage requirement (rowIndex preserved)
     const need   = Math.max(1, row.iasPerGrade || 1);
     const isDuty = IA_DUTY_BLOCKS.has(row.blockId);
     if (row.scope === 'school') {
@@ -2321,19 +2375,40 @@ function placeIAs() {
   };
 
   // ── Priority order (user-specified) ──
-  // IAs get their own lunch + break first (demand-aware, so they dodge the busiest
-  // coverage times), then ALL coverage is filled in the coverage-plan's ROW ORDER —
-  // the list is the single knob for coverage priority (put a row higher to staff it
-  // sooner). No block type is special-cased any more.
-  reserveOwnLunches();
-  reserveBreaks();
-  reqs.forEach(placeReq);
+  // The coverage plan is ONE ordered list and it drives everything: coverage rows are
+  // filled top-to-bottom, and the two personal-time steps ("IA's lunch" / "IA's
+  // breaks") reserve each aide's lunch/breaks AT THEIR POSITION in that list. So a
+  // step placed above the coverage rows reserves personal time first (aides always
+  // get it); placed below, coverage wins the contested slots and personal time works
+  // around what's left. reqs are grouped by their row's list index; within a row,
+  // hardest-to-staff first (the earlier reqs.sort ordering).
+  const reqsByRow = {};
+  reqs.forEach(r => { (reqsByRow[r.rowIndex] = reqsByRow[r.rowIndex] || []).push(r); });
+  const list = SchedState.iaCoverage || [];
+  // Files predating the personal-time rows have neither → reserve first (old default).
+  if (!list.some(r => r.kind === 'ia_lunch'))  reserveOwnLunches();
+  if (!list.some(r => r.kind === 'ia_breaks')) reserveBreaks();
+  list.forEach((row, i) => {
+    if (row.kind === 'ia_lunch')  { reserveOwnLunches(); return; }
+    if (row.kind === 'ia_breaks') { reserveBreaks();     return; }
+    (reqsByRow[i] || []).forEach(placeReq);
+  });
 
   // ── Over-budget warnings (soft; only when a budget is actually set) ──
   allocs.forEach(a => {
     const budget = (a.hoursPerDay || 0) * 60;
     if (budget <= 0) return;
     Object.entries(allocUsed[a.id] || {}).forEach(([day, used]) => { if (used > budget) report.overBudget.push({ allocId: a.id, day, usedMin: used, budgetMin: budget }); });
+  });
+
+  // ── Budget-time allocation status (per category: peak day used vs. daily limit) ──
+  report.budget = allocs.map(a => {
+    const byDay = allocUsed[a.id] || {};
+    return {
+      id: a.id, name: a.name, color: a.color,
+      budgetMin: (a.hoursPerDay || 0) * 60,
+      peakMin: DAYS.reduce((m, d) => Math.max(m, byDay[d] || 0), 0),
+    };
   });
 
   SchedState._iaPlacementReport = report;

@@ -407,7 +407,7 @@
 
 /* ── Setup form layout ─────────────────────────────────────────── */
 .setup-form {
-  max-width: 780px;
+  max-width: 1100px;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -1145,6 +1145,18 @@
 .ia-place-ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
 .ia-place-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
 
+/* Budget-time allocation status shown after Place IAs */
+.ia-budget-block { margin: 10px 0 4px; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; background: #fff; }
+.ia-budget-title { font-size: 12px; font-weight: 700; color: var(--gray-600); margin-bottom: 8px; }
+.ia-budget-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.ia-budget-row:last-child { margin-bottom: 0; }
+.ia-budget-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.ia-budget-name { min-width: 90px; max-width: 130px; color: var(--gray-700); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ia-budget-bar { flex: 1; height: 8px; background: var(--gray-100); border-radius: 999px; overflow: hidden; min-width: 60px; }
+.ia-budget-fill { display: block; height: 100%; border-radius: 999px; }
+.ia-budget-num { min-width: 116px; text-align: right; color: var(--gray-600); font-variant-numeric: tabular-nums; }
+.ia-budget-num.over { color: #dc2626; font-weight: 700; }
+
 /* IA Schedule — placement issues detail panel */
 .ia-issues-panel { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; margin: 0 0 12px; overflow: hidden; }
 .ia-issues-summary { cursor: pointer; list-style: none; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #92400e; }
@@ -1159,6 +1171,10 @@
 
 /* IA coverage plan — priority (reorder) cell */
 .ia-cov-priority { white-space: nowrap; text-align: center; }
+/* Personal-time (IA lunch / breaks) priority rows in the coverage plan */
+.ia-cov-special { background: #f8fafc; }
+.ia-cov-special-label { font-weight: 700; color: var(--gray-700); font-size: 13px; }
+.ia-cov-special-hint { color: var(--gray-400); }
 .ia-cov-rank { display: inline-block; min-width: 16px; font-weight: 700; color: var(--gray-500); font-size: 12px; margin-right: 2px; }
 .ia-cov-up, .ia-cov-down { padding: 1px 4px; font-size: 12px; line-height: 1; }
 .ia-cov-up[disabled], .ia-cov-down[disabled] { opacity: .3; cursor: default; }
@@ -3419,6 +3435,18 @@
 .ia-ind-cell-block { font-size: 9px; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ia-ind-alloc-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-top: 2px; }
 .ia-ind-cell-note { font-size: 8.5px; color: var(--gray-400); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+
+/* Cell face is absolutely positioned so a content-heavy first cell never grows its
+   5-min row: every row stays aligned to the time axis, and blocks render at a height
+   proportional to their duration (fixes uneven-looking blocks). The face is capped
+   to a few short lines so it can't exceed a block's height; full detail is in the
+   cell's title tooltip. pointer-events:none lets clicks reach the cell underneath. */
+.ia-cell, .ia-ind-cell { position: relative; }
+.ia-cell.filled, .ia-ind-cell.filled, .ia-cell.duty-cell { overflow: visible; }
+.ia-cell-inner, .ia-ind-cell-inner {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 0 3px; overflow: hidden; pointer-events: none;
+}
 
 .ia-empty-state {
   display: flex;
