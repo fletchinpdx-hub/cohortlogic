@@ -46,5 +46,21 @@ byDay = coverBy('bt_math');
 distinct = new Set(Object.values(byDay).flat());
 ck('instructional block stays with ONE consistent aide all week', distinct.size === 1 && Object.keys(byDay).length === 5);
 
+// 3) Staggered recesses on the SAME day + one aide who prefers EVERY grade must not
+//    soak up all the duty — within-day duty load spreads it across aides.
+ms = {}; ['K', '1', '2', '3', '4'].forEach((g, i) => paint(ms, g, 'bt_recess', minsToTime(timeToMins('09:00') + i * 15), minsToTime(timeToMins('09:15') + i * 15)));
+const mixed = [
+  { id: 'IA0', role: 'ia', name: 'IA0', startTime: '08:00', endTime: '14:30', gradePreferences: ['K', '1', '2', '3', '4'], breaks: { count: 0 } }, // prefers all
+  { id: 'IA1', role: 'ia', name: 'IA1', startTime: '08:00', endTime: '14:30', gradePreferences: [], breaks: { count: 0 } },
+  { id: 'IA2', role: 'ia', name: 'IA2', startTime: '08:00', endTime: '14:30', gradePreferences: [], breaks: { count: 0 } },
+  { id: 'IA3', role: 'ia', name: 'IA3', startTime: '08:00', endTime: '14:30', gradePreferences: [], breaks: { count: 0 } },
+  { id: 'IA4', role: 'ia', name: 'IA4', startTime: '08:00', endTime: '14:30', gradePreferences: [], breaks: { count: 0 } },
+];
+SchedState = { masterSchedule: ms, staff: mixed, iaAllocations: [{ id: 'gen', name: 'Gen', hoursPerDay: 100 }],
+  iaCoverage: [{ id: 'sr', blockId: 'bt_recess', subId: '__recess_free', grades: ['K', '1', '2', '3', '4'], iasPerGrade: 1, allowedAllocIds: ['gen'] }], iaSchedule: {} };
+placeIAs();
+const monDistinct = new Set(Object.entries(SchedState.iaSchedule.Monday || {}).filter(([id, sl]) => Object.values(sl).some(e => e.targetType === 'grade')).map(([id]) => id));
+ck('staggered recess spreads within the day (not all on the all-grades aide)', monDistinct.size >= 4);
+
 console.log(fail ? `\n${fail} FAILED` : '\nALL PASS');
 process.exit(fail ? 1 : 0);

@@ -487,7 +487,7 @@ function buildIAGrid(day, ias) {
   const allocs = SchedState.iaAllocations || [];
 
   // Extend slot range to include any duty start/end slots for this day
-  const slotSet = new Set(_autoFillSlots(day));
+  const slotSet = new Set(_iaAutoFillSlots(day));
   const dayDuties = (SchedState.duties || []).filter(d => (d.days || []).includes(day));
   dayDuties.forEach(duty => _dutySlotsFor(duty).forEach(s => slotSet.add(s)));
   const slots = [...slotSet].sort();
@@ -1049,7 +1049,7 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
   // The exact-block contiguous run (same btId) for a grade around `slot`.
   const blockRun = grade => {
     const btId = getBlock(day, grade, slot); if (!btId) return [];
-    const slots = _autoFillSlots(day); const g = (SchedState.masterSchedule[day] || {})[grade] || {};
+    const slots = _iaAutoFillSlots(day); const g = (SchedState.masterSchedule[day] || {})[grade] || {};
     let a = slots.indexOf(slot), b = a;
     while (a > 0 && g[slots[a - 1]] === btId) a--;
     while (b < slots.length - 1 && g[slots[b + 1]] === btId) b++;
@@ -1171,7 +1171,7 @@ function _getIAPartialTime(day, iaId, startSlot, slots) {
 
 function buildIndividualIAGrid(iaId) {
   const allSlotSet = new Set();
-  DAYS.forEach(d => _autoFillSlots(d).forEach(s => allSlotSet.add(s)));
+  DAYS.forEach(d => _iaAutoFillSlots(d).forEach(s => allSlotSet.add(s)));
 
   // Include any 5-min slots covered by duties assigned to this IA
   const iaDuties = (SchedState.duties || []).filter(d => (d.iaIds || []).includes(iaId));
@@ -1928,6 +1928,29 @@ const IA_RECESS_LUNCH = '__recess_lunch';
 const IA_RECESS_FREE  = '__recess_free';
 function _isRecessVariant(subId) { return subId === IA_RECESS_LUNCH || subId === IA_RECESS_FREE; }
 
+// Time rows for the IA schedule + the range the placement engine scans. Unlike the
+// instructional grid (first bell → dismissal), this widens to the earliest IA start /
+// campus arrival and the latest IA end / campus exit — so pre-bell coverage and
+// arrival/dismissal DUTY are visible AND placeable (an IA on the clock at 7:25 can be
+// assigned there). Instructional views keep using _autoFillSlots.
+function _iaAutoFillSlots(day) {
+  const sc   = SchedState.school || {};
+  const base = _autoFillSlots(day);                 // instructional day (first bell → dismissal)
+  if (!base.length) return base;
+  let startM = timeToMins(base[0]);
+  let endM   = timeToMins(base[base.length - 1]) + 5;
+  if (sc.studentCampusStart) startM = Math.min(startM, timeToMins(sc.studentCampusStart));
+  if (sc.studentCampusEnd)   endM   = Math.max(endM,   timeToMins(sc.studentCampusEnd));
+  (SchedState.staff || []).forEach(s => {
+    if (s.role !== 'ia') return;
+    if (s.startTime) startM = Math.min(startM, timeToMins(s.startTime));
+    if (s.endTime)   endM   = Math.max(endM,   timeToMins(s.endTime));
+  });
+  const out = [];
+  for (let m = startM; m < endM; m += 5) out.push(minsToTime(m));
+  return out;
+}
+
 function _iaSlotMatches(slotVal, blockId, subId) {
   if (!slotVal) return false;
   const bar  = slotVal.indexOf('|');
@@ -1941,7 +1964,7 @@ function _iaSlotMatches(slotVal, blockId, subId) {
 // For recess variants, runs are formed on the base bt_recess block then filtered
 // by whether each run is the lunch-connected recess (via _recessBlockInfo).
 function _iaBlockOccurrences(day, grade, blockId, subId) {
-  const slots  = _autoFillSlots(day);
+  const slots  = _iaAutoFillSlots(day);
   const gsched = (SchedState.masterSchedule[day] || {})[grade] || {};
   const recessVariant = (blockId === 'bt_recess' && _isRecessVariant(subId)) ? subId : null;
   const matchSub = recessVariant ? null : subId;   // form runs on base block, classify after
@@ -2005,7 +2028,7 @@ function placeIAs() {
   function reservePersonalTime(ia, n, winS, winE, makeEntry, onUnplaced, onPlaced) {
     const candByDay = {};
     DAYS.forEach(day => {
-      const slots = _autoFillSlots(day); const cands = [];
+      const slots = _iaAutoFillSlots(day); const cands = [];
       for (let i = 0; i + n <= slots.length; i++) {
         const run = slots.slice(i, i + n);
         if (timeToMins(run[0]) >= winS && timeToMins(run[n - 1]) + 5 <= winE && _iaInHours(ia, run) && free(day, ia.id, run)) cands.push(run);
@@ -2095,12 +2118,20 @@ function placeIAs() {
   reqs.sort((a, b) => a.rowIndex - b.rowIndex || a._elig - b._elig || a._first - b._first
     || String(a.grade).localeCompare(String(b.grade)));
 
-  const rankKey = (ia, req) => [
-    (ia.gradePreferences || []).includes(req.grade) ? 0 : 1,
-    req.isDuty ? (dutyMin[ia.id][req.blockId] || 0) : 0,
-    totalMin[ia.id],
-  ];
-  const cmp = (a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]);
+  // Instructional blocks: grade preference LEADS (an aide works with their grade),
+  // then load. Duty blocks (recess/lunch/arrival/dismissal): SPREAD by accumulated
+  // duty minutes FIRST so an aide who prefers every grade can't soak up all the duty;
+  // grade preference is still a factor (breaks ties among equally-loaded aides).
+  const dutyDayMin = {}; DAYS.forEach(d => { dutyDayMin[d] = {}; });   // duty minutes per IA, per day
+  const pref = (ia, req) => (ia.gradePreferences || []).includes(req.grade) ? 0 : 1;
+  // Duty ranking, best-first: (1) least duty ALREADY THAT DAY — so an aide already on
+  // a recess yields to a free one, spreading duty within the day; (2) least duty across
+  // the WEEK; (3) grade preference (still a factor); (4) overall load. Instructional:
+  // grade preference leads, then load.
+  const rankKey = (ia, req, day) => req.isDuty
+    ? [((dutyDayMin[day] || {})[ia.id] || 0), (dutyMin[ia.id][req.blockId] || 0), pref(ia, req), totalMin[ia.id]]
+    : [pref(ia, req), totalMin[ia.id]];
+  const cmp = (a, b) => { for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return a[i] - b[i]; } return 0; };
 
   const chooseAlloc = (allowed, day) => {
     if (!allowed.length) return null;
@@ -2118,7 +2149,10 @@ function placeIAs() {
     run.forEach(sl => { map[sl] = { allocId, targetType: 'grade', targetId: req.grade, note: '' }; });
     const mins = run.length * 5;
     totalMin[ia.id] += mins;
-    if (req.isDuty) dutyMin[ia.id][req.blockId] = (dutyMin[ia.id][req.blockId] || 0) + mins;
+    if (req.isDuty) {
+      dutyMin[ia.id][req.blockId] = (dutyMin[ia.id][req.blockId] || 0) + mins;
+      dutyDayMin[day][ia.id] = (dutyDayMin[day][ia.id] || 0) + mins;
+    }
     charge(allocId, day, mins);
     report.placed += mins;
   };
@@ -2134,10 +2168,9 @@ function placeIAs() {
   const placeReq = req => {
     const daysCoverable = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
     const pool = ias.filter(ia => daysCoverable(ia) > 0);
-    const team = req.isDuty ? [] : pool.slice().sort((a, b) => {
-      const ka = rankKey(a, req), kb = rankKey(b, req);
-      return (ka[0] - kb[0]) || (daysCoverable(b) - daysCoverable(a)) || (ka[1] - kb[1]) || (ka[2] - kb[2]) || (staffIdx(a) - staffIdx(b));
-    }).slice(0, req.need).map(ia => ia.id);
+    const team = req.isDuty ? [] : pool.slice().sort((a, b) =>
+      (pref(a, req) - pref(b, req)) || (daysCoverable(b) - daysCoverable(a)) || (totalMin[a.id] - totalMin[b.id]) || (staffIdx(a) - staffIdx(b))
+    ).slice(0, req.need).map(ia => ia.id);
 
     const usedIAs = new Set();
     req.occ.forEach(({ day, run }) => {
@@ -2150,7 +2183,7 @@ function placeIAs() {
       while (assignedToday.length < req.need) {
         const cand = pool
           .filter(ia => !assignedToday.includes(ia.id) && _iaInHours(ia, run) && free(day, ia.id, run))
-          .sort((a, b) => cmp(rankKey(a, req), rankKey(b, req)) || (staffIdx(a) - staffIdx(b)))[0];
+          .sort((a, b) => cmp(rankKey(a, req, day), rankKey(b, req, day)) || (staffIdx(a) - staffIdx(b)))[0];
         if (!cand) { report.shortfalls.push({ day, grade: req.grade, blockId: req.blockId, subId: req.subId, needed: req.need, placed: assignedToday.length }); break; }
         assign(day, cand, run, req); assignedToday.push(cand.id); usedIAs.add(cand.id);
       }
