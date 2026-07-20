@@ -1896,25 +1896,31 @@ function renderBlocks() {
     <div class="form-section">
       <h2 class="form-section-title">Uniform Block Types</h2>
       <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade. Lunch and recess aren't listed here — they're set per grade in School Info and placed automatically.</p>
-      <div id="add-block-form" class="inline-form hidden"></div>
       <div class="req-table-wrap">
         <table class="req-table">
           <thead><tr>
             <th class="req-th-block">Block</th>
+            <th style="width:170px">Category</th>
             <th class="req-th-color">Color</th>
             <th class="req-th-band" style="min-width:160px">School-wide Time<span class="req-th-hint">all grades</span></th>
-            <th class="req-th-actions" style="width:80px"></th>
+            <th class="req-th-actions" style="width:44px"></th>
           </tr></thead>
           <tbody>
             ${otherBTs.map(bt => {
               const hasUniform = bt.uniformStart && bt.uniformEnd;
-              const uniformLabel = hasUniform ? `${fmtTime12(bt.uniformStart)} – ${fmtTime12(bt.uniformEnd)}` : '';
               const isTimeModeOrDefault = !bt.uniformMode || bt.uniformMode === 'time';
+              // "Scheduled" = will be auto-placed: a Fixed start+end, or an Auto duration.
+              const scheduled = hasUniform || (bt.uniformMode === 'duration' && bt.uniformMinutes);
               return `
-              <tr>
+              <tr data-bt-id="${bt.id}">
                 <td class="req-td-block" style="display:table-cell;align-items:unset">
-                  <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${bt.color};margin-right:6px;vertical-align:middle"></span>
-                  ${escHtml(bt.name)}
+                  <input type="text" class="input input-sm uniform-name-input" style="width:100%" value="${escHtml(bt.name)}" data-bt-id="${bt.id}" placeholder="Block name" />
+                </td>
+                <td>
+                  <select class="input input-sm uniform-cat-select" style="width:100%" data-bt-id="${bt.id}">
+                    ${Object.entries(BLOCK_CATEGORIES).map(([val, label]) =>
+                      `<option value="${val}" ${(bt.category || 'admin') === val ? 'selected' : ''}>${label}</option>`).join('')}
+                  </select>
                 </td>
                 <td class="req-td-color">
                   <div class="req-color-swatch" style="background:${bt.color}"></div>
@@ -1942,11 +1948,12 @@ function renderBlocks() {
                         <button class="btn btn-sm btn-outline sw-find-btn" data-bt-id="${bt.id}">Find</button>
                       </span>
                     </div>
-                    ${hasUniform || bt.uniformMode === 'duration' ? `<div class="sw-action-row"><button class="btn btn-sm btn-ghost sw-clear-btn" data-bt-id="${bt.id}">Clear</button></div>` : ''}
+                    ${scheduled
+                      ? `<div class="sw-action-row"><button class="btn btn-sm btn-ghost sw-clear-btn" data-bt-id="${bt.id}">Clear</button></div>`
+                      : `<div class="sw-unset-note">⚠ Not scheduled — set a Fixed time or Auto duration</div>`}
                   </div>
                 </td>
                 <td class="req-td-actions" style="display:table-cell;white-space:nowrap">
-                  <button class="icon-btn edit-block-btn" data-id="${bt.id}" title="Edit">✏️</button>
                   <button class="remove-x remove-block-btn" data-id="${bt.id}" title="Remove">×</button>
                 </td>
               </tr>`;
@@ -2302,14 +2309,36 @@ function wireOtherBlocks() {
       renderBlocks();
     });
   });
-  document.querySelectorAll('.edit-block-btn').forEach(btn => {
-    btn.addEventListener('click', () => showOtherBlockForm(btn.dataset.id));
-  });
+  // Add Block Type → append an editable row inline (no pop-up form), then focus it.
   const addBtn = document.getElementById('add-block-btn');
-  if (addBtn) addBtn.addEventListener('click', () => showOtherBlockForm());
+  if (addBtn) addBtn.addEventListener('click', () => {
+    const bt = { id: uid(), name: '', color: '#a855f7', category: 'admin', required: false };
+    SchedState.blockTypes.push(bt);
+    saveToLocal();
+    renderBlocks();
+    const inp = document.querySelector(`.uniform-name-input[data-bt-id="${bt.id}"]`);
+    if (inp) inp.focus();
+  });
 
-  // (The inline Min/Day column was removed — `defaultDuration` is edited via the
-  // pencil → "Duration (min)" in showOtherBlockForm, which is the only editor now.)
+  // Inline name — auto-save on change (mirrors the required-block table).
+  document.querySelectorAll('.uniform-name-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
+      if (bt) { bt.name = inp.value.trim(); saveToLocal(); }
+    });
+  });
+
+  // Inline category — controls which palette group the block appears under.
+  document.querySelectorAll('.uniform-cat-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === sel.dataset.btId);
+      if (bt) { bt.category = sel.value; saveToLocal(); }
+    });
+  });
+
+  // `defaultDuration` (the length used when hand-painting this block from the
+  // palette) is DERIVED from the school-wide time — see _collectUniformRow — so
+  // it's never entered separately.
 
   // School-wide time mode radios
   document.querySelectorAll('.sw-mode-radio').forEach(radio => {
@@ -2343,6 +2372,7 @@ function wireOtherBlocks() {
       delete bt.uniformEnd;
       delete bt.uniformMinutes;
       delete bt.uniformMode;
+      delete bt.defaultDuration;
       preFillFixedBlocks();
       saveToLocal();
       renderBlocks();
@@ -2366,6 +2396,7 @@ function wireOtherBlocks() {
       bt.uniformStart = result.start;
       bt.uniformEnd   = result.end;
       delete bt.uniformMinutes;
+      bt.defaultDuration = Math.max(5, timeToMins(result.end) - timeToMins(result.start));
       preFillFixedBlocks();
       saveToLocal();
       renderBlocks();
@@ -2391,86 +2422,27 @@ function wireOtherBlocks() {
   });
 }
 
-function showOtherBlockForm(existingId) {
-  const existing = existingId ? SchedState.blockTypes.find(b => b.id === existingId) : null;
-  const form = document.getElementById('add-block-form');
-  form.classList.remove('hidden');
-  form.innerHTML = `
-    <div class="inline-form-grid">
-      <div class="form-group">
-        <label class="form-label">Block Name</label>
-        <input type="text" class="input" id="bf-name" placeholder="e.g. Advisory" value="${escHtml(existing?.name || '')}" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Category</label>
-        <select class="input" id="bf-category">
-          ${Object.entries(BLOCK_CATEGORIES).map(([val, label]) =>
-            `<option value="${val}" ${(existing?.category || 'admin') === val ? 'selected' : ''}>${label}</option>`
-          ).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Duration (min)</label>
-        <input type="number" class="input" id="bf-duration" placeholder="e.g. 30" min="5" step="5" value="${existing?.defaultDuration || ''}" />
-      </div>
-      <div class="form-group form-group-color">
-        <label class="form-label">Color</label>
-        <div class="color-palette" id="bf-color-palette">
-          ${STAFF_COLOR_PALETTE.map(c => `
-            <button type="button" class="color-dot ${(existing?.color || '#a855f7') === c ? 'selected' : ''}" data-color="${c}" style="background:${c}"></button>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-    <div class="inline-form-actions">
-      <button class="btn btn-primary" id="bf-save-btn">${existing ? 'Update' : 'Add'} Block Type</button>
-      <button class="btn btn-outline" id="bf-cancel-btn">Cancel</button>
-    </div>
-  `;
-  document.querySelectorAll('#bf-color-palette .color-dot').forEach(dot => {
-    dot.addEventListener('click', () => {
-      document.querySelectorAll('#bf-color-palette .color-dot').forEach(d => d.classList.remove('selected'));
-      dot.classList.add('selected');
-    });
-  });
-  document.getElementById('bf-cancel-btn').addEventListener('click', () => { form.classList.add('hidden'); form.innerHTML = ''; });
-  document.getElementById('bf-save-btn').addEventListener('click', () => {
-    const name = document.getElementById('bf-name').value.trim();
-    if (!name) { document.getElementById('bf-name').focus(); return; }
-    const durVal = parseInt(document.getElementById('bf-duration').value, 10);
-    const block = {
-      id:       existing?.id || uid(),
-      name,
-      category: document.getElementById('bf-category').value,
-      color:    document.querySelector('#bf-color-palette .color-dot.selected')?.dataset.color || '#a855f7',
-      required: false,
-      ...(durVal >= 5 ? { defaultDuration: durVal } : {}),
-    };
-    if (existing) {
-      const idx = SchedState.blockTypes.findIndex(b => b.id === existingId);
-      SchedState.blockTypes[idx] = Object.assign({}, existing, block);
-    } else {
-      SchedState.blockTypes.push(block);
-    }
-    form.classList.add('hidden');
-    form.innerHTML = '';
-    saveToLocal();
-    renderBlocks();
-  });
-}
 
 // Read ONE uniform block's school-wide-time inputs from the DOM into the blockType.
-// (defaultDuration is NOT read here — it's owned by the pencil form's Duration field.)
+// `defaultDuration` (the length used when hand-painting the block from the palette)
+// is DERIVED here from the Fixed span or the Auto minutes, so the user never enters
+// a separate duration.
 function _collectUniformRow(bt) {
   const modeEl = document.querySelector(`input[name="sw-mode-${bt.id}"]:checked`);
   if (!modeEl) return;
   if (modeEl.value === 'time') {
     const start = document.querySelector(`.sw-start-input[data-bt-id="${bt.id}"]`)?.value;
     const end   = document.querySelector(`.sw-end-input[data-bt-id="${bt.id}"]`)?.value;
-    if (start && end) { bt.uniformMode = 'time'; bt.uniformStart = start; bt.uniformEnd = end; delete bt.uniformMinutes; }
+    if (start && end) {
+      bt.uniformMode = 'time'; bt.uniformStart = start; bt.uniformEnd = end; delete bt.uniformMinutes;
+      bt.defaultDuration = Math.max(5, timeToMins(end) - timeToMins(start));
+    }
   } else {
     const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${bt.id}"]`)?.value || '0', 10);
-    if (mins >= 5) { bt.uniformMode = 'duration'; bt.uniformMinutes = mins; bt.uniformStart = ''; bt.uniformEnd = ''; }
+    if (mins >= 5) {
+      bt.uniformMode = 'duration'; bt.uniformMinutes = mins; bt.uniformStart = ''; bt.uniformEnd = '';
+      bt.defaultDuration = mins;
+    }
   }
 }
 
