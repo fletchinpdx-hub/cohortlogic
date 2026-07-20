@@ -550,20 +550,20 @@ function buildIAGrid(day, ias) {
         return `<td class="ia-cell empty" data-ia="${ia.id}" data-slot="${slot}"></td>`;
       }
 
-      const alloc  = allocs.find(a => a.id === entry.allocId);
-      const color  = alloc?.color || '#6b7280';
-      const isCont = prevEntry &&
-        prevEntry.allocId    === entry.allocId &&
-        prevEntry.targetType === entry.targetType &&
-        prevEntry.targetId   === entry.targetId;
-      const isEnd = !nextEntry ||
-        nextEntry.allocId    !== entry.allocId ||
-        nextEntry.targetType !== entry.targetType ||
-        nextEntry.targetId   !== entry.targetId;
-
+      const alloc   = allocs.find(a => a.id === entry.allocId);
       const grade   = entry.targetType === 'grade' ? entry.targetId : null;
       const btId    = grade ? getBlock(day, grade, slot) : null;
       const btName  = btId ? getBtName(btId) : null;
+      // Cell color follows the MASTER block (item 1) — the budget category is
+      // reference text only. own-lunch / break have no block → muted.
+      const color   = btId ? (getBtColor(btId) || '#94a3b8') : '#94a3b8';
+      // A run also breaks when the underlying BLOCK changes (item 2), so back-to-back
+      // lunch + recess for the same grade/category render as two blocks, not one.
+      const prevBt  = (prevEntry && prevEntry.targetType === 'grade') ? getBlock(day, prevEntry.targetId, prevSlot) : null;
+      const nextBt  = (nextEntry && nextEntry.targetType === 'grade') ? getBlock(day, nextEntry.targetId, nextSlot) : null;
+      const _same   = (e, ebt) => e && e.allocId === entry.allocId && e.targetType === entry.targetType && e.targetId === entry.targetId && ebt === btId;
+      const isCont  = _same(prevEntry, prevBt);
+      const isEnd   = !_same(nextEntry, nextBt);
       const targetLabel = _iaTargetLabel(entry);
       const note    = entry.note || '';
 
@@ -814,19 +814,27 @@ function _updateIACellDOM(cell, day, iaId, slot, depth) {
     cell.innerHTML     = '';
     cell.title         = '';
   } else {
-    const alloc  = allocs.find(a => a.id === entry.allocId);
-    const color  = alloc?.color || '#6b7280';
-    const isCont = prevEntry &&
+    const alloc   = allocs.find(a => a.id === entry.allocId);
+    const grade   = entry.targetType === 'grade' ? entry.targetId : null;
+    const btId    = grade ? getBlock(day, grade, slot) : null;
+    const btName  = btId ? getBtName(btId) : null;
+    // Color by MASTER block (item 1); budget category is reference text only.
+    const color   = btId ? (getBtColor(btId) || '#94a3b8') : '#94a3b8';
+    const prevBt  = (prevEntry && prevEntry.targetType === 'grade') ? getBlock(day, prevEntry.targetId, prevCell.dataset.slot) : null;
+    // Run breaks on a block change too, so lunch + recess don't merge (item 2).
+    const isCont  = prevEntry &&
       prevEntry.allocId    === entry.allocId &&
       prevEntry.targetType === entry.targetType &&
-      prevEntry.targetId   === entry.targetId;
+      prevEntry.targetId   === entry.targetId &&
+      prevBt === btId;
     const targetLabel = _iaTargetLabel(entry);
     cell.className     = `ia-cell filled${isCont ? ' cont' : ''}`;
     cell.style.cssText = `background:${color}22;border-left:3px solid ${color};border-right:1px solid ${color}40`;
-    cell.title         = [alloc?.name, targetLabel].filter(Boolean).join(' • ');
+    cell.title         = [alloc?.name, targetLabel, btName].filter(Boolean).join(' • ');
     cell.innerHTML     = isCont ? '' : `
       <div class="ia-cell-label">${escHtml(alloc?.name || '')}</div>
-      ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}`;
+      ${targetLabel ? `<div class="ia-cell-grade">${escHtml(targetLabel)}</div>` : ''}
+      ${btName ? `<div class="ia-cell-block">${escHtml(btName)}</div>` : ''}`;
   }
 
   const nextCell = slotIdx >= 0 && slotIdx < allCells.length - 1 ? allCells[slotIdx + 1] : null;
@@ -875,11 +883,15 @@ function _iaAssignmentRun(day, iaId, slot) {
   const map  = (SchedState.iaSchedule[day] || {})[iaId] || {};
   const base = map[slot];
   if (!base) return [];
-  const same = e => e && e.allocId === base.allocId &&
-    e.targetType === base.targetType && e.targetId === base.targetId;
+  // A run also breaks when the underlying block changes, so a contiguous
+  // lunch + recess for the same grade/category edits as two blocks, not one.
+  const baseBt = base.targetType === 'grade' ? getBlock(day, base.targetId, slot) : null;
+  const same = (e, s) => e && e.allocId === base.allocId &&
+    e.targetType === base.targetType && e.targetId === base.targetId &&
+    (base.targetType === 'grade' ? getBlock(day, base.targetId, s) === baseBt : true);
   const run = [slot];
-  for (let t = timeToMins(slot) - 5; same(map[minsToTime(t)]); t -= 5) run.unshift(minsToTime(t));
-  for (let t = timeToMins(slot) + 5; same(map[minsToTime(t)]); t += 5) run.push(minsToTime(t));
+  for (let t = timeToMins(slot) - 5; same(map[minsToTime(t)], minsToTime(t)); t -= 5) run.unshift(minsToTime(t));
+  for (let t = timeToMins(slot) + 5; same(map[minsToTime(t)], minsToTime(t)); t += 5) run.push(minsToTime(t));
   return run;
 }
 
@@ -1226,12 +1238,12 @@ function buildIndividualIAGrid(iaId) {
       const color = bt?.color || getBtColor(btId) || '#94a3b8';
 
       const prevEntry = prevSlot ? (((SchedState.iaSchedule[day] || {})[iaId] || {})[prevSlot] || null) : null;
-      const isCont = prevEntry &&
-        prevEntry.allocId  === entry.allocId &&
-        prevEntry.targetId === entry.targetId;
-      const isEnd = !nextEntry ||
-        nextEntry.allocId  !== entry.allocId ||
-        nextEntry.targetId !== entry.targetId;
+      // Break the run on a block change too, so lunch + recess don't merge (item 2).
+      const prevBt = (prevEntry && prevEntry.targetType === 'grade') ? getBlock(day, prevEntry.targetId, prevSlot) : null;
+      const nextBt = (nextEntry && nextEntry.targetType === 'grade') ? getBlock(day, nextEntry.targetId, nextSlot) : null;
+      const _same  = (e, ebt) => e && e.allocId === entry.allocId && e.targetId === entry.targetId && ebt === btId;
+      const isCont = _same(prevEntry, prevBt);
+      const isEnd  = !_same(nextEntry, nextBt);
 
       const alloc      = (SchedState.iaAllocations || []).find(a => a.id === entry.allocId);
       // Grade assignments show the grade; own-lunch / break show their own label.

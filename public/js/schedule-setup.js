@@ -2306,6 +2306,18 @@ function wireOtherBlocks() {
       const isTime = radio.value === 'time';
       document.getElementById(`sw-time-${id}`)?.style.setProperty('display', isTime ? '' : 'none');
       document.getElementById(`sw-dur-${id}`)?.style.setProperty('display', isTime ? 'none' : '');
+      const bt = SchedState.blockTypes.find(b => b.id === id);
+      if (bt) { _collectUniformRow(bt); saveToLocal(); }
+    });
+  });
+
+  // School-wide time / duration inputs — AUTO-SAVE on change so a pending edit isn't
+  // lost when another action (add/remove/edit a block) re-renders the table. (Was
+  // only captured at "Save & Continue", so an interim re-render dropped it — bug.)
+  document.querySelectorAll('.sw-start-input, .sw-end-input, .sw-mins-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
+      if (bt) { _collectUniformRow(bt); saveToLocal(); }
     });
   });
 
@@ -2435,33 +2447,23 @@ function showOtherBlockForm(existingId) {
   });
 }
 
+// Read ONE uniform block's school-wide-time inputs from the DOM into the blockType.
+// (defaultDuration is NOT read here — it's owned by the pencil form's Duration field.)
+function _collectUniformRow(bt) {
+  const modeEl = document.querySelector(`input[name="sw-mode-${bt.id}"]:checked`);
+  if (!modeEl) return;
+  if (modeEl.value === 'time') {
+    const start = document.querySelector(`.sw-start-input[data-bt-id="${bt.id}"]`)?.value;
+    const end   = document.querySelector(`.sw-end-input[data-bt-id="${bt.id}"]`)?.value;
+    if (start && end) { bt.uniformMode = 'time'; bt.uniformStart = start; bt.uniformEnd = end; delete bt.uniformMinutes; }
+  } else {
+    const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${bt.id}"]`)?.value || '0', 10);
+    if (mins >= 5) { bt.uniformMode = 'duration'; bt.uniformMinutes = mins; bt.uniformStart = ''; bt.uniformEnd = ''; }
+  }
+}
+
 function collectUniformFromDOM() {
-  SchedState.blockTypes.filter(bt => !bt.required).forEach(bt => {
-    const modeEl = document.querySelector(`input[name="sw-mode-${bt.id}"]:checked`);
-    if (!modeEl) return;
-    const mode = modeEl.value;
-    if (mode === 'time') {
-      const start = document.querySelector(`.sw-start-input[data-bt-id="${bt.id}"]`)?.value;
-      const end   = document.querySelector(`.sw-end-input[data-bt-id="${bt.id}"]`)?.value;
-      if (start && end) {
-        bt.uniformMode  = 'time';
-        bt.uniformStart = start;
-        bt.uniformEnd   = end;
-        delete bt.uniformMinutes;
-      }
-    } else {
-      const mins = parseInt(document.querySelector(`.sw-mins-input[data-bt-id="${bt.id}"]`)?.value || '0', 10);
-      if (mins >= 5) {
-        bt.uniformMode    = 'duration';
-        bt.uniformMinutes = mins;
-        bt.uniformStart   = '';
-        bt.uniformEnd     = '';
-      }
-    }
-    // defaultDuration is NOT collected here — it has no input in this table any
-    // more. It's owned by showOtherBlockForm (pencil → "Duration (min)") and
-    // persists on the blockType, so an untouched value survives a save.
-  });
+  SchedState.blockTypes.filter(bt => !bt.required).forEach(_collectUniformRow);
 }
 
 function saveBlocksAndContinue() {
