@@ -1895,7 +1895,7 @@ function renderBlocks() {
 
     <div class="form-section">
       <h2 class="form-section-title">Uniform Block Types</h2>
-      <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade. Lunch and recess aren't listed here — they're set per grade in School Info and placed automatically.</p>
+      <p class="form-hint">Blocks with one fixed duration for all grade levels. Set a school-wide time to auto-place the block at the same time for every grade — a <strong>Fixed</strong> block needs <strong>both</strong> a start and end time. Everything here saves automatically as you enter it. Lunch and recess aren't listed here — they're set per grade in School Info and placed automatically.</p>
       <div class="req-table-wrap">
         <table class="req-table">
           <thead><tr>
@@ -1934,9 +1934,9 @@ function renderBlocks() {
                                data-bt-id="${bt.id}" ${isTimeModeOrDefault ? 'checked' : ''}> Fixed
                       </label>
                       <span class="sw-time-inputs" id="sw-time-${bt.id}" ${!isTimeModeOrDefault ? 'style="display:none"' : ''}>
-                        <input type="time" class="sw-start-input" value="${bt.uniformStart || ''}" data-bt-id="${bt.id}" />
+                        <input type="time" class="sw-start-input" value="${bt.uniformStart || ''}" data-bt-id="${bt.id}" required />
                         <span class="sw-sep">–</span>
-                        <input type="time" class="sw-end-input"   value="${bt.uniformEnd   || ''}" data-bt-id="${bt.id}" />
+                        <input type="time" class="sw-end-input"   value="${bt.uniformEnd   || ''}" data-bt-id="${bt.id}" required />
                       </span>
                       <label class="sw-radio-label" style="margin-left:8px">
                         <input type="radio" name="sw-mode-${bt.id}" class="sw-mode-radio" value="duration"

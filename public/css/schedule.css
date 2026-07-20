@@ -2383,6 +2383,9 @@
 }
 
 .sw-start-input:focus, .sw-end-input:focus { outline: none; border-color: #3b82f6; }
+/* An empty Fixed time box (native placeholder can look like a real value) gets an
+   amber outline so it's unmistakably "still needs a value". Hidden in Auto mode. */
+.sw-start-input:invalid, .sw-end-input:invalid { border-color: #f59e0b; background: #fffbeb; }
 
 .sw-sep { font-size: 11px; color: var(--gray-400); }
 
