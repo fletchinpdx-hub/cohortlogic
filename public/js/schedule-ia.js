@@ -2119,11 +2119,18 @@ function placeIAs() {
     report.placed += mins;
   };
 
-  // Place one requirement, reusing a consistent team across all its days.
+  // Place one requirement.
+  //   • Instructional blocks reuse ONE consistent team all week (the same IA keeps
+  //     the class every day).
+  //   • Duty blocks (recess / lunch supervision) instead ROTATE day-to-day: each day
+  //     picks the lowest-duty available IA, so recess is shared across aides rather
+  //     than one person doing it every day. dutyMin (updated after each assignment)
+  //     drives the rotation; grade preference still ranks first, so a preferred IA is
+  //     favored, and the rotation spreads among equally-preferring/eligible aides.
   const placeReq = req => {
     const daysCoverable = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
     const pool = ias.filter(ia => daysCoverable(ia) > 0);
-    const team = pool.slice().sort((a, b) => {
+    const team = req.isDuty ? [] : pool.slice().sort((a, b) => {
       const ka = rankKey(a, req), kb = rankKey(b, req);
       return (ka[0] - kb[0]) || (daysCoverable(b) - daysCoverable(a)) || (ka[1] - kb[1]) || (ka[2] - kb[2]) || (staffIdx(a) - staffIdx(b));
     }).slice(0, req.need).map(ia => ia.id);
@@ -2144,7 +2151,8 @@ function placeIAs() {
         assign(day, cand, run, req); assignedToday.push(cand.id); usedIAs.add(cand.id);
       }
     });
-    if (usedIAs.size > req.need) report.inconsistencies.push({ grade: req.grade, blockId: req.blockId, subId: req.subId, iasUsed: usedIAs.size, need: req.need });
+    // Duty blocks are INTENTIONALLY rotated across days — that's not an inconsistency.
+    if (!req.isDuty && usedIAs.size > req.need) report.inconsistencies.push({ grade: req.grade, blockId: req.blockId, subId: req.subId, iasUsed: usedIAs.size, need: req.need });
   };
 
   // ── Priority order (user-specified) ──
