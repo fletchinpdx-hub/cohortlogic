@@ -1674,7 +1674,7 @@ function _iaCoverageRow(r, blockOpts, allocs, grades, idx, total) {
             : '<span class="text-muted" style="font-size:11px">Add categories above</span>'}
         </div>
       </td>
-      <td><button class="icon-btn ia-cov-del" data-cov-id="${r.id}" title="Remove">×</button></td>
+      <td><button class="ia-cov-del" data-cov-id="${r.id}" title="Delete this coverage row">Remove</button></td>
     </tr>`;
 }
 
@@ -1724,7 +1724,7 @@ function renderIAAssignmentView() {
               <th style="min-width:150px">Grades covered</th>
               <th style="width:110px">IAs / grade</th>
               <th style="min-width:160px">Funded by</th>
-              <th style="width:60px"></th>
+              <th style="width:84px"></th>
             </tr></thead>
             <tbody id="ia-coverage-tbody">
               ${coverage.length

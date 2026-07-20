@@ -2179,6 +2179,16 @@ function wireReqTable() {
     });
   });
 
+  // AUTO-SAVE block name / color / sub-block name on change. Without this these
+  // edits were only committed on "Save & Continue" (or add/delete of another
+  // block), so a user who added a block, typed its name, then navigated straight
+  // to the IA Assignment tab saw the un-renamed "New Block" (or nothing) in the
+  // coverage dropdown — the typed name never reached SchedState. (Same bug class
+  // as the uniform school-wide time inputs.)
+  document.querySelectorAll('.req-name-input, .req-color-input, .sub-name-input').forEach(inp => {
+    inp.addEventListener('change', () => { collectReqFromDOM(); saveToLocal(); });
+  });
+
   // Sub-block minutes → live-update calculated totals + budget panel
   document.querySelectorAll('.sub-min-input').forEach(inp => {
     inp.addEventListener('input', () => {
@@ -2190,11 +2200,13 @@ function wireReqTable() {
       collectReqFromDOM();
       renderBudgetPanel();
     });
+    inp.addEventListener('change', saveToLocal);
   });
 
   // Required block minutes → live-update budget panel
   document.querySelectorAll('.req-min-input').forEach(inp => {
     inp.addEventListener('input', () => { collectReqFromDOM(); renderBudgetPanel(); });
+    inp.addEventListener('change', saveToLocal);
   });
 
   // Toggle sub-block section
