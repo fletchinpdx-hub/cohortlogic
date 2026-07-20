@@ -1649,7 +1649,9 @@ function _iaBlockLabel(blockId, subId) {
 // are excluded (specials teachers cover specials; duties aren't grade blocks).
 // Recess is emitted as two variants (see IA_RECESS_* above).
 function _coverableBlockOptions() {
-  const SKIP = new Set(['bt_spec', 'bt_arr', 'bt_dis']);
+  // Only specials are excluded (specials teachers cover those, not IAs). Arrival &
+  // dismissal duty ARE coverable — an IA supervising arrival/dismissal is a real need.
+  const SKIP = new Set(['bt_spec']);
   const out = [];
   (SchedState.blockTypes || []).forEach(bt => {
     if (SKIP.has(bt.id)) return;
@@ -1911,7 +1913,9 @@ function _wireIAAssignment() {
 // SchedState.iaSchedule; DETERMINISTIC (no Math.random/Date) so re-runs match.
 // Organized around weekly recurring requirements → cross-day consistency + weekly
 // parity. Duties (SchedState.duties) live outside iaSchedule and are untouched.
-const IA_DUTY_BLOCKS = new Set(['bt_lunch', 'bt_recess']);
+// Supervision duties — rotated day-to-day across aides (see placeReq) and balanced
+// by minutes-per-type (dutyMin), rather than assigned to one consistent aide.
+const IA_DUTY_BLOCKS = new Set(['bt_lunch', 'bt_recess', 'bt_arr', 'bt_dis']);
 
 // Recess coverage is split into two virtual variants so the plan can staff the
 // lunch-connected recess differently from standalone recesses (e.g. 2 IAs vs 1).
@@ -1971,7 +1975,7 @@ function placeIAs() {
 
   const report = { placed: 0, shortfalls: [], inconsistencies: [], overBudget: [], ownLunchUnplaced: [], breaksUnplaced: [] };
   const totalMin = {}, dutyMin = {}, allocUsed = {};
-  ias.forEach(ia => { totalMin[ia.id] = 0; dutyMin[ia.id] = { bt_lunch: 0, bt_recess: 0 }; });
+  ias.forEach(ia => { totalMin[ia.id] = 0; dutyMin[ia.id] = {}; });   // duty minutes per block type, default 0
 
   const ensure = (day, iaId) => { (sched[day] = sched[day] || {}); return (sched[day][iaId] = sched[day][iaId] || {}); };
   const free   = (day, iaId, run) => { const m = (sched[day] || {})[iaId] || {}; return run.every(sl => !m[sl]); };
@@ -2093,7 +2097,7 @@ function placeIAs() {
 
   const rankKey = (ia, req) => [
     (ia.gradePreferences || []).includes(req.grade) ? 0 : 1,
-    req.isDuty ? dutyMin[ia.id][req.blockId] : 0,
+    req.isDuty ? (dutyMin[ia.id][req.blockId] || 0) : 0,
     totalMin[ia.id],
   ];
   const cmp = (a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]);
@@ -2114,7 +2118,7 @@ function placeIAs() {
     run.forEach(sl => { map[sl] = { allocId, targetType: 'grade', targetId: req.grade, note: '' }; });
     const mins = run.length * 5;
     totalMin[ia.id] += mins;
-    if (req.isDuty) dutyMin[ia.id][req.blockId] += mins;
+    if (req.isDuty) dutyMin[ia.id][req.blockId] = (dutyMin[ia.id][req.blockId] || 0) + mins;
     charge(allocId, day, mins);
     report.placed += mins;
   };
