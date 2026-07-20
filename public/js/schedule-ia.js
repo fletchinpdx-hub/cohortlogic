@@ -388,10 +388,20 @@ function buildIATargetPickerHtml() {
   </div>` : '');
 }
 
+// Underlying block id for an IA entry at a slot (for color + run-grouping): grade
+// targets read the master schedule; school-wide 'block' targets carry the id directly.
+function _entryBtId(day, entry, slot) {
+  if (!entry) return null;
+  if (entry.targetType === 'block') return entry.targetId;
+  if (entry.targetType === 'grade') return getBlock(day, entry.targetId, slot);
+  return null;
+}
+
 function _iaTargetLabel(entry) {
   if (!entry) return '';
   if (entry.targetType === 'own_lunch') return 'Own lunch';   // engine-reserved IA lunch
   if (entry.targetType === 'break')     return 'Break';        // engine-reserved IA break
+  if (entry.targetType === 'block') return getBtName(entry.targetId) || '';   // school-wide duty
   if (entry.targetType === 'grade') return GRADE_LABELS[entry.targetId] || entry.targetId || '';
   if (entry.targetType === 'class') {
     const t = SchedState.staff.find(s => s.id === entry.targetId);
@@ -551,16 +561,17 @@ function buildIAGrid(day, ias) {
       }
 
       const alloc   = allocs.find(a => a.id === entry.allocId);
-      const grade   = entry.targetType === 'grade' ? entry.targetId : null;
-      const btId    = grade ? getBlock(day, grade, slot) : null;
-      const btName  = btId ? getBtName(btId) : null;
+      const btId    = _entryBtId(day, entry, slot);
+      // Extra block-name reference line only for grade targets (a school-wide 'block'
+      // target already shows the block name as its label).
+      const btName  = (entry.targetType === 'grade' && btId) ? getBtName(btId) : null;
       // Cell color follows the MASTER block (item 1) — the budget category is
       // reference text only. own-lunch / break have no block → muted.
       const color   = btId ? (getBtColor(btId) || '#94a3b8') : '#94a3b8';
       // A run also breaks when the underlying BLOCK changes (item 2), so back-to-back
       // lunch + recess for the same grade/category render as two blocks, not one.
-      const prevBt  = (prevEntry && prevEntry.targetType === 'grade') ? getBlock(day, prevEntry.targetId, prevSlot) : null;
-      const nextBt  = (nextEntry && nextEntry.targetType === 'grade') ? getBlock(day, nextEntry.targetId, nextSlot) : null;
+      const prevBt  = _entryBtId(day, prevEntry, prevSlot);
+      const nextBt  = _entryBtId(day, nextEntry, nextSlot);
       const _same   = (e, ebt) => e && e.allocId === entry.allocId && e.targetType === entry.targetType && e.targetId === entry.targetId && ebt === btId;
       const isCont  = _same(prevEntry, prevBt);
       const isEnd   = !_same(nextEntry, nextBt);
@@ -815,12 +826,11 @@ function _updateIACellDOM(cell, day, iaId, slot, depth) {
     cell.title         = '';
   } else {
     const alloc   = allocs.find(a => a.id === entry.allocId);
-    const grade   = entry.targetType === 'grade' ? entry.targetId : null;
-    const btId    = grade ? getBlock(day, grade, slot) : null;
-    const btName  = btId ? getBtName(btId) : null;
+    const btId    = _entryBtId(day, entry, slot);
+    const btName  = (entry.targetType === 'grade' && btId) ? getBtName(btId) : null;
     // Color by MASTER block (item 1); budget category is reference text only.
     const color   = btId ? (getBtColor(btId) || '#94a3b8') : '#94a3b8';
-    const prevBt  = (prevEntry && prevEntry.targetType === 'grade') ? getBlock(day, prevEntry.targetId, prevCell.dataset.slot) : null;
+    const prevBt  = _entryBtId(day, prevEntry, prevCell ? prevCell.dataset.slot : slot);
     // Run breaks on a block change too, so lunch + recess don't merge (item 2).
     const isCont  = prevEntry &&
       prevEntry.allocId    === entry.allocId &&
@@ -1010,12 +1020,12 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
     const clash = targetSlots.some(s => targetMap[s]);
     if (clash) {
       // put the old assignment back, then bail
-      run.forEach(s => { map[s] = { allocId: entry.allocId, targetType: 'grade', targetId: grade, note: entry.note || '' }; });
+      run.forEach(s => { map[s] = { allocId: entry.allocId, targetType: entry.targetType, targetId: entry.targetId, note: entry.note || '' }; });
       alert('That IA is already assigned somewhere during this time. Pick a different IA or time.');
       return;
     }
     const finalNote = newNote || '';
-    targetSlots.forEach(s => { targetMap[s] = { allocId: newAlloc || entry.allocId || null, targetType: 'grade', targetId: grade, note: finalNote }; });
+    targetSlots.forEach(s => { targetMap[s] = { allocId: newAlloc || entry.allocId || null, targetType: entry.targetType, targetId: entry.targetId, note: finalNote }; });
     saveToLocal();
     renderIAScheduleView();
   });
@@ -1036,31 +1046,49 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
   const ia     = (SchedState.staff || []).find(s => s.id === iaId);
   const allocs = SchedState.iaAllocations || [];
 
-  // Grades running a block at this slot (nothing to cover otherwise).
-  const gradeOpts = (SchedState.school.grades || []).map(g => {
+  // Targets running at this slot. A school-wide-eligible block (arrival/dismissal/…)
+  // collapses to ONE "school-wide" option instead of one per grade; other blocks are
+  // per-grade. Nothing running here → nothing to cover.
+  const opts = [];
+  const seenBlock = new Set();
+  (SchedState.school.grades || []).forEach(g => {
     const btId = getBlock(day, g, slot);
-    return btId ? { grade: g, btId, label: (GRADE_LABELS[g] || g) + ' — ' + getBtName(btId) } : null;
-  }).filter(Boolean);
-  if (!gradeOpts.length) { alert('No grade has a block running at this time, so there\'s nothing to cover here.'); return; }
+    if (!btId) return;
+    const baseId = btId.includes('|') ? btId.split('|')[0] : btId;
+    if (_isSchoolWideEligible(baseId)) {
+      if (!seenBlock.has(btId)) { seenBlock.add(btId); opts.push({ kind: 'block', id: btId, label: getBtName(btId) + ' — school-wide' }); }
+    } else {
+      opts.push({ kind: 'grade', id: g, btId, label: (GRADE_LABELS[g] || g) + ' — ' + getBtName(btId) });
+    }
+  });
+  if (!opts.length) { alert('No block is running at this time, so there\'s nothing to cover here.'); return; }
+  const optVal  = o => o.kind + ':' + o.id;
+  const findOpt = v => opts.find(o => optVal(o) === v);
 
   const iaMap  = (SchedState.iaSchedule[day] || {})[iaId] || {};
   const isFree = s => !iaMap[s];
 
-  // The exact-block contiguous run (same btId) for a grade around `slot`.
-  const blockRun = grade => {
-    const btId = getBlock(day, grade, slot); if (!btId) return [];
-    const slots = _iaAutoFillSlots(day); const g = (SchedState.masterSchedule[day] || {})[grade] || {};
+  // Contiguous run of the option's block around `slot`. School-wide blocks are placed
+  // identically across grades, so read the run from any grade that has it.
+  const runFor = o => {
+    const slots = _iaAutoFillSlots(day);
+    let g, btId;
+    if (o.kind === 'grade') { g = o.id; btId = o.btId; }
+    else { btId = o.id; g = (SchedState.school.grades || []).find(gg => getBlock(day, gg, slot) === btId); }
+    if (!g) return [slot];
+    const gs = (SchedState.masterSchedule[day] || {})[g] || {};
     let a = slots.indexOf(slot), b = a;
-    while (a > 0 && g[slots[a - 1]] === btId) a--;
-    while (b < slots.length - 1 && g[slots[b + 1]] === btId) b++;
+    if (a < 0) return [slot];
+    while (a > 0 && gs[slots[a - 1]] === btId) a--;
+    while (b < slots.length - 1 && gs[slots[b + 1]] === btId) b++;
     return slots.slice(a, b + 1);
   };
 
-  // Time selects for a grade: options span the whole block; default to the free run
-  // around the clicked slot so the default Add never collides with existing work.
-  const timeSelects = grade => {
-    const slots = blockRun(grade);
-    const si = slots.indexOf(slot);
+  // Time selects: span the whole block; default to the free run around the clicked
+  // slot so the default Add never collides with existing work.
+  const timeSelects = o => {
+    const slots = runFor(o);
+    const si = Math.max(0, slots.indexOf(slot));
     let a = si, b = si;
     while (a > 0 && isFree(slots[a - 1])) a--;
     while (b < slots.length - 1 && isFree(slots[b + 1])) b++;
@@ -1071,6 +1099,7 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
     return `<select id="iae-start" class="override-select">${starts}</select><span class="ia-editor-dash">–</span><select id="iae-end" class="override-select">${ends}</select>`;
   };
 
+  const otherIAs = (SchedState.staff || []).filter(s => s.role === 'ia' && s.id !== iaId);
   const panel = document.createElement('div');
   panel.id = 'ia-assign-editor';
   panel.className = 'override-panel';
@@ -1081,17 +1110,24 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
     </div>
     <div class="override-panel-body">
       <div class="override-field-row">
-        <label class="override-label">Cover which grade</label>
-        <select id="iae-grade" class="override-select">${gradeOpts.map(o => `<option value="${o.grade}">${escHtml(o.label)}</option>`).join('')}</select>
+        <label class="override-label">Cover what</label>
+        <select id="iae-grade" class="override-select">${opts.map(o => `<option value="${optVal(o)}">${escHtml(o.label)}</option>`).join('')}</select>
       </div>
       <div class="override-field-row">
         <label class="override-label">Time within the block</label>
-        <div class="ia-editor-range" id="iae-range">${timeSelects(gradeOpts[0].grade)}</div>
+        <div class="ia-editor-range" id="iae-range">${timeSelects(opts[0])}</div>
       </div>
       <div class="override-field-row">
         <label class="override-label">Budget category</label>
         <select id="iae-alloc" class="override-select"><option value="">Not charged</option>${allocs.map(a => `<option value="${escHtml(a.id)}">${escHtml(a.name)}</option>`).join('')}</select>
       </div>
+      ${otherIAs.length ? `
+      <div class="override-field-row">
+        <label class="override-label">Also assign to</label>
+        <div class="ia-add-multi" id="iae-multi">
+          ${otherIAs.map(x => `<label class="ia-add-multi-item"><input type="checkbox" value="${escHtml(x.id)}"> ${escHtml(x.name)}</label>`).join('')}
+        </div>
+      </div>` : ''}
       <div class="override-actions">
         <button class="btn btn-primary btn-sm" id="iae-add">Add</button>
         <button class="btn btn-outline btn-sm" id="iae-cancel">Cancel</button>
@@ -1104,28 +1140,41 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
   let top  = rect.bottom + window.scrollY + 4;
   let left = rect.left   + window.scrollX;
   if (left + 300 > vw) left = Math.max(8, vw - 308);
-  if (rect.bottom + 260 > vh) top = Math.max(8, rect.top + window.scrollY - 264);
+  if (rect.bottom + 320 > vh) top = Math.max(8, rect.top + window.scrollY - 324);
   panel.style.top = top + 'px'; panel.style.left = left + 'px';
 
   const close = () => panel.remove();
   document.getElementById('iae-close').addEventListener('click', close);
   document.getElementById('iae-cancel').addEventListener('click', close);
   document.getElementById('iae-grade').addEventListener('change', function () {
-    document.getElementById('iae-range').innerHTML = timeSelects(this.value);
+    document.getElementById('iae-range').innerHTML = timeSelects(findOpt(this.value));
   });
   document.getElementById('iae-add').addEventListener('click', () => {
-    const grade  = document.getElementById('iae-grade').value;
+    const o = findOpt(document.getElementById('iae-grade').value);
     const sStart = document.getElementById('iae-start').value;
     const sEnd   = document.getElementById('iae-end').value;
     if (timeToMins(sEnd) <= timeToMins(sStart)) { alert('End time must be after start time.'); return; }
-    const targetSlots = blockRun(grade).filter(s => timeToMins(s) >= timeToMins(sStart) && timeToMins(s) < timeToMins(sEnd));
-    if (!targetSlots.length) { alert('Pick a time inside the block.'); return; }
-    if (targetSlots.some(s => !isFree(s))) { alert('That range overlaps an existing assignment. Trim the time.'); return; }
+    const runSlots = runFor(o).filter(s => timeToMins(s) >= timeToMins(sStart) && timeToMins(s) < timeToMins(sEnd));
+    if (!runSlots.length) { alert('Pick a time inside the block.'); return; }
+    if (runSlots.some(s => !isFree(s))) { alert('That range overlaps an existing assignment. Trim the time.'); return; }
     const allocId = document.getElementById('iae-alloc').value || null;
-    const map = ((SchedState.iaSchedule[day] = SchedState.iaSchedule[day] || {})[iaId] = (SchedState.iaSchedule[day] || {})[iaId] || {});
-    targetSlots.forEach(s => { map[s] = { allocId, targetType: 'grade', targetId: grade, note: '' }; });
+    const makeEntry = () => o.kind === 'block'
+      ? { allocId, targetType: 'block', targetId: o.id, note: '' }
+      : { allocId, targetType: 'grade', targetId: o.id, note: '' };
+    // Assign the clicked aide plus any checked ones, skipping any that are busy.
+    const checked   = [...panel.querySelectorAll('#iae-multi input:checked')].map(c => c.value);
+    const skipped   = [];
+    [iaId, ...checked].forEach(tid => {
+      const map = ((SchedState.iaSchedule[day] = SchedState.iaSchedule[day] || {})[tid] = (SchedState.iaSchedule[day] || {})[tid] || {});
+      if (tid !== iaId && runSlots.some(s => map[s])) { skipped.push(tid); return; }
+      runSlots.forEach(s => { map[s] = makeEntry(); });
+    });
     saveToLocal();
     renderIAScheduleView();
+    if (skipped.length) {
+      const names = skipped.map(id => (SchedState.staff.find(s => s.id === id) || {}).name || 'aide').join(', ');
+      alert('Already busy in that range, so skipped: ' + names);
+    }
   });
 }
 
@@ -1230,8 +1279,9 @@ function buildIndividualIAGrid(iaId) {
       const nextEntry = nextSlot ? (((SchedState.iaSchedule[day] || {})[iaId] || {})[nextSlot] || null) : null;
 
       const grade = entry.targetType === 'grade' ? entry.targetId : null;
-      const btId  = grade ? getBlock(day, grade, slot) : null;
-      const bt    = btId
+      const btId  = _entryBtId(day, entry, slot);
+      // Extra block-name line only for grade targets ('block' targets show it as label).
+      const bt    = (entry.targetType === 'grade' && btId)
         ? (SchedState.blockTypes.find(b => b.id === btId) ||
            SchedState.blockTypes.find(b => btId.startsWith(b.id + '|')))
         : null;
@@ -1239,8 +1289,8 @@ function buildIndividualIAGrid(iaId) {
 
       const prevEntry = prevSlot ? (((SchedState.iaSchedule[day] || {})[iaId] || {})[prevSlot] || null) : null;
       // Break the run on a block change too, so lunch + recess don't merge (item 2).
-      const prevBt = (prevEntry && prevEntry.targetType === 'grade') ? getBlock(day, prevEntry.targetId, prevSlot) : null;
-      const nextBt = (nextEntry && nextEntry.targetType === 'grade') ? getBlock(day, nextEntry.targetId, nextSlot) : null;
+      const prevBt = _entryBtId(day, prevEntry, prevSlot);
+      const nextBt = _entryBtId(day, nextEntry, nextSlot);
       const _same  = (e, ebt) => e && e.allocId === entry.allocId && e.targetId === entry.targetId && ebt === btId;
       const isCont = _same(prevEntry, prevBt);
       const isEnd  = !_same(nextEntry, nextBt);
@@ -1644,6 +1694,32 @@ function _iaBlockLabel(blockId, subId) {
   return getBtName(subId ? blockId + '|' + subId : blockId);
 }
 
+// Backfill a scope on coverage rows that predate the field: school-wide-eligible
+// blocks (arrival/dismissal/etc.) default to 'school' — so an existing dismissal row
+// stops multiplying per grade — everything else to 'grade'. Idempotent.
+function _normalizeCoverageScope() {
+  const list = SchedState.iaCoverage;
+  if (!Array.isArray(list)) return;
+  let changed = false;
+  list.forEach(r => {
+    if (r.scope !== 'grade' && r.scope !== 'school') {
+      r.scope = _isSchoolWideEligible(r.blockId) ? 'school' : 'grade';
+      changed = true;
+    }
+  });
+  if (changed) saveToLocal();
+}
+
+// A block is eligible to be covered SCHOOL-WIDE (one duty at one time for the whole
+// school — arrival, dismissal, morning meeting, custom uniform blocks) rather than
+// per grade. Signal: it's a uniform block type with a single school-wide time.
+// Lunch/recess are per-grade (different times per grade) → never school-wide.
+function _isSchoolWideEligible(blockId) {
+  if (!blockId || blockId === 'bt_recess' || blockId === 'bt_lunch') return false;
+  const bt = (SchedState.blockTypes || []).find(b => b.id === blockId);
+  return !!(bt && bt.uniformStart && bt.uniformEnd);
+}
+
 // Blocks the coverage plan can target: required instructional blocks + their
 // sub-blocks + lunch/recess/morning-meeting. Specials and arrival/dismissal duty
 // are excluded (specials teachers cover specials; duties aren't grade blocks).
@@ -1702,11 +1778,18 @@ function _iaCoverageRow(r, blockOpts, allocs, grades, idx, total) {
         <select class="input ia-cov-block" data-cov-id="${r.id}">
           ${blockOpts.map(o => `<option value="${o.value}" ${o.value === curVal ? 'selected' : ''}>${escHtml(o.label)}</option>`).join('')}
         </select>
+        ${_isSchoolWideEligible(r.blockId) ? `
+          <select class="input input-sm ia-cov-scope" data-cov-id="${r.id}" style="margin-top:4px;width:100%;font-size:11px">
+            <option value="school" ${r.scope === 'school' ? 'selected' : ''}>School-wide — one duty</option>
+            <option value="grade"  ${r.scope !== 'school' ? 'selected' : ''}>Per grade</option>
+          </select>` : ''}
       </td>
       <td>
-        <div class="grade-pref-chips ia-cov-grades" data-cov-id="${r.id}">
+        ${r.scope === 'school'
+          ? '<span class="text-muted" style="font-size:11px">All grades — one shared duty</span>'
+          : `<div class="grade-pref-chips ia-cov-grades" data-cov-id="${r.id}">
           ${grades.map(g => `<button type="button" class="grade-chip grade-chip-xs ${(r.grades || []).includes(g) ? 'active' : ''}" data-grade="${g}">${gradeChipLabel(g)}</button>`).join('')}
-        </div>
+        </div>`}
       </td>
       <td><input type="number" class="input ia-cov-count" min="1" step="1" value="${r.iasPerGrade || 1}" data-cov-id="${r.id}" style="width:70px"></td>
       <td>
@@ -1724,6 +1807,7 @@ function renderIAAssignmentView() {
   if (!SchedState.iaAllocations) SchedState.iaAllocations = [];
   if (!SchedState.iaCoverage)    SchedState.iaCoverage    = [];
   _migrateRecessCoverage();
+  _normalizeCoverageScope();
   const allocs    = SchedState.iaAllocations;
   const coverage  = SchedState.iaCoverage;
   const grades    = gradesSorted();
@@ -1765,15 +1849,15 @@ function renderIAAssignmentView() {
 
       <div class="form-section">
         <h2 class="form-section-title">Coverage Plan</h2>
-        <p class="form-hint">One row per block that needs an IA. Pick the block, the grades to cover, how many IAs each grade needs, and which budget categories may fund it. <strong>IAs are staffed top-to-bottom — the higher a row, the earlier it gets IAs.</strong> Use the ↑ ↓ arrows to set priority.</p>
+        <p class="form-hint">One row per block that needs an IA. Pick the block and its grades — or make it <strong>school-wide</strong> for a duty like dismissal that isn't tied to a grade — then how many IAs and which budget categories may fund it. <strong>IAs are staffed top-to-bottom — the higher a row, the earlier it gets IAs.</strong> Use the ↑ ↓ arrows to set priority.</p>
         ${blockOpts.length ? '' : '<p class="text-muted">Add block types first — the coverage plan draws its blocks from the Block Types tab, plus lunch and recess.</p>'}
         <div class="req-table-wrap">
           <table class="req-table">
             <thead><tr>
               <th style="width:64px">Priority</th>
               <th style="min-width:170px">Block</th>
-              <th style="min-width:150px">Grades covered</th>
-              <th style="width:110px">IAs / grade</th>
+              <th style="min-width:150px">Grades / scope</th>
+              <th style="width:110px"># IAs</th>
               <th style="min-width:160px">Funded by</th>
               <th style="width:44px"></th>
             </tr></thead>
@@ -1856,7 +1940,15 @@ function _wireIAAssignment() {
   // ── Coverage plan ──
   document.querySelectorAll('.ia-cov-block').forEach(sel => sel.addEventListener('change', () => {
     const r = findCov(sel.dataset.covId); if (!r) return;
-    const [bid, sid] = sel.value.split('|'); r.blockId = bid; r.subId = sid || null; saveToLocal();
+    const [bid, sid] = sel.value.split('|'); r.blockId = bid; r.subId = sid || null;
+    // Re-apply the smart scope default for the newly-picked block.
+    r.scope = _isSchoolWideEligible(bid) ? 'school' : 'grade';
+    saveToLocal(); renderIAAssignmentView();   // re-render: scope select + grades cell change
+  }));
+  document.querySelectorAll('.ia-cov-scope').forEach(sel => sel.addEventListener('change', () => {
+    const r = findCov(sel.dataset.covId); if (!r) return;
+    r.scope = sel.value === 'school' ? 'school' : 'grade';
+    saveToLocal(); renderIAAssignmentView();   // re-render: show/hide grade chips
   }));
   document.querySelectorAll('.ia-cov-count').forEach(inp => inp.addEventListener('input', () => {
     const r = findCov(inp.dataset.covId); if (r) { const v = parseInt(inp.value, 10); r.iasPerGrade = (isNaN(v) || v < 1) ? 1 : v; saveToLocal(); }
@@ -1893,6 +1985,7 @@ function _wireIAAssignment() {
     if (!SchedState.iaCoverage) SchedState.iaCoverage = [];
     SchedState.iaCoverage.push({
       id: uid(), blockId: opts[0].blockId, subId: opts[0].subId,
+      scope: _isSchoolWideEligible(opts[0].blockId) ? 'school' : 'grade',
       grades: [], iasPerGrade: 1,
       allowedAllocIds: [],  // default: none funded — user turns categories on
     });
@@ -1982,6 +2075,22 @@ function _iaBlockOccurrences(day, grade, blockId, subId) {
   });
 }
 
+// School-wide occurrences of a block on `day`: the block is placed identically in
+// every grade, so its runs are found once by treating "any grade has it here" as a
+// hit. Robust to alt-day dismissal / manual moves (reads the placed master schedule).
+function _iaSchoolBlockOccurrences(day, blockId) {
+  const slots  = _iaAutoFillSlots(day);
+  const byGrade = SchedState.masterSchedule[day] || {};
+  const grades  = Object.keys(byGrade);
+  const hasHere = sl => grades.some(g => _iaSlotMatches(byGrade[g][sl], blockId, null));
+  const runs = []; let cur = null;
+  slots.forEach(sl => {
+    if (hasHere(sl)) { if (!cur) { cur = []; runs.push(cur); } cur.push(sl); }
+    else cur = null;
+  });
+  return runs;
+}
+
 function _iaInHours(ia, run) {
   if (!ia.startTime || !ia.endTime) return true;   // no hours set → always available
   return timeToMins(run[0]) >= timeToMins(ia.startTime)
@@ -2011,11 +2120,17 @@ function placeIAs() {
   const demand = {}; DAYS.forEach(d => { demand[d] = {}; });
   (SchedState.iaCoverage || []).forEach(row => {
     const need = Math.max(1, row.iasPerGrade || 1);
-    (row.grades || []).forEach(grade => {
-      DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => {
+    if (row.scope === 'school') {
+      DAYS.forEach(day => _iaSchoolBlockOccurrences(day, row.blockId).forEach(run => {
         run.forEach(sl => { demand[day][sl] = (demand[day][sl] || 0) + need; });
       }));
-    });
+    } else {
+      (row.grades || []).forEach(grade => {
+        DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => {
+          run.forEach(sl => { demand[day][sl] = (demand[day][sl] || 0) + need; });
+        }));
+      });
+    }
   });
   const busy = {}; DAYS.forEach(d => { busy[d] = {}; });
   // Cost of putting a personal block on `run`: overlap with other IAs' personal time
@@ -2098,17 +2213,30 @@ function placeIAs() {
   // (the user orders the list). Within a row, hardest-to-staff grade goes first.
   const reqs = [];
   (SchedState.iaCoverage || []).forEach((row, rowIndex) => {
-    (row.grades || []).forEach(grade => {
+    const need   = Math.max(1, row.iasPerGrade || 1);
+    const isDuty = IA_DUTY_BLOCKS.has(row.blockId);
+    if (row.scope === 'school') {
+      // ONE requirement for the whole school (no per-grade multiplication).
       const occ = [];
-      DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => occ.push({ day, run })));
+      DAYS.forEach(day => _iaSchoolBlockOccurrences(day, row.blockId).forEach(run => occ.push({ day, run })));
       if (!occ.length) return;
       reqs.push({
-        rowIndex, blockId: row.blockId, subId: row.subId || null, grade,
-        need: Math.max(1, row.iasPerGrade || 1),
-        allowedAllocIds: row.allowedAllocIds || [],
-        isDuty: IA_DUTY_BLOCKS.has(row.blockId), occ,
+        rowIndex, blockId: row.blockId, subId: row.subId || null, grade: null,
+        targetType: 'block', targetId: row.subId ? row.blockId + '|' + row.subId : row.blockId,
+        need, allowedAllocIds: row.allowedAllocIds || [], isDuty, occ,
       });
-    });
+    } else {
+      (row.grades || []).forEach(grade => {
+        const occ = [];
+        DAYS.forEach(day => _iaBlockOccurrences(day, grade, row.blockId, row.subId).forEach(run => occ.push({ day, run })));
+        if (!occ.length) return;
+        reqs.push({
+          rowIndex, blockId: row.blockId, subId: row.subId || null, grade,
+          targetType: 'grade', targetId: grade,
+          need, allowedAllocIds: row.allowedAllocIds || [], isDuty, occ,
+        });
+      });
+    }
   });
   // Order: coverage-list position (user priority) first, then hardest-first within a row.
   reqs.forEach(r => {
@@ -2146,7 +2274,7 @@ function placeIAs() {
   const assign = (day, ia, run, req) => {
     const allocId = chooseAlloc(req.allowedAllocIds, day);
     const map = ensure(day, ia.id);
-    run.forEach(sl => { map[sl] = { allocId, targetType: 'grade', targetId: req.grade, note: '' }; });
+    run.forEach(sl => { map[sl] = { allocId, targetType: req.targetType || 'grade', targetId: req.targetId != null ? req.targetId : req.grade, note: '' }; });
     const mins = run.length * 5;
     totalMin[ia.id] += mins;
     if (req.isDuty) {
