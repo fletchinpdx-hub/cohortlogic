@@ -1947,14 +1947,14 @@ function _renderPlacementReport(rep) {
       const bud = hasBudget ? (b.budgetMin / 60).toFixed(1) + ' h' : 'no limit';
       const over = hasBudget && b.peakMin > b.budgetMin;
       const pct = hasBudget ? Math.min(100, Math.round((b.peakMin / b.budgetMin) * 100)) : (b.peakMin > 0 ? 100 : 0);
-      return `<div class="ia-budget-row">
-        <span class="ia-budget-dot" style="background:${b.color || '#6366f1'}"></span>
-        <span class="ia-budget-name">${escHtml(b.name || '(unnamed)')}</span>
-        <span class="ia-budget-bar"><span class="ia-budget-fill${over ? ' over' : ''}" style="width:${pct}%;background:${over ? '#dc2626' : (b.color || '#6366f1')}"></span></span>
-        <span class="ia-budget-num${over ? ' over' : ''}">${used} / ${bud} per day</span>
+      return `<div class="ia-pb-row">
+        <span class="ia-pb-dot" style="background:${b.color || '#6366f1'}"></span>
+        <span class="ia-pb-name">${escHtml(b.name || '(unnamed)')}</span>
+        <span class="ia-pb-bar"><span class="ia-pb-fill${over ? ' over' : ''}" style="width:${pct}%;background:${over ? '#dc2626' : (b.color || '#6366f1')}"></span></span>
+        <span class="ia-pb-num${over ? ' over' : ''}">${used} / ${bud} per day</span>
       </div>`;
     }).join('');
-    rows.push(`<div class="ia-budget-block"><div class="ia-budget-title">Budget allocation — busiest day used vs. daily limit</div>${bars}</div>`);
+    rows.push(`<div class="ia-pb-block"><div class="ia-pb-title">Budget allocation — busiest day used vs. daily limit</div>${bars}</div>`);
   }
   rows.push(`<button class="btn btn-outline btn-sm mt-8" data-nav="ia">View on IA Schedule →</button>`);
   el.innerHTML = rows.join('');

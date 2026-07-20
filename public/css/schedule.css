@@ -1145,17 +1145,18 @@
 .ia-place-ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
 .ia-place-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
 
-/* Budget-time allocation status shown after Place IAs */
-.ia-budget-block { margin: 10px 0 4px; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; background: #fff; }
-.ia-budget-title { font-size: 12px; font-weight: 700; color: var(--gray-600); margin-bottom: 8px; }
-.ia-budget-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
-.ia-budget-row:last-child { margin-bottom: 0; }
-.ia-budget-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
-.ia-budget-name { min-width: 90px; max-width: 130px; color: var(--gray-700); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ia-budget-bar { flex: 1; height: 8px; background: var(--gray-100); border-radius: 999px; overflow: hidden; min-width: 60px; }
-.ia-budget-fill { display: block; height: 100%; border-radius: 999px; }
-.ia-budget-num { min-width: 116px; text-align: right; color: var(--gray-600); font-variant-numeric: tabular-nums; }
-.ia-budget-num.over { color: #dc2626; font-weight: 700; }
+/* Budget-time allocation status shown after Place IAs (distinct prefix to avoid
+   colliding with the IA Schedule's .ia-budget-bar chip row). */
+.ia-pb-block { margin: 10px 0 4px; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; background: #fff; }
+.ia-pb-title { font-size: 12px; font-weight: 700; color: var(--gray-600); margin-bottom: 8px; }
+.ia-pb-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.ia-pb-row:last-child { margin-bottom: 0; }
+.ia-pb-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.ia-pb-name { min-width: 90px; max-width: 130px; color: var(--gray-700); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ia-pb-bar { flex: 1; height: 8px; background: var(--gray-100); border-radius: 999px; overflow: hidden; min-width: 60px; }
+.ia-pb-fill { display: block; height: 100%; border-radius: 999px; }
+.ia-pb-num { min-width: 116px; text-align: right; color: var(--gray-600); font-variant-numeric: tabular-nums; }
+.ia-pb-num.over { color: #dc2626; font-weight: 700; }
 
 /* IA Schedule — placement issues detail panel */
 .ia-issues-panel { border: 1px solid #fde68a; background: #fffbeb; border-radius: 8px; margin: 0 0 12px; overflow: hidden; }
