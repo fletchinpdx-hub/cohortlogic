@@ -2348,17 +2348,20 @@ function wireOtherBlocks() {
       document.getElementById(`sw-time-${id}`)?.style.setProperty('display', isTime ? '' : 'none');
       document.getElementById(`sw-dur-${id}`)?.style.setProperty('display', isTime ? 'none' : '');
       const bt = SchedState.blockTypes.find(b => b.id === id);
-      if (bt) { _collectUniformRow(bt); saveToLocal(); }
+      if (bt) { _collectUniformRow(bt); preFillFixedBlocks(); saveToLocal(); }
     });
   });
 
   // School-wide time / duration inputs — AUTO-SAVE on change so a pending edit isn't
   // lost when another action (add/remove/edit a block) re-renders the table. (Was
   // only captured at "Save & Continue", so an interim re-render dropped it — bug.)
+  // Also re-place fixed blocks so a uniform block (e.g. Arrival Duty) lands in the
+  // master schedule the moment its time is set — otherwise it never shows up as a
+  // target on the IA Schedule (which reads placed blocks), matching Find/Clear.
   document.querySelectorAll('.sw-start-input, .sw-end-input, .sw-mins-input').forEach(inp => {
     inp.addEventListener('change', () => {
       const bt = SchedState.blockTypes.find(b => b.id === inp.dataset.btId);
-      if (bt) { _collectUniformRow(bt); saveToLocal(); }
+      if (bt) { _collectUniformRow(bt); preFillFixedBlocks(); saveToLocal(); }
     });
   });
 
