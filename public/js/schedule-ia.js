@@ -908,6 +908,17 @@ function _iaAssignmentRun(day, iaId, slot) {
   return run;
 }
 
+// Re-render the IA Schedule after an in-place edit WITHOUT jumping to the top: the
+// grid scrolls inside .ia-ind-grid-wrap / .ia-all-grid-wrap (not #main), so capture
+// that wrapper's scrollTop and restore it on the rebuilt one.
+function _rerenderIAKeepingScroll() {
+  const sel = '.ia-ind-grid-wrap, .ia-all-grid-wrap';
+  const y = document.querySelector(sel)?.scrollTop || 0;
+  renderIAScheduleView();
+  const next = document.querySelector(sel);
+  if (next) next.scrollTop = y;
+}
+
 // Anchored popover to edit (budget category, note) or delete an IA assignment,
 // opened by clicking an assignment cell in either IA Schedule sub-view.
 function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
@@ -923,6 +934,18 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
   const target = _iaTargetLabel(entry);
   const grade  = entry.targetType === 'grade' ? entry.targetId : null;
   const isOwnLunch = entry.targetType === 'own_lunch';
+  const isBreak    = entry.targetType === 'break';
+  const isPersonal = isOwnLunch || isBreak;   // engine-reserved lunch/break — movable, not grade-tied
+  // Candidate start times to MOVE a personal block to: any slot in the aide's day where
+  // its full duration still fits within the aide's hours (overlaps are allowed but warned).
+  const dur      = run.length;
+  const iaSlots  = _iaAutoFillSlots(day);
+  const winS     = ia?.startTime ? timeToMins(ia.startTime) : timeToMins(iaSlots[0] || '08:00');
+  const winE     = ia?.endTime   ? timeToMins(ia.endTime)   : (timeToMins(iaSlots[iaSlots.length - 1] || '14:30') + 5);
+  const moveOpts = iaSlots
+    .filter(s => timeToMins(s) >= winS && timeToMins(s) + dur * 5 <= winE)
+    .map(s => { const e = minsToTime(timeToMins(s) + dur * 5); return `<option value="${s}"${s === run[0] ? ' selected' : ''}>${fmtTime12(s)} – ${fmtTime12(e)}</option>`; })
+    .join('');
   const btId   = grade ? getBlock(day, grade, slot) : null;
   const btName = btId ? getBtName(btId) : '';
   const startSlot = run[0];
@@ -956,7 +979,11 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
         <div><strong>${escHtml(target || '(assignment)')}</strong>${btName ? ' · ' + escHtml(btName) : ''}</div>
         <div class="ia-editor-time">${escHtml(timeStr)}</div>
       </div>
-      ${isOwnLunch ? '' : `
+      ${isPersonal ? `
+      <div class="override-field-row">
+        <label class="override-label">Move ${isOwnLunch ? 'lunch' : 'break'} to</label>
+        <select id="iae-move-start" class="override-select">${moveOpts}</select>
+      </div>` : `
       <div class="override-field-row">
         <label class="override-label">IA</label>
         <select id="iae-ia" class="override-select">${iaOpts}</select>
@@ -969,10 +996,11 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
           <select id="iae-end" class="override-select">${endOpts}</select>
         </div>
       </div>`}
+      ${isBreak ? '' : `
       <div class="override-field-row">
         <label class="override-label">Budget category</label>
         <select id="iae-alloc" class="override-select">${allocOpts || '<option value="">(no categories)</option>'}</select>
-      </div>
+      </div>`}
       <div class="override-field-row">
         <label class="override-label">Note</label>
         <textarea id="iae-note" class="override-select" rows="2" placeholder="Optional">${escHtml(entry.note || '')}</textarea>
@@ -980,7 +1008,7 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
       <div class="override-actions">
         <button class="btn btn-primary btn-sm" id="iae-save">Save</button>
         <button class="btn btn-outline btn-sm" id="iae-cancel">Cancel</button>
-        <button class="btn-link ia-editor-delete" id="iae-delete">Delete assignment</button>
+        <button class="btn-link ia-editor-delete" id="iae-delete">Delete ${isPersonal ? (isOwnLunch ? 'lunch' : 'break') : 'assignment'}</button>
       </div>
     </div>`;
 
@@ -999,13 +1027,29 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
   document.getElementById('iae-cancel').addEventListener('click', close);
 
   document.getElementById('iae-save').addEventListener('click', () => {
-    const newAlloc = document.getElementById('iae-alloc').value;
+    const newAlloc = document.getElementById('iae-alloc')?.value || '';
     const newNote  = document.getElementById('iae-note').value.trim();
 
-    // Own lunch: only category/note editable in place.
-    if (isOwnLunch) {
-      run.forEach(s => { const e = map[s]; if (!e) return; if (newAlloc) e.allocId = newAlloc; if (newNote) e.note = newNote; else delete e.note; });
-      saveToLocal(); renderIAScheduleView(); return;
+    // Personal time (own lunch / break): MOVE it to a new start (same duration), plus
+    // category (lunch only) / note. Overlapping an existing assignment is allowed but
+    // warned — the aide can move their break wherever they want.
+    if (isPersonal) {
+      const newStart = document.getElementById('iae-move-start').value;
+      const newRun = []; for (let i = 0; i < dur; i++) newRun.push(minsToTime(timeToMins(newStart) + i * 5));
+      const oldSet = new Set(run);
+      const conflict = newRun.find(s => map[s] && !oldSet.has(s));
+      if (conflict) {
+        const other = _iaTargetLabel(map[conflict]) || 'an existing assignment';
+        if (!confirm(`That time overlaps ${other}. Move the ${isOwnLunch ? 'lunch' : 'break'} there anyway? It will replace what's in those slots.`)) return;
+      }
+      run.forEach(s => { delete map[s]; });
+      newRun.forEach(s => {
+        const e2 = { allocId: isOwnLunch ? (newAlloc || null) : null, targetType: entry.targetType };
+        if (entry.targetId != null) e2.targetId = entry.targetId;
+        if (newNote) e2.note = newNote;
+        map[s] = e2;
+      });
+      saveToLocal(); close(); _rerenderIAKeepingScroll(); return;
     }
 
     const newIaId = document.getElementById('iae-ia').value;
@@ -1030,14 +1074,16 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
     const finalNote = newNote || '';
     targetSlots.forEach(s => { targetMap[s] = { allocId: newAlloc || entry.allocId || null, targetType: entry.targetType, targetId: entry.targetId, note: finalNote }; });
     saveToLocal();
-    renderIAScheduleView();
+    close();
+    _rerenderIAKeepingScroll();
   });
 
   document.getElementById('iae-delete').addEventListener('click', () => {
     if (!confirm('Delete this IA assignment? This removes it from the IA schedule.')) return;
     run.forEach(s => { delete map[s]; });
     saveToLocal();
-    renderIAScheduleView();
+    close();
+    _rerenderIAKeepingScroll();
   });
 }
 
@@ -1173,7 +1219,8 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
       runSlots.forEach(s => { map[s] = makeEntry(); });
     });
     saveToLocal();
-    renderIAScheduleView();
+    close();                       // dismiss the popover once the assignment is added
+    _rerenderIAKeepingScroll();
     if (skipped.length) {
       const names = skipped.map(id => (SchedState.staff.find(s => s.id === id) || {}).name || 'aide').join(', ');
       alert('Already busy in that range, so skipped: ' + names);
