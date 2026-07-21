@@ -2203,17 +2203,20 @@ function placeIAs() {
       }
       candByDay[day] = cands;
     });
-    const commonStarts = [...new Set((candByDay[DAYS[0]] || []).map(r => r[0]))]
-      .filter(st => DAYS.every(d => candByDay[d].some(r => r[0] === st)));
-    let chosen = null, best = Infinity;
-    commonStarts.forEach(st => {
-      const cost = DAYS.reduce((c, d) => c + runCost(d, candByDay[d].find(r => r[0] === st)), 0);
-      if (cost < best) { best = cost; chosen = st; }
+    // SAME clock time EVERY day. Score each candidate start by how many days it's free
+    // (more = better — consistency is the goal), then by total demand cost over those
+    // days. Place at that single start on every day it fits; a day it genuinely can't
+    // fit is reported unplaced rather than scattered to a different time.
+    const allStarts = [...new Set(DAYS.flatMap(d => candByDay[d].map(r => r[0])))]
+      .sort((a, b) => timeToMins(a) - timeToMins(b));
+    let chosen = null, bestDays = -1, bestCost = Infinity;
+    allStarts.forEach(st => {
+      let days = 0, cost = 0;
+      DAYS.forEach(d => { const r = candByDay[d].find(x => x[0] === st); if (r) { days++; cost += runCost(d, r); } });
+      if (days > bestDays || (days === bestDays && cost < bestCost)) { bestDays = days; bestCost = cost; chosen = st; }
     });
     DAYS.forEach(day => {
-      const run = chosen
-        ? candByDay[day].find(r => r[0] === chosen)
-        : candByDay[day].slice().sort((a, b) => runCost(day, a) - runCost(day, b) || timeToMins(a[0]) - timeToMins(b[0]))[0];
+      const run = chosen ? candByDay[day].find(r => r[0] === chosen) : null;
       if (!run) { onUnplaced(day); return; }
       const map = ensure(day, ia.id);
       run.forEach(sl => { map[sl] = makeEntry(); });
