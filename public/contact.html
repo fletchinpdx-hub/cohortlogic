@@ -56,8 +56,6 @@
       <div style="display:grid;gap:24px;position:sticky;top:100px;">
         <span class="eyebrow">Start free trial</span>
         <h1 style="font-size:clamp(36px,4vw,52px);">Tell us a little about your school. We'll do the rest.</h1>
-        <p class="lede" style="font-size:17px;">You'll hear from a human within one business day. If you'd rather see it in motion first, we'll send a 6-minute walkthrough you can watch on your own time.</p>
-
         <div style="padding:22px;border:1px solid var(--hairline);border-radius:14px;background:#fff;display:grid;gap:14px;">
           <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-deep);">What happens next</span>
           <div style="display:flex;align-items:center;gap:14px;">
@@ -66,15 +64,15 @@
           </div>
           <div style="display:flex;align-items:center;gap:14px;">
             <span style="width:26px;height:26px;border-radius:8px;flex-shrink:0;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:600;">2</span>
-            <span style="color:var(--text);font-size:14px;">A 25-min onboarding call (optional)</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:14px;">
-            <span style="width:26px;height:26px;border-radius:8px;flex-shrink:0;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:600;">3</span>
             <span style="color:var(--text);font-size:14px;">Upload a roster, build a real plan</span>
           </div>
           <div style="display:flex;align-items:center;gap:14px;">
+            <span style="width:26px;height:26px;border-radius:8px;flex-shrink:0;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:600;">3</span>
+            <span style="color:var(--text);font-size:14px;">Send us your feedback right inside the product</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;">
             <span style="width:26px;height:26px;border-radius:8px;flex-shrink:0;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:600;">4</span>
-            <span style="color:var(--text);font-size:14px;">Decide if it's worth the next school year</span>
+            <span style="color:var(--text);font-size:14px;">Schools tell us these products save them weeks of work. See if you agree.</span>
           </div>
         </div>
 
@@ -108,7 +106,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div class="field">
               <label for="f-name">Your name</label>
-              <input id="f-name" name="name" placeholder="Jamie Chen" required />
+              <input id="f-name" name="name" placeholder="First Last" required />
             </div>
             <div class="field">
               <label for="f-email">Work email</label>
@@ -148,26 +146,14 @@
           <div class="field">
             <label>Which products are you interested in? <span style="color:var(--text-3);text-transform:none;letter-spacing:0;">(pick all that apply)</span></label>
             <div class="check-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <label class="check-label"><input type="checkbox" name="products" value="planner" checked /><span>Class Builder (available now)</span></label>
-              <label class="check-label"><input type="checkbox" name="products" value="schedule" /><span>Schedule Builder (fall '26)</span></label>
-              <label class="check-label"><input type="checkbox" name="products" value="iep" /><span>IEP Workbench (late '26)</span></label>
-              <label class="check-label"><input type="checkbox" name="products" value="staffing" /><span>Staffing Allocator (exploring)</span></label>
+              <label class="check-label"><input type="checkbox" name="products" value="planner" checked /><span>Class Builder</span></label>
+              <label class="check-label"><input type="checkbox" name="products" value="schedule" /><span>Schedule Builder</span></label>
             </div>
           </div>
 
           <div class="field">
-            <label for="f-timing">When are you hoping to use it?</label>
-            <select id="f-timing" name="timing">
-              <option value="this-spring">This spring (placement season)</option>
-              <option value="summer">Summer 2026</option>
-              <option value="fall">Fall 2026</option>
-              <option value="exploring">Just exploring for now</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="f-notes">What would make this worth your time? <span style="color:var(--text-3);text-transform:none;letter-spacing:0;">(optional)</span></label>
-            <textarea id="f-notes" name="notes" placeholder="e.g. 'We're trying to find a better way to handle placement this year. Open to talking about what we'd need to see.'"></textarea>
+            <label for="f-notes">What is your biggest pain point when setting up balanced classrooms and/or building a schedule? <span style="color:var(--text-3);text-transform:none;letter-spacing:0;">(optional)</span></label>
+            <textarea id="f-notes" name="notes" placeholder="e.g. 'We spend weeks on placement every spring and still end up redoing it after the first week of school.'"></textarea>
           </div>
 
           <button type="submit" class="btn btn-primary" style="justify-content:center;padding:14px 20px;">
@@ -258,7 +244,6 @@
       school:  document.getElementById('f-school').value.trim(),
       enrollment: students,
       products:   products,
-      timing:     document.getElementById('f-timing').value,
       notes:      document.getElementById('f-notes').value.trim(),
       source:     'contact-form',
     };
