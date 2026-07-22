@@ -1213,7 +1213,10 @@ function billingRowHtml(s, sub, seatsUsed) {
     <tr id="billing-row-${s.id}">
       <td><strong>${escAdmin(s.name)}</strong></td>
       <td>${escAdmin(sub.package)}</td>
-      <td><span style="display:inline-block;background:${statusColor.bg};color:${statusColor.fg};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;text-transform:capitalize;">${escAdmin(sub.status.replace('_', ' '))}</span></td>
+      <td>
+        <span style="display:inline-block;background:${statusColor.bg};color:${statusColor.fg};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;text-transform:capitalize;">${escAdmin(sub.status.replace('_', ' '))}</span>
+        <div style="font-size:10px;color:#9ca3af;margin-top:2px;text-transform:capitalize;">${escAdmin(sub.tier || 'individual')}${sub.status === 'trial' && sub.trial_ends_at ? ' · ends ' + escAdmin(new Date(sub.trial_ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) : ''}</div>
+      </td>
       <td${overSeats ? ' style="color:var(--red);font-weight:700;"' : ''}>${seatsUsed} / ${seatsTotal || '—'}</td>
       <td>${escAdmin(_fmtCents(netCents) + periodSuffix)}</td>
       <td${renewalSoon ? ' style="color:#b45309;font-weight:700;"' : ''}>${sub.renewal_date ? escAdmin(new Date(sub.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) : '—'}</td>
@@ -1246,6 +1249,22 @@ function openSubscriptionModal(schoolId) {
       <div>
         <label class="form-label">Status</label>
         <select id="sub-status" class="form-input" style="margin-bottom:0;">${statusOptions}</select>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:120px;">
+          <label class="form-label">Tier</label>
+          <select id="sub-tier" class="form-input" style="margin-bottom:0;">
+            ${['individual', 'school', 'district'].map(t =>
+              `<option value="${t}"${(sub?.tier || 'individual') === t ? ' selected' : ''}>${t[0].toUpperCase() + t.slice(1)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px;">
+          <label class="form-label">Trial ends</label>
+          <input type="date" id="sub-trial-ends" class="form-input" style="margin-bottom:0;" value="${sub && sub.trial_ends_at ? String(sub.trial_ends_at).slice(0, 10) : ''}" />
+        </div>
+        <div style="flex:0 0 auto;">
+          <button type="button" class="btn btn-outline btn-sm" id="sub-start-trial">Start 60-day trial</button>
+        </div>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:100px;">
@@ -1306,6 +1325,16 @@ function openSubscriptionModal(schoolId) {
     });
   }
 
+  // "Start 60-day trial" — sets status=trial + a trial end 60 days out; the admin
+  // reviews (tier/seats) and clicks Save. Individual tier defaults to 1 seat.
+  document.getElementById('sub-start-trial').addEventListener('click', () => {
+    document.getElementById('sub-status').value = 'trial';
+    const d = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+    document.getElementById('sub-trial-ends').value = d.toISOString().slice(0, 10);
+    const lic = document.getElementById('sub-licenses');
+    if (lic && !lic.value && document.getElementById('sub-tier').value === 'individual') lic.value = '1';
+  });
+
   document.getElementById('subscription-modal').style.display = 'flex';
 }
 
@@ -1326,6 +1355,8 @@ async function saveSubscription(schoolId) {
     school_id:             schoolId,
     package:               plan ? plan.name : packageSel.value,
     status:                document.getElementById('sub-status').value,
+    tier:                  document.getElementById('sub-tier').value,
+    trial_ends_at:         document.getElementById('sub-trial-ends').value || null,
     license_count:         parseInt(document.getElementById('sub-licenses').value, 10) || 0,
     fee_cents:             Number.isFinite(feeDollars) ? Math.round(feeDollars * 100) : 0,
     billing_period:        document.getElementById('sub-period').value,
