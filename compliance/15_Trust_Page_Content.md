@@ -6,6 +6,8 @@
 **Last updated:** 2026-07-21 (by Claude)
 
 > This is the **copy** for a product-aware Trust page. Keep the existing page's clean design and its honest voice; swap the content. The goal: a public page that pre-answers most of a district's security questionnaire.
+>
+> **⚠️ SCOPE UPDATE (2026-07-21):** launch is **Class Builder + Schedule Builder only** (`16_Go_To_Market_Scope.md`) — **both browser-only, no student data stored on our servers.** So the launch page should lead hard with that single message and present the "database-backed tools" section as **coming later / not yet offered**, not as live. The full two-model content below becomes accurate once CICO/Referrals ship (Phase 2). Until then, trim the database-backed claims to "planned."
 
 ---
 

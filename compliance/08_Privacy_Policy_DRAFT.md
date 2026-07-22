@@ -5,7 +5,9 @@
 **Owner:** Michael Fletcher — **requires attorney review before publishing**
 **Last updated:** 2026-07-21 (by Claude)
 
-> This rewrites the current `privacy.html` for a **production** posture (selling to districts with real student data), and fixes three factual gaps in the live page: (1) it lists **Netlify** as a host — you're on **Cloudflare** now; (2) it omits **Schedule Builder** and **Referral Tracking**; (3) it never discloses the **demographic data** (race/ethnicity, gender, IEP) that Referrals stores. Content below is the policy text; the web port keeps your existing page design.
+> **⚠️ SCOPE UPDATE (2026-07-21) — read before publishing.** Go-to-market is **Class Builder + Schedule Builder only** (see `16_Go_To_Market_Scope.md`). **Neither stores student data on our servers.** For launch, the strongest, simplest policy leads with *"we do not store student data"* and covers only staff accounts + anonymous analytics. The **CICO/Referral Tracking sections below (§2, §5 rows) apply only when those products launch (Phase 2)** — keep them out of the launch version or clearly mark them "not yet offered." I can produce a **lean Phase-1 privacy policy** on request; the fuller text below is retained as the Phase-2 baseline.
+>
+> This rewrites the current `privacy.html` for a **production** posture, and fixes three factual gaps in the live page: (1) it lists **Netlify** as a host — you're on **Cloudflare** now; (2) it omits **Schedule Builder** and **Referral Tracking**; (3) it never discloses the **demographic data** (race/ethnicity, gender, IEP) that Referrals stores. Content below is the policy text; the web port keeps your existing page design.
 
 ---
 
