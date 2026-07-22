@@ -30,7 +30,7 @@
 
 | # | Item | Doc | What's needed |
 |---|---|---|---|
-| 14 | **Entity name/type** | all footers, BI-01 | Footer says "Cohort Logic, PBC" — confirm the true legal entity and make it consistent everywhere |
+| 14 | **Entity name/type** | all footers, BI-01 | ✅ **RESOLVED: Cohort Logic, LLC.** The site footers wrongly say "Cohort Logic, PBC" (a different entity type) on 10 pages — fix to "LLC" in the website batch. All `[confirm PBC/LLC]` placeholders resolve to **LLC**. |
 | 15 | **Contact addresses** | 08/17/19/11/14 | Create + confirm `privacy@`, `security@`, `legal@` (or point all at `hello@` for now) |
 | 16 | **Incident-response contacts** | 04 | Breach counsel (BI-14), cyber-insurance breach hotline + policy # (BI-04), Supabase support plan, Cloudflare support |
 | 17 | **DR key-person contact** | 12 | Designate one trusted technical contact + document emergency access (solo-founder mitigation) |

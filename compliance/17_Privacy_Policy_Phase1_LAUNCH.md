@@ -88,5 +88,5 @@ We'll post changes here and update the date above. Questions or deletion request
 ### Reviewer notes (not published)
 - Confirm the Supabase **US region** before publishing (FE-06).
 - Attorney: confirm the FERPA framing (§4) — the "we don't hold education records" position is strong but should be counsel-blessed.
-- On web port: replace the current `privacy.html` body; keep the page design; set the `privacy@` address; fix the footer entity label (PBC vs LLC) and dead links.
+- On web port: replace the current `privacy.html` body; keep the page design; set the `privacy@` address; fix the footer entity label (currently "PBC" — should be **"Cohort Logic, LLC"**) and dead links.
 - Keep the fuller `08_...` draft on file — it becomes the basis for the privacy policy when CICO/Referral Tracking (student-data products) launch.

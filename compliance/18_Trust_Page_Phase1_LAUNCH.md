@@ -12,7 +12,7 @@
 ## ⚠️ Reviewer notes — read first (not page content)
 1. This version **only** describes the two browser-only products. No "database-backed tools" section — those are Phase 2 and can be shown as "coming later" if you want to signal the roadmap.
 2. Keep the honest "not yet" section (SOC 2, pen test, signed DPAs).
-3. Resolve the **PBC-vs-LLC** entity label and wire the dead footer **Terms/DPA** links before shipping.
+3. Entity is **Cohort Logic, LLC** — the footers currently say "PBC" (wrong); fix to "LLC" and wire the dead footer **Terms/DPA** links before shipping.
 4. Confirm-before-publishing: Supabase **US region** and exact **encryption-at-rest** wording; claim MFA as *available* until enforcement ships (SE-05).
 
 ---
@@ -84,5 +84,5 @@ Published only when real:
 - [ ] Rewrite hero to the "never reaches our servers" message; drop any implication of stored student data.
 - [ ] Replace the summary card with the control table above; add sub-processors + compliance + security-contact sections.
 - [ ] Keep the anonymization example (scoped to Class Builder).
-- [ ] Resolve PBC-vs-LLC; wire the dead Terms/DPA footer links.
+- [ ] Change footers "Cohort Logic, PBC" → "Cohort Logic, LLC" (10 pages); wire the dead Terms/DPA footer links.
 - [ ] Confirm US-region + encryption-at-rest wording before publishing those lines.

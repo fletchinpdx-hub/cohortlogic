@@ -30,7 +30,7 @@ Some districts will still ask for a DPA/NDPA as a formality even for no-storage 
 ## 2. Phase 1 — what you actually need to launch (the short list)
 
 **Business & legal (get paid + contract):**
-- Confirm legal entity (resolve the "PBC" vs LLC label), EIN + W-9, business banking — BI-01/02/03
+- Entity confirmed: **Cohort Logic, LLC** (fix the site footers, which wrongly say "PBC"); EIN + W-9, business banking — BI-01/02/03
 - **Insurance** (cyber + tech E&O + general liability) — *Michael obtaining* — BI-04/05/06/07
 - Identify counsel — BI-14
 

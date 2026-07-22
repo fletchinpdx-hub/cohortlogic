@@ -11,7 +11,7 @@
 
 ## DATA PROCESSING AGREEMENT
 
-This Data Processing Agreement ("DPA") is entered into by **`[Cohort Logic entity — confirm PBC/LLC]`** ("Provider") and **`[School / District name]`** ("LEA"), and supplements the Terms of Service / Master Services Agreement between them (the "Agreement"). If it conflicts with the Agreement on the handling of Student Data, this DPA controls.
+This Data Processing Agreement ("DPA") is entered into by **Cohort Logic, LLC** ("Provider") and **`[School / District name]`** ("LEA"), and supplements the Terms of Service / Master Services Agreement between them (the "Agreement"). If it conflicts with the Agreement on the handling of Student Data, this DPA controls.
 
 **1. Definitions.** "Student Data" means personally identifiable information from student education records. "Applicable Law" includes FERPA, COPPA, and applicable state student-privacy laws.
 
