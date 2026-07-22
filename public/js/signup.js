@@ -1,3 +1,22 @@
+// Personal / free email providers aren't accepted — Cohort Logic is for school staff.
+// This is a front-door deterrent + clear messaging; every signup still requires manual
+// approval, which is the real (server-side) gate.
+const FREE_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'ymail.com', 'rocketmail.com',
+  'hotmail.com', 'hotmail.co.uk', 'outlook.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com', 'aol.com', 'aim.com',
+  'protonmail.com', 'proton.me', 'pm.me', 'gmx.com', 'gmx.us', 'mail.com',
+  'zoho.com', 'yandex.com', 'yandex.ru', 'tutanota.com', 'hey.com',
+  'fastmail.com', 'duck.com', 'hushmail.com', 'inbox.com', 'yopmail.com',
+]);
+function isAllowedEmailDomain(email) {
+  const at = email.lastIndexOf('@');
+  if (at < 0) return false;
+  const domain = email.slice(at + 1).trim().toLowerCase();
+  if (!domain || !domain.includes('.')) return false;
+  return !FREE_EMAIL_DOMAINS.has(domain);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // ── Password strength indicator ──
   document.getElementById('password').addEventListener('input', function () {
@@ -40,6 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!fullName || !email || !schoolName) {
       errorEl.textContent = 'Please fill in all fields.';
+      errorEl.classList.add('visible');
+      return;
+    }
+    if (!isAllowedEmailDomain(email)) {
+      errorEl.textContent = 'Please use your school or district email address. Personal accounts (Gmail, Yahoo, Outlook, iCloud, etc.) aren’t accepted.';
       errorEl.classList.add('visible');
       return;
     }
