@@ -12,6 +12,9 @@ A multi-product SaaS for school administrators. Built by Michael Fletcher (Cohor
 
 **Repo location — `~/dev/cohortlogic`, never `~/Documents` or `~/Desktop`:** moved here 2026-07-16. Cause, not just symptom: this Mac has iCloud "Desktop & Documents" sync enabled, which makes both those folders live iCloud containers — the file-provider daemon holds them open and can duplicate files mid-write during heavy churn (`foo 2.ts`, and it has reached inside `.git` as `.git/index 2` on a sibling project, which is a real corruption risk, not just clutter). A repo with frequent build/deploy activity (like this one — multiple deploys/day, wrangler asset uploads) is more exposed than a static one. **If a `* 2.*` file ever shows up anywhere in this repo, don't just delete it and move on — first confirm the repo hasn't ended up back inside a synced folder** (`diff <(ls ~/Library/Mobile\ Documents/com~apple~CloudDocs/Documents) <(ls ~/Documents)` — identical output means sync is on).
 
+## Writing rules — HARD CONSTRAINTS for all marketing copy
+**No em dashes (—), en dashes (–), or hyphens used as connectors or interrupters — ever.** This applies to body copy, headings, `<title>` tags, `<meta>` descriptions, og:title, og:description, JSON-LD fields, and any other user-visible text on marketing pages. Rephrase using commas, colons, semicolons, or periods instead. The only exceptions are genuinely hyphenated compound words where the hyphen is grammatically required (e.g. "school-wide", "read-only", "0.2–0.3" numeric ranges) — not dashes used to connect two independent clauses or create a parenthetical aside. When writing or editing any marketing file, search for " — " and " – " before committing and remove every instance.
+
 ## Compact Instructions
 When compacting this conversation, preserve:
 - All modified files and what changed in each
