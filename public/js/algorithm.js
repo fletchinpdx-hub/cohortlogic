@@ -1,5 +1,11 @@
 function runBalancingAlgorithm() {
-  const grades = getGrades();
+  // Trial builds ONLY the unlocked grade (no other grade's arrangement is ever
+  // computed, so nothing to leak); a full plan builds every grade. Splits combine
+  // grades and are full-plan only. (typeof guards so algorithm.js also runs
+  // standalone in the unit tests, where app.js's helpers aren't loaded.)
+  const grades = (typeof activeGrades === 'function') ? activeGrades() : getGrades();
+  const fullPlan = (typeof cbFull !== 'function') || cbFull();
+  const splitClasses = fullPlan ? (AppState.splitClasses || []) : [];
   AppState.results     = {};
   AppState.splitResults = [];
 
@@ -11,7 +17,7 @@ function runBalancingAlgorithm() {
   // Group by grade pair so we calculate target size ONCE per pair
   // using original pool sizes — not shrinking pools mid-loop
   const pairMap = {};
-  AppState.splitClasses.forEach(sc => {
+  splitClasses.forEach(sc => {
     const key = sc.grades.slice().sort().join('|');
     if (!pairMap[key]) pairMap[key] = { grades: sc.grades, splits: [] };
     pairMap[key].splits.push(sc);

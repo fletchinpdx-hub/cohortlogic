@@ -327,6 +327,8 @@ function uniqueSheetName(base, used) {
 document.getElementById('export-by-grade-btn').addEventListener('click', exportByGrade);
 
 function exportByGrade() {
+  if (!cbFull()) return showUpgradeModal('export', 'Export is a paid feature',
+    'Downloading your class lists to Excel unlocks with a paid plan. On the free trial you can build and review 1st grade on screen, but export is turned off.');
   if (typeof trackEvent === 'function') trackEvent('export_results');
   const wb    = XLSX.utils.book_new();
   const comps = AppState.competencies.filter(c => c.name && c.column);
@@ -360,6 +362,8 @@ function exportByGrade() {
 document.getElementById('export-by-teacher-btn').addEventListener('click', exportByTeacher);
 
 function exportByTeacher() {
+  if (!cbFull()) return showUpgradeModal('export', 'Export is a paid feature',
+    'Downloading your class lists to Excel unlocks with a paid plan. On the free trial you can build and review 1st grade on screen, but export is turned off.');
   if (typeof trackEvent === 'function') trackEvent('export_results');
   const wb    = XLSX.utils.book_new();
   const comps = AppState.competencies.filter(c => c.name && c.column);

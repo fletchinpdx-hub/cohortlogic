@@ -126,6 +126,84 @@ function gradeLabel(g) {
   return /^[A-Za-z]+$/.test(g) ? g.toUpperCase() : `Grade ${g}`;
 }
 
+// ── Trial / entitlement gating (see js/entitlements.js) ───────────────────────
+// A full (paid) plan works with every grade; a trial works with only the unlocked
+// "1st grade". These are the single levers the gated views + the algorithm read.
+function cbFull() { return typeof Entitlements === 'undefined' || Entitlements.isFull(); }
+function activeGrades() {
+  const all = getGrades();
+  if (cbFull()) return all;
+  const g = Entitlements.unlockedGrade(all);
+  return g ? [g] : [];
+}
+// True when a grade is visible-but-locked in a trial (shown greyed to entice upgrade).
+function isGradeLocked(g) {
+  return !cbFull() && typeof Entitlements !== 'undefined' && !Entitlements.isTrialGrade(g);
+}
+// Small inline "locked — upgrade" ribbon for a card/section header.
+function cbLockRibbon(label) {
+  return `<div class="cb-lock-note">🔒 ${label} <a href="pricing.html" target="_blank" rel="noopener">See plans →</a></div>`;
+}
+// Modal shown when a trial user triggers a gated ACTION (export / save). Emits a
+// telemetry gate-hit and offers the upgrade path.
+function showUpgradeModal(feature, title, body) {
+  if (typeof Entitlements !== 'undefined') Entitlements.gateHit(feature);
+  document.getElementById('cb-upgrade-modal')?.remove();
+  const el = document.createElement('div');
+  el.id = 'cb-upgrade-modal';
+  el.className = 'cb-upgrade-overlay';
+  el.innerHTML = `
+    <div class="cb-upgrade-card" role="dialog" aria-modal="true">
+      <div class="cb-upgrade-lock">🔒</div>
+      <h2>${title}</h2>
+      <p>${body}</p>
+      <div class="cb-upgrade-actions">
+        <a class="btn btn-primary" href="pricing.html" target="_blank" rel="noopener">See plans &amp; pricing</a>
+        <button class="btn btn-outline" id="cb-upgrade-close">Not now</button>
+      </div>
+    </div>`;
+  el.addEventListener('click', e => { if (e.target === el) el.remove(); });
+  document.body.appendChild(el);
+  document.getElementById('cb-upgrade-close').addEventListener('click', () => el.remove());
+}
+// Full-screen wall when a time-limited trial has expired (hard lockout).
+function renderTrialLockout() {
+  if (document.getElementById('cb-trial-lockout')) return;
+  const el = document.createElement('div');
+  el.id = 'cb-trial-lockout';
+  el.className = 'cb-lockout-overlay';
+  el.innerHTML = `
+    <div class="cb-lockout-card">
+      <div class="cb-upgrade-lock">🔒</div>
+      <h1>Your free trial has ended</h1>
+      <p>Thanks for trying Class Builder. Upgrade to a paid plan to keep building balanced classes for every grade — and to export, print, and save your work.</p>
+      <div class="cb-upgrade-actions">
+        <a class="btn btn-primary" href="pricing.html" target="_blank" rel="noopener">See plans &amp; pricing</a>
+        <a class="btn btn-outline" href="dashboard.html">← Back to dashboard</a>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+// Persistent strip while on a trial: what's unlocked + days remaining.
+function renderTrialBanner() {
+  if (cbFull() || typeof Entitlements === 'undefined' || !Entitlements.isTrial()) return;
+  if (document.getElementById('cb-trial-banner')) return;
+  const days = Entitlements.daysLeft();
+  const left = days == null ? '' : ` · ${days} day${days === 1 ? '' : 's'} left`;
+  const bar = document.createElement('div');
+  bar.id = 'cb-trial-banner';
+  bar.className = 'cb-trial-banner';
+  bar.innerHTML = `<span>🎓 <strong>Free trial</strong> — 1st grade only; export, print &amp; save are off${left}.</span>
+    <a href="pricing.html" target="_blank" rel="noopener">Upgrade to unlock everything →</a>`;
+  document.getElementById('main')?.prepend(bar);
+}
+// Apply entitlement chrome once the real state is known.
+function applyEntitlementUI() {
+  if (typeof Entitlements === 'undefined') return;
+  if (Entitlements.isExpired()) { renderTrialLockout(); return; }
+  renderTrialBanner();
+}
+
 // Feedback modal moved to the shared js/feedback.js widget (loaded on every product).
 
 // Returns the display label for a student based on the current displayMode.
@@ -146,6 +224,9 @@ function syncSchoolProfileInputs() {
 
 document.addEventListener('DOMContentLoaded', () => {
   syncSchoolProfileInputs();
+
+  // Load the server-authoritative entitlement, then apply trial chrome / lockout.
+  if (typeof Entitlements !== 'undefined') Entitlements.load().then(applyEntitlementUI);
 
   document.getElementById('cb-school-next-btn').addEventListener('click', () => {
     AppState.schoolName = (document.getElementById('cb-school-name').value || '').trim();

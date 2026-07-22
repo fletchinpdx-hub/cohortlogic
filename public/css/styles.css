@@ -900,3 +900,37 @@ body {
   color: var(--gray-800);
   margin: 0 0 6px;
 }
+
+/* ── Trial / entitlement gating (Class Builder) ─────────────────────────────── */
+.cb-trial-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+  background: var(--teal-light); border: 1px solid var(--teal);
+  color: var(--navy); border-radius: 8px; padding: 10px 14px; margin-bottom: 18px;
+  font-size: 13.5px;
+}
+.cb-trial-banner a { color: var(--teal-dark); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.cb-trial-banner a:hover { text-decoration: underline; }
+
+.grade-card-locked { opacity: .72; background: var(--gray-50); border-style: dashed; }
+.cb-lock-note {
+  font-size: 12.5px; color: var(--gray-500); margin-top: 10px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.cb-lock-note a { color: var(--teal-dark); font-weight: 700; text-decoration: none; }
+.cb-lock-note a:hover { text-decoration: underline; }
+
+.cb-upgrade-overlay, .cb-lockout-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(15, 23, 42, .55);
+}
+.cb-lockout-overlay { background: rgba(15, 23, 42, .82); z-index: 9500; }
+.cb-upgrade-card, .cb-lockout-card {
+  background: #fff; border-radius: 14px; box-shadow: var(--shadow-md);
+  max-width: 440px; width: 100%; padding: 28px 26px; text-align: center;
+}
+.cb-upgrade-lock { font-size: 34px; margin-bottom: 6px; }
+.cb-upgrade-card h2, .cb-lockout-card h1 { color: var(--navy); margin-bottom: 8px; }
+.cb-upgrade-card p, .cb-lockout-card p { color: var(--gray-700); font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+.cb-upgrade-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }

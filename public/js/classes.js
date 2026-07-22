@@ -28,6 +28,17 @@ function renderClassSetup() {
     const cfg   = AppState.gradeConfig[g];
     const count = AppState.students.filter(s => s.grade === g).length;
     const avg   = cfg.classCount ? Math.round(count / cfg.classCount) : '—';
+    // Trial: every grade EXCEPT the unlocked 1st grade is shown greyed + locked.
+    if (isGradeLocked(g)) {
+      return `
+      <div class="grade-card grade-card-locked" data-grade="${g}">
+        <div class="grade-card-header">
+          <h2>${gradeLabel(g)}</h2>
+          <div class="grade-meta">${count} students</div>
+        </div>
+        ${cbLockRibbon('Set up this grade with a paid plan.')}
+      </div>`;
+    }
     return `
       <div class="grade-card" data-grade="${g}">
         <div class="grade-card-header">
@@ -45,8 +56,8 @@ function renderClassSetup() {
     `;
   }).join('');
 
-  // Split classes card
-  const splitCard = `
+  // Split classes card — full plan only (splits combine grades).
+  const splitCard = cbFull() ? `
     <div class="grade-card">
       <div class="grade-card-header">
         <h2>Split Classes</h2>
@@ -54,6 +65,14 @@ function renderClassSetup() {
       </div>
       <div id="split-classes-list">${renderSplitList(grades)}</div>
       <button class="btn btn-outline btn-sm" id="add-split-btn" style="margin-top:14px;">+ Add Split Class</button>
+    </div>
+  ` : `
+    <div class="grade-card grade-card-locked">
+      <div class="grade-card-header">
+        <h2>Split Classes</h2>
+        <div class="grade-meta">Classes combining two grade levels</div>
+      </div>
+      ${cbLockRibbon('Split classes are a paid feature.')}
     </div>
   `;
 
@@ -74,9 +93,10 @@ function renderClassSetup() {
     });
   });
 
-  grades.forEach(g => attachTeacherListeners(g));
+  grades.forEach(g => { if (!isGradeLocked(g)) attachTeacherListeners(g); });
 
-  document.getElementById('add-split-btn').addEventListener('click', () => {
+  // Split card is absent on a trial (locked) — guard the wiring.
+  document.getElementById('add-split-btn')?.addEventListener('click', () => {
     AppState.splitClasses.push({
       id:     `split-${Date.now()}`,
       grades: [grades[0], grades[Math.min(1, grades.length - 1)]],

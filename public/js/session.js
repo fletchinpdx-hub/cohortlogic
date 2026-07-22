@@ -49,6 +49,8 @@ function buildCBStaff() {
 }
 
 function saveSession() {
+  if (typeof cbFull === 'function' && !cbFull()) return showUpgradeModal('save', 'Saving is a paid feature',
+    'Saving a .cohortlogic file so you can reopen your work later unlocks with a paid plan. On the free trial your roster, rules, and classes live in this browser tab only.');
   const staff = buildCBStaff();
   const gradeConfig = {};
   Object.entries(AppState.gradeConfig || {}).forEach(([g, cfg]) => {

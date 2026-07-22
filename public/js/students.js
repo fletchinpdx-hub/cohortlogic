@@ -12,8 +12,12 @@ function renderStudents() {
 function populateGradeFilter() {
   const sel = document.getElementById('grade-filter');
   const current = sel.value;
-  sel.innerHTML = '<option value="">All Grades</option>' +
-    getGrades().map(g => `<option value="${g}" ${current === g ? 'selected' : ''}>${gradeLabel(g)}</option>`).join('');
+  // Trial: lock the filter to the unlocked grade (no "All Grades", no other grades).
+  const grades = cbFull() ? getGrades() : activeGrades();
+  sel.innerHTML = (cbFull() ? '<option value="">All Grades</option>' : '') +
+    grades.map(g => `<option value="${g}" ${current === g ? 'selected' : ''}>${gradeLabel(g)}</option>`).join('');
+  if (!cbFull()) { if (grades.length) sel.value = grades[0]; sel.disabled = true; }
+  else sel.disabled = false;
 }
 
 // Show display-mode selector only when student IDs are loaded
@@ -36,7 +40,9 @@ document.getElementById('display-mode-sel').addEventListener('change', e => {
 function getFilteredStudents() {
   const grade  = document.getElementById('grade-filter').value;
   const search = document.getElementById('student-search').value.toLowerCase();
+  const scope  = cbFull() ? null : new Set(activeGrades());   // trial: unlocked grade only
   return AppState.students.filter(s => {
+    if (scope && !scope.has(s.grade)) return false;
     if (grade && s.grade !== grade) return false;
     if (search) {
       const byName = `${s.firstName} ${s.lastName}`.toLowerCase().includes(search);
@@ -135,7 +141,9 @@ document.getElementById('generate-from-students-btn').addEventListener('click', 
 
 // ── Helper: build option list respecting displayMode ──
 function studentOptions() {
+  const scope = cbFull() ? null : new Set(activeGrades());   // trial: rules only for the unlocked grade
   return [...AppState.students]
+    .filter(s => !scope || scope.has(s.grade))
     .sort((a, b) => studentLabel(a).localeCompare(studentLabel(b)))
     .map(s => `<option value="${s.id}">${studentLabel(s)} (Gr. ${s.grade})</option>`)
     .join('');
