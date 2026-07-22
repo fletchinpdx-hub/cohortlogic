@@ -2162,7 +2162,7 @@ function wipeSchoolData(id, el) {
         <div>
           <strong>${escAdmin(name)}</strong>
           <div style="font-size:12px;color:var(--red);margin-top:2px;">
-            Permanently delete all CICO data — ${escAdmin(studentLabel)}, all check-ins, settings, and categories. Cannot be undone.
+            Permanently delete ALL of this school's student data — ${escAdmin(studentLabel)}, the full roster, all check-ins, referrals, and settings. Cannot be undone. (The audit log is retained.)
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -2178,29 +2178,53 @@ async function confirmWipeSchoolData(id, el) {
   const row = document.getElementById(`cico-row-${id}`);
   if (row) row.innerHTML = `<td colspan="5" style="color:#9ca3af;font-size:13px;padding:12px;">Wiping data for ${escAdmin(name)}…</td>`;
 
-  // Delete child records first (cico_period_scores + cico_incidents reference checkin_id)
+  // Full deletion of one school's student data (FERPA deletion-on-request), in
+  // foreign-key-safe order. Super-admin passes RLS via is_admin() on every table.
+  //
+  // NOTE: audit_log is intentionally NOT purged here. It has no school_id column,
+  // so it cannot be filtered per school without a targeted record_id sweep, and a
+  // blanket delete would destroy every school's trail. A per-school audit-log
+  // purge on full offboarding is a separate, deliberate step — see the Phase-2
+  // item (FE-15) and compliance/02_Data_Retention_and_Deletion_Policy.md.
+  const errors = [];
+  const run = async (label, query) => {
+    const { error } = await query;
+    if (error) errors.push(`${label}: ${error.message}`);
+  };
+
+  // 1. Delete everything that references students(id) so the roster can be removed.
+  //    referral_referrals.student_id and cico_checkins.student_id both block a
+  //    student delete until they are gone (referral FK is ON DELETE RESTRICT).
   const { data: checkinRows } = await db.from('cico_checkins').select('id').eq('school_id', id);
   const checkinIds = (checkinRows || []).map(c => c.id);
   if (checkinIds.length) {
-    await Promise.all([
-      db.from('cico_period_scores').delete().in('checkin_id', checkinIds),
-      db.from('cico_incidents').delete().in('checkin_id', checkinIds),
-    ]);
+    // cico_period_scores + cico_incidents reference checkin_id — children first.
+    await run('period scores', db.from('cico_period_scores').delete().in('checkin_id', checkinIds));
+    await run('incidents',     db.from('cico_incidents').delete().in('checkin_id', checkinIds));
   }
+  await run('referrals', db.from('referral_referrals').delete().eq('school_id', id));
+  await run('check-ins', db.from('cico_checkins').delete().eq('school_id', id));
 
-  // Delete all CICO-specific school-scoped tables in parallel.
-  // NOTE: the `students` roster is intentionally NOT wiped here — it is now a
-  // SHARED roster (CICO + Referral Tracking), so it is no longer CICO-owned
-  // data. Clearing it would also orphan/block referral records. Roster cleanup
-  // is a separate concern handled at the school level.
-  const results = await Promise.all([
-    db.from('cico_checkins').delete().eq('school_id', id),
+  // 2. With no remaining references, remove the shared student roster.
+  await run('student roster', db.from('students').delete().eq('school_id', id));
+
+  // 3. School-scoped config tables (no dependency on students). Delete custom-field
+  //    options before their parent fields; the rest are independent.
+  await run('custom field options', db.from('referral_custom_field_options').delete().eq('school_id', id));
+  const rest = await Promise.all([
     db.from('cico_settings').delete().eq('school_id', id),
     db.from('cico_categories').delete().eq('school_id', id),
     db.from('cico_incident_types').delete().eq('school_id', id),
+    db.from('referral_custom_fields').delete().eq('school_id', id),
+    db.from('referral_settings').delete().eq('school_id', id),
+    db.from('referral_locations').delete().eq('school_id', id),
+    db.from('referral_behaviors').delete().eq('school_id', id),
+    db.from('referral_motivations').delete().eq('school_id', id),
+    db.from('referral_actions').delete().eq('school_id', id),
+    db.from('referral_others_involved').delete().eq('school_id', id),
   ]);
+  rest.forEach(r => { if (r.error) errors.push(r.error.message); });
 
-  const errors = results.filter(r => r.error).map(r => r.error.message);
   if (errors.length) alert('Some data could not be deleted:\n' + errors.join('\n'));
 
   loadCicoStats();

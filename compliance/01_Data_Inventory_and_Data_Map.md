@@ -49,7 +49,7 @@ Legend — **Category:** SR = Student education record (FERPA) · SP-D = Student
 | Office-discipline referrals (location, behavior, motivation, action, notes, custom fields) | `referral_referrals`, `referral_custom_field_options` | SR | Referral tracking & reports | Same school, RLS-scoped; reviewer workflow |
 | Audit snapshots that may embed student data | `audit_log` (`old_data`, `new_data` JSON) | SR | FERPA audit trail of changes | Super-admin only |
 
-> **CONFIRM:** `audit_log.old_data/new_data` can contain copies of student rows. It is therefore an education record store and must be included in retention/deletion (see `02_...Retention...`), not treated as "just logs."
+> **Confirmed 2026-07-21:** `audit_log.old_data/new_data` can contain copies of student rows, so it is an education-record store. It has **no `school_id`** column, so it is *not* purged by the per-school wipe (which now fully covers roster + CICO + referrals). Per-school audit-log purge/anonymization on offboarding is tracked as **FE-15** (Phase 2). See `02_...Retention...` §3.
 
 ### 3b. Staff / user PII (school personnel, not students)
 

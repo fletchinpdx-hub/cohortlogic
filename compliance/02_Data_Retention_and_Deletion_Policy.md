@@ -38,12 +38,15 @@
 ## 3. Deletion mechanisms (current + gaps)
 
 **What exists today:**
-- **Per-school wipe.** The super-admin panel's `wipeSchoolData()` deletes a school's CICO data in safe FK order (child records before parents). This is the backbone of offboarding.
+- **Per-school wipe.** The super-admin panel's `wipeSchoolData()` performs a **full** deletion of a school's student data in foreign-key-safe order — the CICO check-in tree, **all referral records**, the referral config, **and the shared `students` roster** (including demographics). Fixed 2026-07-21 (`public/admin/admin.js`); previously it cleared only the CICO check-in tables and left the roster + referrals behind.
 - **Account deactivation** (`approved = false`) and removal via the admin/school-admin RPCs.
 
-**Gaps to close (feed the tracker):**
-- **[VERIFY]** Confirm the wipe covers **every** student-data table for all products, including `referral_referrals` + custom-field values and any `audit_log` rows that embed student data. Extend `wipeSchoolData()` if referral data is not yet included.
-- **[BUILD]** A documented, repeatable **offboarding SOP**: export offer → confirm → wipe → confirm backup aging → issue a deletion certificate to the school.
+**Confirmed finding & the remaining gap:**
+- ✅ **RESOLVED (2026-07-21):** the wipe now covers the roster + CICO + referrals + referral config, in FK-safe order (referrals before roster, since `referral_referrals.student_id` is `ON DELETE RESTRICT`).
+- ⚠️ **`audit_log` is intentionally NOT purged by the wipe.** It has **no `school_id` column**, so it cannot be filtered per school without a targeted `record_id` sweep, and a blanket delete would destroy every school's trail. Its `old_data`/`new_data` snapshots can embed student rows. Deciding how to purge/anonymize the audit log on **full offboarding** (e.g., add `school_id`, or sweep by record_id) is a **Phase-2** item — tracker **FE-15**.
+
+**Still to build (feed the tracker):**
+- **[BUILD]** A documented, repeatable **offboarding SOP**: export offer → confirm → wipe → audit-log handling → confirm backup aging → issue a deletion certificate to the school.
 - **[BUILD]** A **deletion-request intake** path (parent/student requests routed through the school; see §5).
 
 ---
