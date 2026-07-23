@@ -1148,7 +1148,19 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
     return `<select id="iae-start" class="override-select">${starts}</select><span class="ia-editor-dash">–</span><select id="iae-end" class="override-select">${ends}</select>`;
   };
 
-  const otherIAs = (SchedState.staff || []).filter(s => s.role === 'ia' && s.id !== iaId);
+  const otherIAs  = (SchedState.staff || []).filter(s => s.role === 'ia' && s.id !== iaId);
+  const otherDays = DAYS.filter(d => d !== day);
+
+  // Is this exact target block scheduled across `slots` on `d`? Guards the multi-day
+  // apply: a day that doesn't run the block at that time is skipped, not mis-assigned.
+  const blockRunsOn = (o, d, slots) => slots.every(s => o.kind === 'grade'
+    ? getBlock(d, o.id, s) === o.btId
+    : (SchedState.school.grades || []).some(g => getBlock(d, g, s) === o.id));
+  const freeOn = (d, tid, slots) => {
+    const m = ((SchedState.iaSchedule[d] || {})[tid]) || {};
+    return slots.every(s => !m[s]);
+  };
+
   const panel = document.createElement('div');
   panel.id = 'ia-assign-editor';
   panel.className = 'override-panel';
@@ -1177,6 +1189,14 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
           ${otherIAs.map(x => `<label class="ia-add-multi-item"><input type="checkbox" value="${escHtml(x.id)}"> ${escHtml(x.name)}</label>`).join('')}
         </div>
       </div>` : ''}
+      ${otherDays.length ? `
+      <div class="override-field-row">
+        <label class="override-label">Also apply to</label>
+        <div class="ia-add-multi ia-add-days" id="iae-days">
+          ${otherDays.map(d => `<label class="ia-add-multi-item"><input type="checkbox" value="${escHtml(d)}"> ${escHtml(d.slice(0, 3))}</label>`).join('')}
+        </div>
+        <div class="ia-add-hint">Applies at the same time, only on days this block is scheduled.</div>
+      </div>` : ''}
       <div class="override-actions">
         <button class="btn btn-primary btn-sm" id="iae-add">Add</button>
         <button class="btn btn-outline btn-sm" id="iae-cancel">Cancel</button>
@@ -1189,7 +1209,7 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
   let top  = rect.bottom + window.scrollY + 4;
   let left = rect.left   + window.scrollX;
   if (left + 300 > vw) left = Math.max(8, vw - 308);
-  if (rect.bottom + 320 > vh) top = Math.max(8, rect.top + window.scrollY - 324);
+  if (rect.bottom + 400 > vh) top = Math.max(8, rect.top + window.scrollY - 404);
   panel.style.top = top + 'px'; panel.style.left = left + 'px';
 
   const close = () => panel.remove();
@@ -1210,20 +1230,36 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
     const makeEntry = () => o.kind === 'block'
       ? { allocId, targetType: 'block', targetId: o.id, note: '' }
       : { allocId, targetType: 'grade', targetId: o.id, note: '' };
-    // Assign the clicked aide plus any checked ones, skipping any that are busy.
+    // Assign the clicked aide + any checked aides, on the clicked day + any checked
+    // days. A day that doesn't run this block at that time is skipped; so is any aide
+    // already busy on a given day. Everything skipped is reported, never silent.
     const checked   = [...panel.querySelectorAll('#iae-multi input:checked')].map(c => c.value);
-    const skipped   = [];
-    [iaId, ...checked].forEach(tid => {
-      const map = ((SchedState.iaSchedule[day] = SchedState.iaSchedule[day] || {})[tid] = (SchedState.iaSchedule[day] || {})[tid] || {});
-      if (tid !== iaId && runSlots.some(s => map[s])) { skipped.push(tid); return; }
-      runSlots.forEach(s => { map[s] = makeEntry(); });
+    const days      = [day, ...[...panel.querySelectorAll('#iae-days input:checked')].map(c => c.value)];
+    const targets   = [iaId, ...checked];
+    const iaName    = id => (SchedState.staff.find(s => s.id === id) || {}).name || 'aide';
+    const skipDays  = [];
+    const skipBusy  = [];
+    let placed = 0;
+
+    days.forEach(d => {
+      if (!blockRunsOn(o, d, runSlots)) { skipDays.push(d.slice(0, 3)); return; }
+      targets.forEach(tid => {
+        if (!freeOn(d, tid, runSlots)) { skipBusy.push(`${iaName(tid)} (${d.slice(0, 3)})`); return; }
+        const map = ((SchedState.iaSchedule[d] = SchedState.iaSchedule[d] || {})[tid] = (SchedState.iaSchedule[d] || {})[tid] || {});
+        runSlots.forEach(s => { map[s] = makeEntry(); });
+        placed++;
+      });
     });
+
     saveToLocal();
     close();                       // dismiss the popover once the assignment is added
     _rerenderIAKeepingScroll();
-    if (skipped.length) {
-      const names = skipped.map(id => (SchedState.staff.find(s => s.id === id) || {}).name || 'aide').join(', ');
-      alert('Already busy in that range, so skipped: ' + names);
+
+    if (skipDays.length || skipBusy.length) {
+      const msg = [`Added ${placed} assignment${placed === 1 ? '' : 's'}.`];
+      if (skipDays.length) msg.push(`Not scheduled on: ${skipDays.join(', ')}.`);
+      if (skipBusy.length) msg.push(`Already busy, skipped: ${skipBusy.join(', ')}.`);
+      alert(msg.join('\n'));
     }
   });
 }

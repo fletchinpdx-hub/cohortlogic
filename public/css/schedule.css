@@ -3573,6 +3573,9 @@
 .ia-add-multi { max-height: 116px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
 .ia-add-multi-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer; }
 .ia-add-multi-item input { margin: 0; }
+/* Day picker in the Add popover — short labels, so lay them out in a wrapping row. */
+.ia-add-multi.ia-add-days { flex-direction: row; flex-wrap: wrap; gap: 10px; max-height: none; overflow: visible; }
+.ia-add-hint { font-size: 11px; color: var(--gray-500); margin-top: 4px; }
 .override-select {
   width: 100%; padding: 6px 8px;
   border: 1px solid #cbd5e1; border-radius: 6px;
