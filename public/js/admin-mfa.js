@@ -3,17 +3,23 @@
 // Loaded by admin/index.html and school-admin/index.html before their panel
 // script. Exposes window.AdminMFA.
 //
-//   AdminMFA.gate(db)            → resolves 'ok' once the session is aal2 (or
-//                                  MFA isn't required); when a factor exists but
-//                                  the session is aal1, shows a BLOCKING TOTP
-//                                  challenge and only resolves after verify.
-//                                  Resolves 'enroll-optional' when no factor is
-//                                  enrolled (caller may show the reminder).
-//   AdminMFA.showEnrollReminder(db) → persistent banner + QR enrollment flow.
+//   AdminMFA.gate(db)            → HARD requirement for both admin panels.
+//                                  Resolves 'ok' only once the session is aal2.
+//                                  When a factor exists but the session is aal1,
+//                                  shows a BLOCKING TOTP challenge and resolves
+//                                  after verify. When NO factor is enrolled, shows
+//                                  a BLOCKING, non-dismissible enrollment flow and
+//                                  NEVER resolves in this page load — the flow
+//                                  reloads on success or signs the user out on
+//                                  cancel, so the panel behind is never revealed.
+//   AdminMFA.showEnrollReminder(db) → soft reminder banner (no longer used by the
+//                                  admin panels now that they hard-enforce; kept
+//                                  for any future soft-enforcement surface).
 //
-// Safety: fails OPEN on genuine SDK/network errors (returns 'ok') so a Supabase
-// hiccup can never lock an admin out of their own panel. It stays STRICT in the
-// normal enrolled-but-unverified state. Tighten to fail-closed once MFA is proven.
+// Safety: fails OPEN only on a genuine SDK/network error in the AAL check (returns
+// 'ok') so a Supabase hiccup can't lock an admin out — recovery is always possible
+// via the Supabase dashboard (Auth → Users → delete factor) regardless. A
+// SUCCESSFUL check that finds no enrolled factor is a HARD block, not a reminder.
 // ═══════════════════════════════════════════════════════════════════════
 
 window.AdminMFA = (function () {
@@ -100,8 +106,9 @@ window.AdminMFA = (function () {
   }
 
   // ── Enrollment ──────────────────────────────────────────────────────────
-  async function startEnroll(db) {
+  async function startEnroll(db, opts) {
     if (document.getElementById('mfa-enroll-overlay')) return;
+    const forced = !!(opts && opts.forced);
 
     let factorId = null;
     const overlay = node(`
@@ -113,7 +120,7 @@ window.AdminMFA = (function () {
           <div id="mfa-enroll-alert" style="display:none;font-size:13px;color:${RED};margin:10px 0;"></div>
           <div style="display:flex;gap:8px;margin-top:16px;">
             <button id="mfa-enroll-verify" style="flex:1;background:${TEAL};color:#fff;border:none;padding:11px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;" disabled>Verify &amp; enable</button>
-            <button id="mfa-enroll-cancel" style="background:#fff;border:1px solid #e5e7eb;color:#374151;padding:11px 16px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+            <button id="mfa-enroll-cancel" style="background:#fff;border:1px solid #e5e7eb;color:#374151;padding:11px 16px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">${forced ? 'Sign out' : 'Cancel'}</button>
           </div>
         </div>
       </div>`);
@@ -129,7 +136,9 @@ window.AdminMFA = (function () {
       if (unenroll && factorId) { try { await db.auth.mfa.unenroll({ factorId }); } catch (e) {} }
       overlay.remove();
     };
-    cancelB.addEventListener('click', () => cleanup(true));
+    // Forced (hard-enforcement) mode has no way back into the panel: the only
+    // exit without enrolling is to sign out. Soft mode keeps the old cancel.
+    cancelB.addEventListener('click', () => forced ? signOutAndReload(db) : cleanup(true));
 
     try {
       // A stale unverified factor blocks re-enroll; clear any before enrolling.
@@ -199,13 +208,18 @@ window.AdminMFA = (function () {
 
   async function gate(db) {
     const aal = await getAAL(db);
-    if (!aal) return 'ok';                          // fail-open on error
-    if (aal.currentLevel === 'aal2') return 'ok';   // already verified
+    if (!aal) return 'ok';                          // fail-open on genuine check error
+    if (aal.currentLevel === 'aal2') return 'ok';   // already verified this session
     if (aal.nextLevel === 'aal2') {                 // factor enrolled, not verified this session
-      await showChallenge(db);
+      await showChallenge(db);                       // blocking; resolves after verify
       return 'ok';
     }
-    return 'enroll-optional';                        // no factor enrolled
+    // Checked successfully, NO factor enrolled → hard enforcement.
+    // Force a blocking enrollment and never resolve 'ok' in this page load:
+    // startEnroll reloads on success or signs out on cancel, so nothing behind
+    // the overlay is ever revealed.
+    await startEnroll(db, { forced: true });
+    return new Promise(function () {});             // block until reload / sign-out
   }
 
   return { gate, showEnrollReminder };

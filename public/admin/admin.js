@@ -56,12 +56,13 @@ async function verifyAndLoad(session, event) {
     return;
   }
 
-  // Require MFA (aal2) when a factor is enrolled; otherwise allow + remind.
-  const mfa = await AdminMFA.gate(db);
+  // Hard MFA requirement: gate() only resolves once the session is aal2. With no
+  // factor enrolled it forces a blocking enrollment and never resolves, so the
+  // dashboard below is unreachable until MFA is set up (or the user signs out).
+  await AdminMFA.gate(db);
 
   showDashboard(session.user.email);
   loadDashboard();
-  if (mfa === 'enroll-optional') AdminMFA.showEnrollReminder(db);
 
   if (event === 'PASSWORD_RECOVERY') {
     _pwRecoveryMode = true;          // recovery token authorizes the reset
