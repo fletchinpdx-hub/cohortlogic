@@ -2391,11 +2391,23 @@ function placeIAs() {
   // is picked up by a different, less-loaded aide. A substitute is only used on a day the
   // team can't cover, and that (rare) day-to-day inconsistency is reported.
   const placeReq = req => {
-    const daysCoverable = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
-    const pool = ias.filter(ia => daysCoverable(ia) > 0);
-    const team = pool.slice().sort((a, b) =>
-      cmp(rankKey(a, req), rankKey(b, req)) || (daysCoverable(b) - daysCoverable(a)) || (staffIdx(a) - staffIdx(b))
-    ).slice(0, req.need).map(ia => ia.id);
+    const daysInHours = ia => req.occ.filter(o => _iaInHours(ia, o.run)).length;
+    // Days the aide is in-hours AND actually FREE (not already booked by an
+    // earlier/higher-priority row). Team selection must use this, not just hours:
+    // picking someone already booked on one day forces a substitute that day and
+    // reports a bogus "different IAs on different days" — while an aide who IS free
+    // all week sits unused. Availability first, THEN duty balance among equals.
+    const daysFree = ia => req.occ.filter(o => _iaInHours(ia, o.run) && free(o.day, ia.id, o.run)).length;
+    const pool = ias.filter(ia => daysInHours(ia) > 0);
+    const allDays = req.occ.length;
+    const team = pool.slice().sort((a, b) => {
+      const fa = daysFree(a), fb = daysFree(b);
+      const aAll = fa === allDays ? 0 : 1, bAll = fb === allDays ? 0 : 1;
+      return (aAll - bAll)                                   // can cover every day first
+        || cmp(rankKey(a, req), rankKey(b, req))             // then duty balance / preference
+        || (fb - fa)                                          // then most days coverable
+        || (staffIdx(a) - staffIdx(b));
+    }).slice(0, req.need).map(ia => ia.id);
 
     const usedIAs = new Set();
     req.occ.forEach(({ day, run }) => {
