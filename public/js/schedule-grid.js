@@ -1665,6 +1665,14 @@ function commitMove() {
     placeBlock(day, destGrade, currentSlots[destIdx], drag.moveValue);
   }
 
+  // Carry this block's IA coverage along with it, so a moved block keeps its aides at
+  // BOTH ends. Skipped for a conflict-sourced move — there the vacated slot keeps its
+  // primary block, and that block's coverage must stay where it is.
+  if (!drag.moveFromConflict) {
+    const newSlots = drag.moveSlots.map((_, i) => currentSlots[destStartIdx + i] || null);
+    _shiftIACoverageForMove(day, srcGrade, destGrade, drag.moveSlots, newSlots);
+  }
+
   // Sync specialsSchedule when a bt_spec block was moved
   if (drag.moveValue && drag.moveValue.startsWith('bt_spec|')) {
     const oldStart = drag.moveSlots[0];
@@ -3307,6 +3315,41 @@ function showCopyDayMenu() {
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
+
+// IA coverage FOLLOWS a block that moves. Without this, sliding a block only trims the
+// vacated slot (via _cleanupStaleIAAssignments) and leaves a hole at the block's new
+// end — the start looks right, the end doesn't move. Each covering entry is translated
+// by the same offset within the block, so partial coverage keeps its shape and a
+// cross-grade move re-targets to the destination grade.
+// Returns the number of entries moved. NOT used for conflict-sourced moves: there the
+// vacated slot keeps its primary block, so its coverage must stay put.
+function _shiftIACoverageForMove(day, srcGrade, destGrade, oldSlots, newSlots) {
+  const dayMap = (SchedState.iaSchedule || {})[day];
+  if (!dayMap) return 0;
+  let moved = 0;
+  Object.keys(dayMap).forEach(iaId => {
+    const slots = dayMap[iaId];
+    if (!slots) return;
+    // Lift every entry that was covering THIS grade across the old slots first, so a
+    // small slide (old/new overlap) can't collide with itself.
+    const carry = [];
+    oldSlots.forEach((s, i) => {
+      const e = slots[s];
+      if (e && e.targetType === 'grade' && e.targetId === srcGrade) {
+        carry.push({ i, entry: e });
+        delete slots[s];
+      }
+    });
+    carry.forEach(({ i, entry }) => {
+      const dest = newSlots[i];
+      if (!dest) return;        // block ran off the end of the day
+      if (slots[dest]) return;  // an unrelated assignment already sits there — don't clobber
+      slots[dest] = { ...entry, targetId: destGrade };
+      moved++;
+    });
+  });
+  return moved;
+}
 
 // Removes iaSchedule entries whose underlying master-schedule block no longer exists.
 // Called whenever the building schedule is saved or auto-filled.
