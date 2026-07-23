@@ -1268,6 +1268,135 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
 }
 
 
+// Assign IAs to a block directly from the BUILDING SCHEDULE grid. Opened by the
+// "Assign IAs" palette tool or the block right-click menu. Shows every aide with a
+// plain availability state (Free / Already assigned / Busy · what / Outside hours) so
+// you can staff a block without leaving the grid. Supplements automatic placement —
+// re-running Place IAs still wipes and rebuilds iaSchedule.
+function openMasterIAAssign(anchorEl, day, grade, slot) {
+  document.getElementById('ia-assign-editor')?.remove();
+  const btId = getBlock(day, grade, slot);
+  if (!btId) return;
+  const slots = getAllBlockSlots(day, grade, findBlockStart(day, grade, slot));
+  if (!slots.length) return;
+
+  const baseId       = btId.includes('|') ? btId.split('|')[0] : btId;
+  const isSchoolWide = _isSchoolWideEligible(baseId);
+  const allocs = SchedState.iaAllocations || [];
+  const ias    = (SchedState.staff || []).filter(s => s.role === 'ia');
+  if (!ias.length) { alert('No instructional assistants on the Staff Roster yet.'); return; }
+
+  const makeEntry = allocId => isSchoolWide
+    ? { allocId, targetType: 'block', targetId: btId, note: '' }
+    : { allocId, targetType: 'grade', targetId: grade, note: '' };
+  const isSameTarget = e => isSchoolWide
+    ? (e.targetType === 'block' && e.targetId === btId)
+    : (e.targetType === 'grade' && e.targetId === grade);
+
+  // Availability of one aide for `slots` on `d`.
+  const statusOn = (ia, d) => {
+    if (!_iaInHours(ia, slots)) return { kind: 'hours', text: 'Outside hours' };
+    const m = (SchedState.iaSchedule[d] || {})[ia.id] || {};
+    const busy = slots.find(s => m[s]);
+    if (!busy) return { kind: 'free', text: 'Free' };
+    return isSameTarget(m[busy])
+      ? { kind: 'assigned', text: 'Already assigned' }
+      : { kind: 'busy', text: 'Busy · ' + (_iaTargetLabel(m[busy]) || 'assigned') };
+  };
+  // Does this same block run across these exact slots on day d?
+  const blockRunsOn = d => slots.every(s => isSchoolWide
+    ? (SchedState.school.grades || []).some(g => getBlock(d, g, s) === btId)
+    : getBlock(d, grade, s) === btId);
+
+  const otherDays = DAYS.filter(d => d !== day && blockRunsOn(d));
+  const endMins   = timeToMins(slots[slots.length - 1]) + 5;
+  const timeStr   = `${fmtTime12(slots[0])} – ${fmtTime12(minsToTime(endMins))} · ${endMins - timeToMins(slots[0])} min`;
+  const title     = isSchoolWide ? getBtName(btId) + ' — school-wide' : (GRADE_LABELS[grade] || grade) + ' — ' + getBtName(btId);
+
+  const panel = document.createElement('div');
+  panel.id = 'ia-assign-editor';
+  panel.className = 'override-panel';
+  panel.innerHTML = `
+    <div class="override-panel-header">
+      <span class="override-panel-title">Assign IAs · ${escHtml(day.slice(0, 3))}</span>
+      <button class="override-panel-close" id="miaa-close">&#x2715;</button>
+    </div>
+    <div class="override-panel-body">
+      <div class="ia-editor-meta">
+        <div><strong>${escHtml(title)}</strong></div>
+        <div class="ia-editor-time">${escHtml(timeStr)}</div>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Assign these IAs</label>
+        <div class="ia-add-multi" id="miaa-ias">
+          ${ias.map(ia => {
+            const st = statusOn(ia, day);
+            const off = st.kind !== 'free';
+            return `<label class="ia-add-multi-item${off ? ' is-off' : ''}">
+              <input type="checkbox" value="${escHtml(ia.id)}"${off ? ' disabled' : ''}${st.kind === 'assigned' ? ' checked' : ''}>
+              ${escHtml(ia.name)} <span class="ia-avail ia-avail-${st.kind}">${escHtml(st.text)}</span>
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="override-field-row">
+        <label class="override-label">Budget category</label>
+        <select id="miaa-alloc" class="override-select"><option value="">Not charged</option>${allocs.map(a => `<option value="${escHtml(a.id)}">${escHtml(a.name)}</option>`).join('')}</select>
+      </div>
+      ${otherDays.length ? `
+      <div class="override-field-row">
+        <label class="override-label">Also apply to</label>
+        <div class="ia-add-multi ia-add-days" id="miaa-days">
+          ${otherDays.map(d => `<label class="ia-add-multi-item"><input type="checkbox" value="${escHtml(d)}"> ${escHtml(d.slice(0, 3))}</label>`).join('')}
+        </div>
+        <div class="ia-add-hint">Only days this block runs at the same time are listed.</div>
+      </div>` : ''}
+      <div class="override-actions">
+        <button class="btn btn-primary btn-sm" id="miaa-add">Assign</button>
+        <button class="btn btn-outline btn-sm" id="miaa-cancel">Cancel</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(panel);
+  const rect = anchorEl.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let top  = rect.bottom + window.scrollY + 4;
+  let left = rect.left   + window.scrollX;
+  if (left + 300 > vw) left = Math.max(8, vw - 308);
+  if (rect.bottom + 400 > vh) top = Math.max(8, rect.top + window.scrollY - 404);
+  panel.style.top = top + 'px'; panel.style.left = left + 'px';
+
+  const close = () => panel.remove();
+  document.getElementById('miaa-close').addEventListener('click', close);
+  document.getElementById('miaa-cancel').addEventListener('click', close);
+
+  document.getElementById('miaa-add').addEventListener('click', () => {
+    const picked = [...panel.querySelectorAll('#miaa-ias input:checked:not([disabled])')].map(c => c.value);
+    if (!picked.length) { alert('Pick at least one IA to assign.'); return; }
+    const allocId = document.getElementById('miaa-alloc').value || null;
+    const days    = [day, ...[...panel.querySelectorAll('#miaa-days input:checked')].map(c => c.value)];
+    const iaName  = id => (ias.find(s => s.id === id) || {}).name || 'aide';
+    const skipped = [];
+    let placed = 0;
+
+    days.forEach(d => {
+      picked.forEach(id => {
+        const ia = ias.find(s => s.id === id);
+        const st = statusOn(ia, d);
+        if (st.kind === 'busy' || st.kind === 'hours') { skipped.push(`${iaName(id)} (${d.slice(0, 3)}) — ${st.text}`); return; }
+        const map = ((SchedState.iaSchedule[d] = SchedState.iaSchedule[d] || {})[id] = (SchedState.iaSchedule[d] || {})[id] || {});
+        slots.forEach(s => { map[s] = makeEntry(allocId); });
+        placed++;
+      });
+    });
+
+    saveToLocal();
+    close();
+    if (typeof rebuildTbody === 'function') rebuildTbody();   // refresh the grid's IA dots
+    if (skipped.length) alert(`Assigned ${placed}.\nSkipped:\n• ${skipped.join('\n• ')}`);
+  });
+}
+
 // ── IA assignment from building schedule ────────────────────────────────────────
 
 // Returns IAs assigned to a grade block at the given start slot (grade-level assignments only).

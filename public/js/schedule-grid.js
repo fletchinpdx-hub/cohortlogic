@@ -723,6 +723,10 @@ function renderMasterSchedule() {
           <span class="palette-dot" style="background:#d1d5db;border:1px solid #9ca3af"></span>
           <span class="palette-name">Eraser</span>
         </div>
+        <div class="palette-item palette-assign-ia ${gridUI.tool === 'assign-ia' ? 'active' : ''}" id="palette-assign-ia" title="Click a block to see which IAs are free and assign them">
+          <span class="palette-tool-icon">&#129489;</span>
+          <span class="palette-name">Assign IAs</span>
+        </div>
 
         ${buildPaletteGroups()}
       </div>
@@ -894,13 +898,14 @@ function buildPaletteGroups() {
 
 function selectGridTool(tool) {
   gridUI.tool       = tool;
-  gridUI.activeBtId = (tool === 'move' || tool === 'erase') ? null : tool;
+  gridUI.activeBtId = (tool === 'move' || tool === 'erase' || tool === 'assign-ia') ? null : tool;
   syncPaletteHighlight();
 }
 
 function wirePalette() {
   document.getElementById('palette-move').addEventListener('click', () => selectGridTool('move'));
   document.getElementById('palette-eraser').addEventListener('click', () => selectGridTool('erase'));
+  document.getElementById('palette-assign-ia')?.addEventListener('click', () => selectGridTool('assign-ia'));
   document.querySelectorAll('.palette-item[data-bt-id]').forEach(item => {
     item.addEventListener('click', () => selectGridTool(item.dataset.btId));
   });
@@ -909,6 +914,7 @@ function wirePalette() {
 function syncPaletteHighlight() {
   document.getElementById('palette-move')?.classList.toggle('active', gridUI.tool === 'move');
   document.getElementById('palette-eraser')?.classList.toggle('active', gridUI.tool === 'erase');
+  document.getElementById('palette-assign-ia')?.classList.toggle('active', gridUI.tool === 'assign-ia');
   document.querySelectorAll('.palette-item[data-bt-id]').forEach(item => {
     const id = item.dataset.btId;
     const parentId = id.includes('|') ? id.split('|')[0] : id;
@@ -922,6 +928,7 @@ function syncPaletteHighlight() {
   if (wrap) {
     wrap.classList.toggle('no-tool', gridUI.tool === 'move');
     wrap.classList.toggle('erase-tool', gridUI.tool === 'erase');
+    wrap.classList.toggle('assign-ia-tool', gridUI.tool === 'assign-ia');
   }
 }
 
@@ -1127,6 +1134,18 @@ function wireGridPointer() {
 }
 
 function onPointerDown(e) {
+
+  // "Assign IAs" tool: a click on any filled block opens the IA assignment popover
+  // instead of painting/dragging. Checked first so it can't fall through to resize.
+  if (gridUI.tool === 'assign-ia') {
+    const cell = e.target.closest('.grid-cell');
+    if (!cell) return;
+    const grade = cell.dataset.grade, slot = cell.dataset.time;
+    if (!grade || !slot || !getBlock(gridUI.activeDay, grade, slot)) return;
+    e.preventDefault();
+    if (typeof openMasterIAAssign === 'function') openMasterIAAssign(cell, gridUI.activeDay, grade, slot);
+    return;
+  }
 
   // Resize handle — drag the bottom edge of a block to extend or shrink it
   if (!gridUI.activeBtId) {
@@ -1479,6 +1498,7 @@ function showBlockContextMenu(x, y, grade, slot, btId) {
     ${!isFixed && blockItems ? `<ul class="ctx-list">${blockItems}</ul><div class="ctx-sep"></div>` : ''}
     <ul class="ctx-list">
       ${!isFixed ? `<li class="ctx-item ctx-danger" data-ctx-clear>Clear block</li>` : ''}
+      <li class="ctx-item" data-ctx-assign-ia>Assign IAs…</li>
       <li class="ctx-item" data-ctx-lock>${escHtml(lockLabel)}</li>
     </ul>
   `;
@@ -1490,7 +1510,7 @@ function showBlockContextMenu(x, y, grade, slot, btId) {
   menu.style.top  = Math.min(y, vh - rect.height - 8) + 'px';
 
   menu.addEventListener('click', e2 => {
-    const item = e2.target.closest('[data-ctx-replace],[data-ctx-clear],[data-ctx-lock]');
+    const item = e2.target.closest('[data-ctx-replace],[data-ctx-clear],[data-ctx-lock],[data-ctx-assign-ia]');
     if (!item) return;
     dismissContextMenu();
 
@@ -1513,6 +1533,9 @@ function showBlockContextMenu(x, y, grade, slot, btId) {
       showConflictBanner();
       rebuildTbody();
       saveToLocal();
+    } else if (item.hasAttribute('data-ctx-assign-ia')) {
+      const cell = document.querySelector(`.grid-cell[data-grade="${grade}"][data-time="${slot}"]`);
+      if (typeof openMasterIAAssign === 'function') openMasterIAAssign(cell || document.body, day, grade, slot);
     } else if (item.hasAttribute('data-ctx-lock')) {
       if (!gridUI.lockedGrades) gridUI.lockedGrades = new Set();
       if (isLocked) gridUI.lockedGrades.delete(grade);

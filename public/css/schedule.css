@@ -3576,6 +3576,16 @@
 /* Day picker in the Add popover — short labels, so lay them out in a wrapping row. */
 .ia-add-multi.ia-add-days { flex-direction: row; flex-wrap: wrap; gap: 10px; max-height: none; overflow: visible; }
 .ia-add-hint { font-size: 11px; color: var(--gray-500); margin-top: 4px; }
+
+/* Assign-IAs popover (opened from the Building Schedule): availability per aide. */
+.ia-add-multi-item.is-off { opacity: .65; cursor: default; }
+.ia-avail { margin-left: auto; font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.ia-avail-free     { background: #dcfce7; color: #166534; }
+.ia-avail-assigned { background: #e0f2fe; color: #075985; }
+.ia-avail-busy     { background: #fef3c7; color: #92400e; }
+.ia-avail-hours    { background: #f3f4f6; color: #6b7280; }
+/* Assign-IAs tool: blocks are click targets, not paint targets. */
+#grid-scroll-wrap.assign-ia-tool .grid-cell { cursor: pointer; }
 .override-select {
   width: 100%; padding: 6px 8px;
   border: 1px solid #cbd5e1; border-radius: 6px;
