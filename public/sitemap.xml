@@ -60,13 +60,7 @@
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
   </url>
-  <url>
-    <loc>https://cohortlogic.com/placement-meeting.html</loc>
-    <lastmod>2026-07-23</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
+<url>
     <loc>https://cohortlogic.com/privacy.html</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>yearly</changefreq>
