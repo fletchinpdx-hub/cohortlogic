@@ -1,4 +1,4 @@
-// ── Master Schedule Grid ──────────────────────────────────────────────────────
+// ── Building Schedule Grid ──────────────────────────────────────────────────────
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -677,7 +677,7 @@ function renderMasterSchedule() {
 
   if (!allGrades.length) {
     document.getElementById('view-master').innerHTML = `
-      <div class="view-header"><h1>Master Schedule</h1></div>
+      <div class="view-header"><h1>Building Schedule</h1></div>
       <div class="empty-state">
         <div class="empty-icon">🏫</div>
         <p>Select grade levels in School Info before building the schedule.</p>
@@ -731,7 +731,7 @@ function renderMasterSchedule() {
       <div class="grid-side" id="grid-side">
         <div class="grid-top-bar">
           <div>
-            <h1 class="grid-title">Master Schedule</h1>
+            <h1 class="grid-title">Building Schedule</h1>
             <p class="grid-subtitle">Broad blocks by grade — detail Specials and IA in the next steps.</p>
           </div>
           <div class="grid-top-actions">
@@ -802,7 +802,7 @@ function renderMasterSchedule() {
   document.getElementById('master-back-btn').addEventListener('click', () => { navigateTo('blocks'); renderBlocks(); });
   document.getElementById('master-print-btn').addEventListener('click', () => {
     const table = document.getElementById('sched-table');
-    if (table) printScheduleGrid(`Master Schedule — ${gridUI.activeDay}`, SchedState.school.name || '', table);
+    if (table) printScheduleGrid(`Building Schedule — ${gridUI.activeDay}`, SchedState.school.name || '', table);
   });
 
   // Auto-populate all grades on first entry if no instructional blocks are placed yet
@@ -2207,7 +2207,7 @@ function _clearRequirementsForGrade(grade) {
 }
 
 // Find a single daily start time (fixed across all 5 days) for the carousel model:
-//   - grade's master schedule is clear at that time on every day
+//   - grade's building schedule is clear at that time on every day
 //   - enough teachers free per special on every day to cover all classes needing it
 // Returns a 'HH:MM' string or null.
 function findGradeFixedTime(grade, classes, rotation, specials, isFreeTeacher) {
@@ -2693,7 +2693,7 @@ function buildSpecialsCell(slot, grade, specInfo, isCont, isEnd) {
                         (_slotBtId && _slotBtId.startsWith('bt_spec'));
 
   // ── 1. Carousel: whole grade at specials, one unified block ──
-  // Master Schedule shows ALL specials in the uniform bt_spec color (the subject
+  // Building Schedule shows ALL specials in the uniform bt_spec color (the subject
   // name still appears in the label). Per-subject colors live in the Specials
   // Schedule and Class Schedule views, which use their own renderers.
   if (allInSpecials) {
@@ -3309,7 +3309,7 @@ function showCopyDayMenu() {
 // ── Save ──────────────────────────────────────────────────────────────────────
 
 // Removes iaSchedule entries whose underlying master-schedule block no longer exists.
-// Called whenever the master schedule is saved or auto-filled.
+// Called whenever the building schedule is saved or auto-filled.
 // Accumulates removed count in SchedState.iaStalePurgeCount for the IA tab banner.
 function _cleanupStaleIAAssignments() {
   const ia = SchedState.iaSchedule || {};
@@ -3374,8 +3374,8 @@ function renderSpecialsPlaceholder() {
     <div class="coming-next-card">
       <div class="coming-next-icon">🎨</div>
       <h2>Coming next</h2>
-      <p>Here you'll define the Specials rotation — which grades go where, when, and with which teacher. This step pulls directly from the broad Specials blocks you placed in the master schedule.</p>
-      <button class="btn btn-outline mt-16" data-nav="master">← Back to Master Schedule</button>
+      <p>Here you'll define the Specials rotation — which grades go where, when, and with which teacher. This step pulls directly from the broad Specials blocks you placed in the building schedule.</p>
+      <button class="btn btn-outline mt-16" data-nav="master">← Back to Building Schedule</button>
     </div>
   `;
 }
@@ -3422,4 +3422,4 @@ function printScheduleGrid(title, subtitle, tableEl) {
 }
 
 // Class Schedules view (renderClassSchedulesView + helpers) moved to schedule-class-view.js
-// IA assignment (from master schedule) + Individual IA grid + Duty panel moved to schedule-ia.js
+// IA assignment (from building schedule) + Individual IA grid + Duty panel moved to schedule-ia.js

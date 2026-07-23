@@ -17,7 +17,7 @@ const iaSchedUI = {
 };
 const iaDrag = { active: false, allocId: null, targetType: null, targetId: null };
 
-// State for IA assignment mode in the master schedule
+// State for IA assignment mode in the building schedule
 function getIAHoursUsed(allocId) {
   let count = 0;
   const ias = SchedState.iaSchedule || {};
@@ -240,7 +240,7 @@ function renderIAScheduleView() {
       : `<div class="ia-empty-state">
            <div class="ia-empty-icon">📋</div>
            <p>No assignments yet for this IA.</p>
-           <p class="ia-empty-sub">Go to the Master Schedule, click <strong>Assign IAs</strong>, then click any block to assign this IA to it.</p>
+           <p class="ia-empty-sub">Go to the Building Schedule, click <strong>Assign IAs</strong>, then click any block to assign this IA to it.</p>
            <button class="btn btn-primary btn-sm ia-empty-go-btn" id="ia-empty-go-btn">Set up IA coverage →</button>
          </div>`;
     contentHtml = `
@@ -268,7 +268,7 @@ function renderIAScheduleView() {
   const staleBanner = stalePurgeCount > 0
     ? `<div class="setup-banner ia-stale-banner" id="ia-stale-banner">
         <strong>⚠ ${stalePurgeCount} IA assignment${stalePurgeCount !== 1 ? 's were' : ' was'} removed</strong>
-        because the master schedule changed and those time slots no longer have a block.
+        because the building schedule changed and those time slots no longer have a block.
         Please review IA schedules and re-assign as needed.
         <button class="btn-link ia-stale-dismiss-btn" style="margin-left:12px">Dismiss</button>
        </div>`
@@ -389,7 +389,7 @@ function buildIATargetPickerHtml() {
 }
 
 // Underlying block id for an IA entry at a slot (for color + run-grouping): grade
-// targets read the master schedule; school-wide 'block' targets carry the id directly.
+// targets read the building schedule; school-wide 'block' targets carry the id directly.
 function _entryBtId(day, entry, slot) {
   if (!entry) return null;
   if (entry.targetType === 'block') return entry.targetId;
@@ -1229,7 +1229,7 @@ function openIAAddAssignment(anchorCell, day, iaId, slot) {
 }
 
 
-// ── IA assignment from master schedule ────────────────────────────────────────
+// ── IA assignment from building schedule ────────────────────────────────────────
 
 // Returns IAs assigned to a grade block at the given start slot (grade-level assignments only).
 function getIAsForBlock(day, grade, startSlot) {
@@ -1254,7 +1254,7 @@ function getAllBlockSlots(day, grade, startSlot) {
   return currentSlots.slice(startIdx, startIdx + len);
 }
 
-// Toggle IA assignment mode on/off in the master schedule.
+// Toggle IA assignment mode on/off in the building schedule.
 // Returns partial time info if an IA is assigned to only part of the block, else null.
 function _getIAPartialTime(day, iaId, startSlot, slots) {
   const iaSlots = ((SchedState.iaSchedule[day] || {})[iaId] || {});
@@ -1956,7 +1956,7 @@ function renderIAAssignmentView() {
       <div class="form-section">
         <h2 class="form-section-title">Place IAs</h2>
         <p class="form-hint">Assign your IAs across the coverage plan — honoring grade preferences, reserving each IA's own lunch, and balancing lunch/recess duty across the week. <strong>This replaces all current IA assignments.</strong></p>
-        ${_masterBuilt() ? '' : '<p class="text-muted">Build the Master Schedule first — placement needs to know where each block lands.</p>'}
+        ${_masterBuilt() ? '' : '<p class="text-muted">Build the Building Schedule first — placement needs to know where each block lands.</p>'}
         <button class="btn btn-primary" id="ia-place-btn"${_masterBuilt() ? '' : ' disabled'}>Place IAs →</button>
         <div id="ia-place-report" class="ia-place-report"></div>
       </div>
@@ -1964,7 +1964,7 @@ function renderIAAssignmentView() {
 
     <div class="view-actions">
       <button class="btn btn-outline" data-nav="blocks">← Back to Block Types</button>
-      <button class="btn btn-primary" data-nav="master">Continue to Master Schedule →</button>
+      <button class="btn btn-primary" data-nav="master">Continue to Building Schedule →</button>
     </div>
   `;
 
@@ -2111,7 +2111,7 @@ const IA_DUTY_BLOCKS = new Set(['bt_lunch', 'bt_recess', 'bt_arr', 'bt_dis']);
 
 // Recess coverage is split into two virtual variants so the plan can staff the
 // lunch-connected recess differently from standalone recesses (e.g. 2 IAs vs 1).
-// These live only in the coverage plan as a pseudo-subId — the master schedule
+// These live only in the coverage plan as a pseudo-subId — the building schedule
 // still stores plain `bt_recess`; each occurrence is classified at fill time via
 // _recessBlockInfo()'s lunchAdjacent flag. Sentinels are '__'-prefixed so they
 // never collide with real sub-block ids (uid()s). Defined here (in the engine
@@ -2176,7 +2176,7 @@ function _iaBlockOccurrences(day, grade, blockId, subId) {
 
 // School-wide occurrences of a block on `day`: the block is placed identically in
 // every grade, so its runs are found once by treating "any grade has it here" as a
-// hit. Robust to alt-day dismissal / manual moves (reads the placed master schedule).
+// hit. Robust to alt-day dismissal / manual moves (reads the placed building schedule).
 function _iaSchoolBlockOccurrences(day, blockId) {
   const slots  = _iaAutoFillSlots(day);
   const byGrade = SchedState.masterSchedule[day] || {};

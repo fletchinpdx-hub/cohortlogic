@@ -1,4 +1,4 @@
-// Central state for the Building Schedule Builder
+// Central state for the Schedule Builder
 
 // Default block types — only universal blocks schools always need.
 // Schools add their own required instructional blocks via the Block Types tab.
@@ -102,7 +102,7 @@ const SchedState = {
   // iaSchedule[day][iaId][slot] = { allocId, grade, activity } | undefined
   iaSchedule: {},
 
-  // duties: standalone IA duty blocks not tied to the master schedule
+  // duties: standalone IA duty blocks not tied to the building schedule
   // [{ id, name, location, startTime, endTime, days[], iaIds[], allocId }]
   duties: [],
 

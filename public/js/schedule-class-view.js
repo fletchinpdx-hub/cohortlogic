@@ -21,8 +21,8 @@ function renderClassSchedulesView() {
       <div class="view-header"><h1>Class Schedules</h1></div>
       <div class="empty-state">
         <div class="empty-icon">📋</div>
-        <p>Build the master schedule first, then return here to view individual class schedules.</p>
-        <button class="btn btn-primary mt-16" data-nav="master">Go to Master Schedule →</button>
+        <p>Build the building schedule first, then return here to view individual class schedules.</p>
+        <button class="btn btn-primary mt-16" data-nav="master">Go to Building Schedule →</button>
       </div>`;
     return;
   }
@@ -95,7 +95,7 @@ function renderClassSchedulesView() {
         </div>
         ${contentHtml}
         <div class="grid-footer">
-          <button class="btn btn-outline" id="class-sched-back-btn">← Back to Master Schedule</button>
+          <button class="btn btn-outline" id="class-sched-back-btn">← Back to Building Schedule</button>
           <button class="btn btn-outline" id="class-sched-print-btn">Print</button>
           <button class="btn btn-primary btn-lg" id="class-sched-next-btn">Continue to IA Schedules →</button>
         </div>

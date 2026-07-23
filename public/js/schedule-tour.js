@@ -28,7 +28,7 @@
       // orphaning the emoji on its own line once h3 reserves room for the Skip
       // button. Do not "tidy" them into regular spaces.
       title: 'Welcome to Schedule Builder 👋',
-      body: 'Schedule Builder helps you build your school\'s master schedule in four phases. Here\'s a quick tour of how it\'s laid out.',
+      body: 'Schedule Builder helps you build your school\'s building schedule in four phases. Here\'s a quick tour of how it\'s laid out.',
       primary: 'Start tour →',
       secondary: 'Skip'
     },
@@ -59,7 +59,7 @@
     {
       anchor: '#nav-master',
       badge: 'Phase 1 · Build',
-      title: 'Master Schedule',
+      title: 'Building Schedule',
       body: 'Where it all comes together — the app auto-places your blocks and specials on a drag-and-drop grid you can fine-tune. 🔒 Unlocks once your grades are set up.'
     },
     {
@@ -81,7 +81,7 @@
     {
       anchor: null,
       title: 'You\'re all set 🎉',
-      body: 'That\'s the layout. Work down the phases and you\'ll have a full master schedule. You can replay this tour anytime from the “Take the tour” button in the sidebar.',
+      body: 'That\'s the layout. Work down the phases and you\'ll have a full building schedule. You can replay this tour anytime from the “Take the tour” button in the sidebar.',
       primary: 'Get started',
       secondary: null
     }

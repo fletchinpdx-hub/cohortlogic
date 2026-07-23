@@ -78,7 +78,7 @@ function renderImportExportView() {
         <h2 class="form-section-title">Export to Excel</h2>
         <p class="form-hint">Downloads an Excel workbook with the following tabs:</p>
         <ul class="form-hint" style="margin:6px 0 12px 18px;line-height:1.7">
-          <li><strong>Mon – Fri</strong> — master schedule grid, one tab per day</li>
+          <li><strong>Mon – Fri</strong> — building schedule grid, one tab per day</li>
           <li><strong>Class Schedules</strong> — each class's full week, with specific specials subjects filled in</li>
           <li><strong>Specials</strong> — each specials teacher's weekly assignment list</li>
           <li><strong>IA Schedule</strong> — each IA's daily assignments with grade, category, and note</li>
@@ -90,7 +90,7 @@ function renderImportExportView() {
     </div>
 
     <div class="view-actions">
-      <button class="btn btn-outline" data-nav="master">← Back to Master Schedule</button>
+      <button class="btn btn-outline" data-nav="master">← Back to Building Schedule</button>
     </div>
   `;
 
@@ -217,7 +217,7 @@ function exportXLSX() {
 
   const wb = XLSX.utils.book_new();
 
-  // ── One tab per weekday (master schedule) ───────────────────────
+  // ── One tab per weekday (building schedule) ───────────────────────
   days.forEach(day => {
     const dayData = ((SchedState.masterSchedule || {})[day]) || {};
     const header  = ['Time', ...grades.map(g => GRADE_LABELS[g] || g)];

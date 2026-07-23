@@ -119,7 +119,7 @@ function renderLanding() {
     <div class="landing-wrap">
       <div class="landing-card">
         <div class="landing-icon">📅</div>
-        <h1 class="landing-title">Building Schedule Builder</h1>
+        <h1 class="landing-title">Schedule Builder</h1>
         <p class="landing-sub">Create master instructional schedules for your school. Your data stays on your device — download a file to save and share it.</p>
         <div class="landing-actions">
           <button class="btn btn-primary btn-lg" id="landing-new-btn">Start a New Schedule</button>

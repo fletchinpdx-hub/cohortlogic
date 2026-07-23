@@ -644,7 +644,7 @@ function _recessOverlapAllowed(s, a, b) {
 }
 
 // Cross-grade recess overlaps that are NOT permitted — shared by the School Info
-// save warnings and the Master Schedule warnings panel. Pairs where BOTH recesses
+// save warnings and the Building Schedule warnings panel. Pairs where BOTH recesses
 // are lunch-adjacent are exempt: they're anchored to lunch waves, so grades that
 // share a wave share the recess by deliberate config, not by scheduling accident.
 function computeRecessOverlapViolations(s, recessMap) {
@@ -723,7 +723,7 @@ function computeRecessTimes(s) {
       freeIdx++;
 
       // Manual override: the user dragged this free-floating recess to a fixed
-      // time on the Master Schedule. Honor it exactly; any resulting overlap or
+      // time on the Building Schedule. Honor it exactly; any resulting overlap or
       // spacing issue is surfaced by the warnings (never silently re-placed).
       if (sl.manualStart && /^\d\d:\d\d$/.test(sl.manualStart)) {
         const startMins = Math.round(timeToMins(sl.manualStart) / 5) * 5;
@@ -859,7 +859,7 @@ function _findUniformSlot(durationMins) {
   return null;
 }
 
-// Pre-fills the master schedule with fixed blocks from School Info settings.
+// Pre-fills the building schedule with fixed blocks from School Info settings.
 // Called on save. Clears and replaces any previously auto-placed lunch/recess/MM blocks.
 function preFillFixedBlocks() {
   const s      = SchedState.school;
@@ -975,7 +975,7 @@ function saveSchoolAndContinue() {
 
   // If lunch, recess, overlap perms, or the day's bounds changed, the fixed-block
   // layout shifts — clear specialsSchedule so specials rebuild and re-slot around
-  // the new lunch/recess positions on the next Master Schedule visit. (Otherwise
+  // the new lunch/recess positions on the next Building Schedule visit. (Otherwise
   // buildSpecialsSchedule skips the rebuild and a moved lunch/recess could clobber
   // a special with no re-placement.)
   if (_recessLunchSnapshot !== null && _recessLunchFingerprint(s) !== _recessLunchSnapshot) {
@@ -1265,7 +1265,7 @@ function showAddStaffForm(existingId) {
           <span class="field-tooltip">
             Primary Grade
             <span class="field-tooltip-icon" tabindex="0">?</span>
-            <span class="field-tooltip-body">For split-grade teachers, the primary grade drives lunch, recess, and specials scheduling. The master schedule is built around this grade's block sequence.</span>
+            <span class="field-tooltip-body">For split-grade teachers, the primary grade drives lunch, recess, and specials scheduling. The building schedule is built around this grade's block sequence.</span>
           </span>
         </label>
         <select class="input" id="sf-grade">
@@ -1488,7 +1488,7 @@ function renderSpecialsView() {
     <div class="setup-form">
       <div class="form-section">
         <h2 class="form-section-title">Special Subjects</h2>
-        <p class="form-hint">Each special gets a color used on the master schedule. Assign one or more teachers who teach that subject.</p>
+        <p class="form-hint">Each special gets a color used on the building schedule. Assign one or more teachers who teach that subject.</p>
         <div id="specials-list">
           ${specials.map((sp, i) => renderSpecialRow(sp, i)).join('')}
         </div>
@@ -1498,7 +1498,7 @@ function renderSpecialsView() {
       <div class="form-section">
         <h2 class="form-section-title">Weekly Rotation Mode</h2>
         <p class="form-hint">Controls how a class cycles through specials across the week.
-          The effect shows in each class's day-by-day rotation (see the Specials Schedule view) — the specials time block on the Master Schedule doesn't move.
+          The effect shows in each class's day-by-day rotation (see the Specials Schedule view) — the specials time block on the Building Schedule doesn't move.
           Note: when every special meets once per week, Intermittent and Sequential produce the same rotation.</p>
         <div class="specials-rotation-opts">
           <label class="rotation-opt ${(SchedState.school.specialsRotationMode || 'intermittent') === 'intermittent' ? 'active' : ''}">
@@ -1579,9 +1579,9 @@ function saveSpecialsAndContinue() {
   }).filter(sp => sp.name);
   // Specials config changed — take a full fresh pass right now (data only) so the
   // new schedule is ready no matter which view opens next, rather than waiting for
-  // a Master Schedule visit. buildSpecialsSchedule(true) clears specials + gives
+  // a Building Schedule visit. buildSpecialsSchedule(true) clears specials + gives
   // them first pick of the day (clearing instruction), then instruction re-flows
-  // around them. Only do this once a master schedule already exists.
+  // around them. Only do this once a building schedule already exists.
   SchedState.specialsSchedule = {};
   const built = SchedState.masterSchedule && Object.keys(SchedState.masterSchedule).length &&
                 gradesSorted().length;
@@ -1857,7 +1857,7 @@ function renderBlocks() {
   document.getElementById('view-blocks').innerHTML = `
     <div class="view-header">
       <h1>Block Types &amp; Requirements</h1>
-      <p class="view-subtitle">Define grade bands and set required instructional minutes per block. These blocks will auto-fill into the Master Schedule.</p>
+      <p class="view-subtitle">Define grade bands and set required instructional minutes per block. These blocks will auto-fill into the Building Schedule.</p>
     </div>
 
     <div class="form-section">
@@ -1977,7 +1977,7 @@ function renderBlocks() {
 
     <div class="form-section">
       <h2 class="form-section-title">Specials</h2>
-      <p class="form-hint">Colors are used on the master schedule. Name and duration come from the Specials step — <a href="#" data-nav="specials" class="link-inline">edit there</a>.</p>
+      <p class="form-hint">Colors are used on the building schedule. Name and duration come from the Specials step — <a href="#" data-nav="specials" class="link-inline">edit there</a>.</p>
       ${configuredSpecials.length ? `
       <div class="specials-color-list">
         ${configuredSpecials.map((sp, i) => `
@@ -1998,7 +1998,7 @@ function renderBlocks() {
 
     <div class="view-actions">
       <button class="btn btn-outline" id="blocks-back-btn">← Back to Specials</button>
-      <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Master Schedule →</button>
+      <button class="btn btn-primary" id="blocks-next-btn">Save &amp; Continue to Building Schedule →</button>
       <div class="save-status" id="blocks-save-status"></div>
     </div>
   `;
@@ -2356,7 +2356,7 @@ function wireOtherBlocks() {
   // lost when another action (add/remove/edit a block) re-renders the table. (Was
   // only captured at "Save & Continue", so an interim re-render dropped it — bug.)
   // Also re-place fixed blocks so a uniform block (e.g. Arrival Duty) lands in the
-  // master schedule the moment its time is set — otherwise it never shows up as a
+  // building schedule the moment its time is set — otherwise it never shows up as a
   // target on the IA Schedule (which reads placed blocks), matching Find/Clear.
   document.querySelectorAll('.sw-start-input, .sw-end-input, .sw-mins-input').forEach(inp => {
     inp.addEventListener('change', () => {
@@ -2382,7 +2382,7 @@ function wireOtherBlocks() {
     });
   });
 
-  // Auto-find: scan master schedule for a common free window across all grades
+  // Auto-find: scan building schedule for a common free window across all grades
   document.querySelectorAll('.sw-find-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id   = btn.dataset.btId;
@@ -2459,7 +2459,7 @@ function saveBlocksAndContinue() {
   collectUniformFromDOM();
   collectPairingsFromDOM();
   // Pairings can change which time slots blocks occupy — rebuild specials so their
-  // placement re-flows around the synchronized blocks on the next Master Schedule pass.
+  // placement re-flows around the synchronized blocks on the next Building Schedule pass.
   SchedState.specialsSchedule = {};
   preFillFixedBlocks();
   saveToLocal();

@@ -217,7 +217,7 @@ function renderSpecialsScheduleView() {
         </div>
 
         <div class="grid-footer">
-          <button class="btn btn-outline" id="specials-sched-back-btn">← Back to Master Schedule</button>
+          <button class="btn btn-outline" id="specials-sched-back-btn">← Back to Building Schedule</button>
           <button class="btn btn-outline" id="specials-sched-print-btn">Print</button>
           <button class="btn btn-primary btn-lg" id="specials-sched-next-btn">Continue to Class Schedules →</button>
         </div>
@@ -504,7 +504,7 @@ function buildSpecialsTeacherGrid(teacherId) {
   if (!hasAny) {
     return `<div style="padding:48px 24px;text-align:center;color:#64748b">
       No classes scheduled for this teacher yet.<br>
-      Auto-fill the master schedule to generate specials assignments.
+      Auto-fill the building schedule to generate specials assignments.
     </div>`;
   }
 

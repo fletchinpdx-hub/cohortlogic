@@ -1,6 +1,6 @@
 ---
 name: qa-schedulebuilder
-description: Post-deploy QA smoke test for the Cohort Logic Building Schedule Builder at cohortlogic.com/schedule-app.html. Run after every deploy to verify the live app works end-to-end. Especially valuable after the schedule-grid.js monolith split (v146–v149) — it exercises each of the extracted feature files (IA Schedule, Specials Schedule view, Class Schedules view, Export) in a real logged-in session, which the static reference checker can't. Reports pass/fail with screenshots. Part of the full QA suite — see the "QA process" section in CLAUDE.md; running "QA" runs this AND every other qa-*.md agent. Use this whenever the user says "run QA", "run schedule QA", "test the deploy", "smoke test", or "qa-schedulebuilder".
+description: Post-deploy QA smoke test for the Cohort Logic Schedule Builder at cohortlogic.com/schedule-app.html. Run after every deploy to verify the live app works end-to-end. Especially valuable after the schedule-grid.js monolith split (v146–v149) — it exercises each of the extracted feature files (IA Schedule, Specials Schedule view, Class Schedules view, Export) in a real logged-in session, which the static reference checker can't. Reports pass/fail with screenshots. Part of the full QA suite — see the "QA process" section in CLAUDE.md; running "QA" runs this AND every other qa-*.md agent. Use this whenever the user says "run QA", "run schedule QA", "test the deploy", "smoke test", or "qa-schedulebuilder".
 ---
 
 # QA Smoke Test — Cohort Logic Schedule Builder
@@ -32,7 +32,7 @@ Open a fresh tab and navigate to `https://cohortlogic.com/login.html`.
 - Enter `qa_email` / `qa_password`, click **Sign in**
 - **Pass:** redirects to `dashboard.html`
 - Navigate to `https://cohortlogic.com/schedule-app.html`
-- **Pass:** the Schedule Builder loads — sidebar shows School Info, Staff Roster, Specials, Block Types, Master Schedule, Specials Schedule, Class Schedules, IA Schedule, Export
+- **Pass:** the Schedule Builder loads — sidebar shows School Info, Staff Roster, Specials, Block Types, Building Schedule, Specials Schedule, Class Schedules, IA Schedule, Export
 - **Fail (prerequisite, not a code bug — flag it clearly):** an access-denied / locked screen means the QA account lacks `schedule_builder` in its school's `enabled_products`. Note this and stop — the rest can't run until the account is granted access.
 - Run `read_console_messages` — any CSP error (`Refused to execute inline script`, `Content-Security-Policy`) or uncaught exception at boot is a **Fail**. A boot-time `ReferenceError` here would mean a script failed to load or a top-level `const` is used before its file — the split's worst case.
 - **Shared Send Feedback widget** (`js/feedback.js`, on every product): confirm it injected and works. `JSON.stringify({ btn: !!document.getElementById('cf-fb-btn') })` → **Pass** if `btn:true`. Then `document.getElementById('cf-fb-btn').click(); JSON.stringify({ open: !document.getElementById('cf-fb-overlay').classList.contains('cf-fb-hidden') })` → **Pass** if `open:true`. Close it: `document.querySelector('.cf-fb-close').click();`. (The widget wires via addEventListener — if it were CSP-broken like the old inline-onclick version, the button would exist but not open.)
@@ -84,8 +84,8 @@ saveToLocal();
 
 ---
 
-### 3. Master Schedule (core `schedule-grid.js`)
-- Click **Master Schedule** in the sidebar (or `navigateTo('master'); renderMasterSchedule();` via JS)
+### 3. Building Schedule (core `schedule-grid.js`)
+- Click **Building Schedule** in the sidebar (or `navigateTo('master'); renderMasterSchedule();` via JS)
 - **Pass:** the grid table renders with grade columns (Kindergarten, 1st Grade), time rows, and auto-filled blocks (Lunch, Recess, ELA, Specials visible). The left palette lists block types.
 - `read_console_messages` — **Fail** on any `Uncaught ReferenceError` / CSP error.
 - Sanity-check the placement engine still runs: confirm at least one `bt_lunch` and one instructional block are present:
@@ -110,7 +110,7 @@ saveToLocal();
 - **Pass:** the by-teacher weekly grid renders; the Coverage panel is present; Coach P appears as a specials teacher. No `ReferenceError`.
 - Click a filled specials cell (or confirm `openSpecialsOverridePanel` is defined: `typeof openSpecialsOverridePanel`) — the override panel should be reachable.
 - `read_console_messages` — **Fail** on any error. A missing `getSpecialsCoverageReport` / `buildSpecialsTeacherGrid` / `showSpecialsCoverageBanner` would surface here.
-- **Note:** the specials scheduling *algorithm* (`buildSpecialsSchedule`) stayed in core — if THAT is missing the Master Schedule (step 3) would already have failed.
+- **Note:** the specials scheduling *algorithm* (`buildSpecialsSchedule`) stayed in core — if THAT is missing the Building Schedule (step 3) would already have failed.
 
 ---
 
@@ -228,7 +228,7 @@ Date: [today]
 |------|--------|-------|
 | 1. Login + gate + boot       | ✅ PASS / ❌ FAIL | |
 | 2. Seed schedule             | ✅ PASS / ❌ FAIL | |
-| 3. Master Schedule (core)    | ✅ PASS / ❌ FAIL | |
+| 3. Building Schedule (core)    | ✅ PASS / ❌ FAIL | |
 | 4. IA Schedule view          | ✅ PASS / ❌ FAIL | |
 | 5. Specials Schedule view    | ✅ PASS / ❌ FAIL | |
 | 6. Class Schedules view      | ✅ PASS / ❌ FAIL | |

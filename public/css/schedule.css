@@ -34,7 +34,7 @@
   overflow: hidden;
 }
 
-/* ── Master schedule shell ─────────────────────────────────────── */
+/* ── Building schedule shell ─────────────────────────────────────── */
 .master-shell {
   display: flex;
   height: 100%;
@@ -2126,7 +2126,7 @@
   font-size: 12px;
 }
 
-/* ── Setup warning banner (Master Schedule) ─────────────────── */
+/* ── Setup warning banner (Building Schedule) ─────────────────── */
 .setup-banner {
   display: flex;
   align-items: center;
@@ -3135,7 +3135,7 @@
 }
 .ia-sum-grand { color: var(--gray-800); }
 
-/* ── IA assignment panel in master schedule ──────────────────────────────────── */
+/* ── IA assignment panel in building schedule ──────────────────────────────────── */
 .ia-block-panel {
   width: 0;
   overflow: hidden;
@@ -3322,7 +3322,7 @@
 /* IA mode toggle button active state */
 .btn-active-ia { background: #0f172a !important; color: #fff !important; border-color: #0f172a !important; }
 
-/* IA indicator dots on master schedule block cells */
+/* IA indicator dots on building schedule block cells */
 .ia-block-ind {
   display: flex;
   gap: 2px;
