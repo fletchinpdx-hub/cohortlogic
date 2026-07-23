@@ -75,6 +75,24 @@ cohortlogic.com/admin/. Reference the seeded `QA-ADMIN-…` tag from above.
 If anything fails — especially a console error mentioning `archived_at` (means
 the `feedback_archive.sql` migration wasn't run) — capture it.
 
+### Billing — trial/tier controls (also manual; these drive product access)
+
+The **Billing** tab is what grants or revokes a customer's access, so a break here is
+revenue-affecting. On any school row → **Edit / + Add subscription**:
+
+6. The modal shows **Tier** (Individual / School / District) and **Trial ends**
+   alongside the existing Status / Licenses / Fee fields.
+7. Click **Start 60-day trial** → Status flips to `trial` and **Trial ends** fills with a
+   date ~60 days out (Individual also defaults Licenses to 1). Click **Save**.
+8. The row now shows the tier under the status badge, plus `· ends <date>` for a trial.
+9. Reopen the row — Tier and Trial ends persisted (they're real columns, not just UI).
+10. Set Status to `active` and Save → that school's users get the FULL product; set it
+    back to `trial` and they get the gated one. This is the switch `my_entitlement()`
+    reads, so it's the thing to sanity-check after any billing change.
+
+A console error mentioning `tier` or `trial_ends_at` means
+`supabase/migrations/entitlements.sql` wasn't run.
+
 ---
 
 ## Log the run

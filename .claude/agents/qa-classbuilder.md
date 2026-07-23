@@ -41,6 +41,30 @@ Check console for errors after this step. CSP errors look like `"Refused to exec
 
 ---
 
+### 1b. Entitlement check — THIS DECIDES WHICH PATH YOU RUN
+
+Class Builder is trial-gated. The QA account is a plain user, so unless its school has an
+`active` subscription it resolves to **trial** — which legitimately blocks most of the
+full-product checklist. Read the state before going further:
+
+```
+JSON.stringify(Entitlements.state())
+```
+- **`access:"full"`** → run steps 2–8 (the full product) and SKIP step 9.
+- **`access:"trial"`** → SKIP steps 4–7 (they will fail *by design*: only 1st grade
+  generates, export/save are blocked) and run **step 9** instead. Say so in the report —
+  this is not a bug.
+- **`access:"expired"`** → the app shows a full-screen lockout wall. Only step 9's lockout
+  check applies; note it and stop.
+- **`ReferenceError: Entitlements is not defined`** → real failure: `js/entitlements.js`
+  didn't load (check the `?v=` on `app.html` and the script order — it must load after
+  `supabase-config.js`).
+
+Do NOT try to change the plan to get a different path — that needs the admin panel, which
+QA automation must never drive. Report the state you got.
+
+---
+
 ### 2. Sample Data Load
 
 The import screen has **Download Sample** (downloads a CSV) — there is no "Load Sample Data" button. Instead, inject QA test data directly via JS, which includes a known separation rule so Step 6 (violation cards) is always testable.
@@ -192,6 +216,43 @@ JSON.stringify({ moved: moving.firstName+' '+moving.lastName, class0: before0+'�
 - Any `Content-Security-Policy` error is a **Fail** — note the exact message
 - Any uncaught JS exception (`Uncaught TypeError`, `Uncaught ReferenceError`, etc.) is a **Fail**
 - Warnings are OK to note but don't count as failures
+
+---
+
+### 9. Trial gating — RUN ONLY when step 1b reported `access:"trial"` (or `"expired"`)
+
+Revenue-critical: these gates are what a free user hits. Load the sample data first
+(step 2) so there's a roster to gate.
+
+**Trial banner**
+```
+JSON.stringify({ banner: !!document.getElementById('cb-trial-banner') })
+```
+- **Pass:** `banner:true` — the strip states 1st grade only + export/print/save off.
+
+**Only 1st grade is workable** (the sample roster is grades K and 1)
+```
+navigateTo('classes'); buildGradeConfig();
+JSON.stringify({ active: activeGrades(), kLocked: isGradeLocked('K'), oneLocked: isGradeLocked('1') })
+```
+- **Pass:** `active:["1"]`, `kLocked:true`, `oneLocked:false` — K is locked, 1st is open.
+- **Fail:** `active` contains more than one grade → the gate leaks.
+
+**Generation only produces the unlocked grade**
+```
+runBalancingAlgorithm(); JSON.stringify({ grades: Object.keys(AppState.results) })
+```
+- **Pass:** `grades:["1"]` only. Any other grade present is a **leak — Fail**.
+
+**Export + Save are blocked**
+- Click **Export by Grade** on Results, then **Save session file** on Import/Export.
+- **Pass:** each opens the upgrade modal (`#cb-upgrade-modal` exists) and NO file downloads.
+```
+JSON.stringify({ modal: !!document.getElementById('cb-upgrade-modal') })
+```
+- **Fail:** a file downloads → the gate leaks the deliverable.
+
+**Expired only:** with `access:"expired"`, `#cb-trial-lockout` must exist and cover the app.
 
 ---
 

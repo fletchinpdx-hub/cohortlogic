@@ -98,10 +98,45 @@ saveToLocal();
 - Click **IA Schedule** (or `navigateTo('ia'); renderIAScheduleView();`)
 - **Pass:** the IA view renders — the "All IAs" grid or individual-IA grid shows, with the IA (Aide Amy) and the allocation (Reading Support) present. No `ReferenceError`.
 - Toggle to the individual-IA tab if present; confirm it renders.
-- Exercise an assignment path — open the IA assignment on a master block:
-  `navigateTo('master'); renderMasterSchedule(); if (typeof toggleIAMasterMode==='function') toggleIAMasterMode();`
-  then confirm no error and the IA assign panel/hint appears. `read_console_messages` after — **Fail** on any error.
-- Because this whole feature moved into a separate file, a missing helper (e.g. `buildIAGrid`, `openIABlockPanel`, `_dutySlotsFor`, `openDutyPanel`) would throw here — report the exact name.
+- Because this whole feature moved into a separate file, a missing helper (e.g. `buildIAGrid`, `_dutySlotsFor`, `openDutyPanel`) would throw here — report the exact name.
+
+**IA Assignment tab — coverage plan + personal-time rows**
+```
+navigateTo('ia-assign'); renderIAAssignmentView();
+JSON.stringify({
+  rows: (SchedState.iaCoverage||[]).length,
+  personal: (SchedState.iaCoverage||[]).filter(r=>r.kind).map(r=>r.kind),
+  scopes: [...new Set((SchedState.iaCoverage||[]).filter(r=>!r.kind).map(r=>r.scope))]
+})
+```
+- **Pass:** `personal` contains BOTH `ia_lunch` and `ia_breaks` (seeded by `_ensureIAPersonalRows` and reorderable like any row). No `ReferenceError`.
+
+**Place IAs actually places**
+```
+const rep = placeIAs(); JSON.stringify({ placedHrs:+(rep.placed/60).toFixed(1), shortfalls:rep.shortfalls.length, inconsistencies:rep.inconsistencies.length, budgets:(rep.budget||[]).length })
+```
+- **Pass:** `placedHrs > 0` and no throw. Shortfalls/inconsistencies may be non-zero on a
+  thin seeded schedule — note them, don't fail on them.
+- **Fail:** a throw, or `placedHrs` is 0 while the coverage plan has rows with grades.
+
+**Duty consistency + personal time land the same each day** (the two rules most likely to regress)
+```
+const D=['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const starts={}; D.forEach(d=>Object.entries(SchedState.iaSchedule[d]||{}).forEach(([id,sl])=>{
+  const s=Object.keys(sl).filter(k=>sl[k].targetType==='own_lunch').sort()[0]; if(s)(starts[id]=starts[id]||[]).push(s);}));
+JSON.stringify(Object.fromEntries(Object.entries(starts).map(([id,v])=>[id,[...new Set(v)]])))
+```
+- **Pass:** each aide's own-lunch start list collapses to ONE time (same clock time every day).
+- **Fail:** an aide shows two different start times → `reservePersonalTime` regressed.
+
+**Assign IAs from the Building Schedule** (palette tool + popover)
+```
+navigateTo('master'); renderMasterSchedule();
+JSON.stringify({ tool: !!document.getElementById('palette-assign-ia'), fn: typeof openMasterIAAssign })
+```
+- **Pass:** `tool:true` and `fn:"function"`. Click the tool, then click a filled block —
+  the popover opens listing aides with Free / Busy / Outside-hours states.
+- **Fail:** missing tool or `fn:"undefined"` (schedule-ia.js didn't load / regressed).
 
 ---
 
