@@ -996,11 +996,12 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
           <select id="iae-end" class="override-select">${endOpts}</select>
         </div>
       </div>`}
-      ${isBreak ? '' : `
       <div class="override-field-row">
         <label class="override-label">Budget category</label>
-        <select id="iae-alloc" class="override-select">${allocOpts || '<option value="">(no categories)</option>'}</select>
-      </div>`}
+        <select id="iae-alloc" class="override-select">
+          ${isPersonal ? `<option value=""${!entry.allocId ? ' selected' : ''}>Not charged</option>` : ''}${allocOpts || (isPersonal ? '' : '<option value="">(no categories)</option>')}
+        </select>
+      </div>
       <div class="override-field-row">
         <label class="override-label">Note</label>
         <textarea id="iae-note" class="override-select" rows="2" placeholder="Optional">${escHtml(entry.note || '')}</textarea>
@@ -1044,7 +1045,9 @@ function openIAAssignmentEditor(anchorCell, day, iaId, slot) {
       }
       run.forEach(s => { delete map[s]; });
       newRun.forEach(s => {
-        const e2 = { allocId: isOwnLunch ? (newAlloc || null) : null, targetType: entry.targetType };
+        // Personal time can be charged to a budget category too (own lunch AND breaks),
+        // set here on the IA Schedule rather than in staff config.
+        const e2 = { allocId: newAlloc || null, targetType: entry.targetType };
         if (entry.targetId != null) e2.targetId = entry.targetId;
         if (newNote) e2.note = newNote;
         map[s] = e2;
