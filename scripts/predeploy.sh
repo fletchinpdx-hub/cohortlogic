@@ -33,11 +33,12 @@ run() {
   fi
 }
 
-run "1/5  CSP inline-handler check"      bash scripts/check-csp.sh
-run "2/5  Cache-version consistency"     bash scripts/check-versions.sh
-run "3/5  Secret-exposure check"         bash scripts/check-assetsignore.sh
-run "4/5  Algorithm unit tests"          node tests/algorithm.test.js
-run "5/5  Schedule Builder reference check" node tests/check-refs.js
+run "1/6  CSP inline-handler check"      bash scripts/check-csp.sh
+run "2/6  Cache-version consistency"     bash scripts/check-versions.sh
+run "3/6  Secret-exposure check"         bash scripts/check-assetsignore.sh
+run "4/6  Algorithm unit tests"          node tests/algorithm.test.js
+run "5/6  Schedule Builder reference check" node tests/check-refs.js
+run "6/6  Cross-product load rules"       node tests/cross-product-load.test.js
 
 echo ""
 echo "═══════════════════════════════════════════════"

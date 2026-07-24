@@ -530,7 +530,15 @@ function loadScheduleFromFile(file) {
 
         // Always apply shared fields
         if (data.school) Object.assign(SchedState.school, data.school);
-        if (data.staff)  SchedState.staff = data.staff;
+        // Guard on LENGTH, not truthiness: `[]` is truthy, and a Class Builder file
+        // always carries `staff: []` (CB has no staff concept). Without the length
+        // check, loading a CB file WIPES an existing Schedule Builder staff roster —
+        // real data loss on a workflow we actively promote ("this travels with your
+        // saved file so it can be shared with Schedule Builder"). Same pattern the
+        // blockTypes guard below already uses. NOTE: the parallel assignment in
+        // loadFromLocal() intentionally does NOT have this check — there `[]` means
+        // "this schedule really has no staff," and honoring it is correct.
+        if (data.staff && data.staff.length) SchedState.staff = data.staff;
         _normalizeIAStaff();
 
         // Apply SB-specific data only when the file actually has SB content
