@@ -18,9 +18,27 @@ Load the chrome browser tools before starting:
 ToolSearch: select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__read_console_messages,mcp__claude-in-chrome__find,mcp__claude-in-chrome__javascript_tool
 ```
 
-Read the QA credentials from `/Users/michaelfletcher/dev/cohortlogic/.qa-credentials`. It contains `qa_email` and `qa_password`.
+Read the QA credentials from `/Users/michaelfletcher/dev/cohortlogic/.qa-credentials`. It contains `qa_email` and `qa_password` (the **full-access** QA account) and may also contain `qa_trial_email` / `qa_trial_password` (a **trial-tier** account used only by step 9).
 
 Open a fresh tab and navigate to `https://cohortlogic.com/login.html`.
+
+### Suppress the intro tour — DO THIS BEFORE LOADING app.html
+
+`js/tour.js` auto-runs a coach-mark tour on first visit and drops a **modal overlay over
+the whole app**, which blocks every later step (clicks land on the dim layer, not the UI).
+It only stays away because `localStorage.cb_tour_v1_done` persists — so a fresh Chrome
+profile, a cleared profile, or incognito WILL hit it. Don't race the modal; pre-set the key.
+
+After login, while on a `cohortlogic.com` page (localStorage is per-origin), run:
+
+```javascript
+localStorage.setItem('cb_tour_v1_done', '1');
+'tour suppressed';
+```
+
+Then navigate to `app.html`. If a tour card is somehow still up (`.cb-tour-card` visible),
+click **Skip ×** before continuing, and note it in the report — that means the key name
+changed and this instruction needs updating.
 
 ---
 
@@ -34,7 +52,7 @@ Open a fresh tab and navigate to `https://cohortlogic.com/login.html`.
 - **Fail:** Error message shown, stays on login, or console has a JS exception
 
 After login, navigate directly to `https://cohortlogic.com/app.html`.
-- **Pass:** The Class Builder app loads with its sidebar (School Profile, Import Data, Field Mapping, Class Setup, Students, Results)
+- **Pass:** The Class Builder app loads with its sidebar (School Profile, **Import/Export**, Field Mapping, Class Setup, Students, Results). Note the nav item is "Import/Export" — it was renamed from "Import Data" when file handling was consolidated onto one view.
 - **Fail:** Redirected back to login or an error page
 
 Check console for errors after this step. CSP errors look like `"Refused to execute inline script"` or `"Content-Security-Policy"`.
@@ -256,6 +274,177 @@ JSON.stringify({ modal: !!document.getElementById('cb-upgrade-modal') })
 
 ---
 
+### 10. Bad-input / edge cases — RUN ON ANY ACCESS LEVEL
+
+Every case below has either shipped as a real bug or is one field away from one. Pure
+in-browser: no files, no writes. Run each, then continue — a failure here is a real bug.
+
+**Two mechanics that these checks depend on (both verified live, don't "simplify" them):**
+- `loadRawData()` only fills `AppState.rawRows`. Students are built when the mapping is
+  applied, and that lives in the **button handler**, not a callable function — so you must
+  click it: `document.getElementById('apply-mapping-btn').click()`. There is no
+  `applyFieldMapping()` to call.
+- **Use grade `1` for anything that generates.** On a trial account only the unlocked grade
+  is ever *computed*, so `runBalancingAlgorithm()` with a grade-3 roster returns an empty
+  `AppState.results['3']` — which looks like a failure but is the gate working. Grade 1 keeps
+  these cases valid on **both** trial and full accounts.
+
+**10a. Ordinal + mixed-case grades normalize.** The importer must fold `1st`/`1` and `k`/`K`
+together, not create duplicates:
+```javascript
+loadRawData([
+  {'First Name':'A','Last Name':'One','Grade':'1st'},
+  {'First Name':'B','Last Name':'Two','Grade':'1'},
+  {'First Name':'C','Last Name':'Three','Grade':'k'},
+  {'First Name':'D','Last Name':'Four','Grade':'K'},
+], 'qa-ordinal.csv');
+document.getElementById('apply-mapping-btn').click();
+JSON.stringify({ grades: getGrades(), students: AppState.students.length });
+```
+- **Pass:** exactly `["K","1"]` and `students:4`. K sorts **before** 1.
+- **Fail:** four grades (`1st` and `1` split apart), or K sorted after 1 — both have shipped before.
+
+**10b. Grade with a single student.** One student split into 2 classes must not crash or
+duplicate them:
+```javascript
+loadRawData([{'First Name':'Solo','Last Name':'Student','Grade':'1'}], 'qa-solo.csv');
+document.getElementById('apply-mapping-btn').click();
+if (AppState.gradeConfig['1']) AppState.gradeConfig['1'].classCount = 2;
+try { runBalancingAlgorithm(); JSON.stringify({ sizes: (AppState.results['1']||[]).map(c=>c.length) }); }
+catch (e) { 'THREW: ' + e.message; }
+```
+- **Pass:** `[1,0]` or `[0,1]` — no exception, total still exactly 1.
+- **Fail:** a thrown error, a `NaN` size, or the student in **both** classes.
+
+**10c. Empty import — know what you're actually testing.**
+
+The **user-facing** path is already guarded: `import.js` checks `if (!rows.length)` and shows
+"The file appears to be empty." *before* calling `loadRawData`, so a real empty upload is
+handled cleanly. `loadRawData([])` called **directly** throws
+`Cannot convert undefined or null to object` (it does `Object.keys(rows[0])` unguarded) and
+leaves `AppState.rawRows = []` behind.
+
+So do NOT report that throw as a user-facing bug — it isn't reachable through the UI today.
+What this check protects is that the **upstream guard still exists**:
+
+```javascript
+// Confirm the guard is still in the upload path, not just in our heads.
+const src = document.querySelector('script[src*="import.js"]')?.src;
+const txt = src ? await fetch(src).then(r=>r.text()) : '';
+JSON.stringify({ guardPresent: /!rows\.length/.test(txt) });
+```
+- **Pass:** `guardPresent:true`.
+- **Fail:** `guardPresent:false` → the guard was refactored away and an empty upload now
+  throws at the user. That IS a real bug — report it.
+
+**10d. Duplicate roster rows keep distinct internal ids.**
+```javascript
+loadRawData([
+  {'First Name':'Same','Last Name':'Name','Grade':'1'},
+  {'First Name':'Same','Last Name':'Name','Grade':'1'},
+], 'qa-dupe.csv');
+document.getElementById('apply-mapping-btn').click();
+JSON.stringify({ n: AppState.students.length, ids: AppState.students.map(s=>s.id) });
+```
+- **Pass:** `n:2` with two **different** ids. Identical names must not collapse into one student.
+- **Fail:** `n:1`, or two students sharing an id — that would corrupt every separation/together rule.
+
+Reload the page after 10d to clear the edge-case roster before continuing.
+
+---
+
+### 11. Save → Load session round-trip — REQUIRES `access:"full"`
+
+Nothing else tests the save format, and it's the format shared with Schedule Builder. Skip
+with a note if step 1b reported `trial`/`expired` (Save is gated there by design — that's step 9).
+
+Load the step-2 sample, apply mapping, set 2 classes/grade, and generate first. Then:
+
+1. Click **💾 Save Session** (`#save-session-btn` on Results, or `#ie-save-session-btn` on
+   Import/Export). A `.cohortlogic` file downloads.
+2. Capture a fingerprint of the pre-save state:
+```javascript
+JSON.stringify({
+  students: AppState.students.length,
+  grades: Object.keys(AppState.results),
+  sizes: Object.fromEntries(Object.entries(AppState.results).map(([g,cs])=>[g,cs.map(c=>c.length)])),
+  seps: (AppState.separations||[]).length
+});
+```
+3. Find the downloaded file: `ls -t ~/Downloads/*.cohortlogic | head -1`
+4. **Reload `app.html`** (fresh state), then upload that file to `#restore-file-input` using
+   the `file_upload` tool.
+5. Re-run the same fingerprint snippet.
+
+- **Pass:** student count, grade list, per-class sizes, and rule count all match the pre-save
+  fingerprint. Take a screenshot of the restored Results grid.
+- **Fail:** any field differs, the load throws, or the app silently stays empty. Report the
+  two fingerprints side by side.
+
+---
+
+### 12. Cross-product file handoff (Class Builder → Schedule Builder) — REQUIRES `access:"full"`
+
+The documented rule: loading a `.cohortlogic` file that carries **no** Schedule Builder data
+must import **school + staff only** and leave SB's own schedule intact. Nothing tests this,
+and it's subtle enough to regress silently.
+
+1. In Class Builder, set a recognizable School Name (e.g. `QA Handoff School`) on School
+   Profile, then Save Session (reuse the step-11 file if the name was already set).
+2. Open `https://cohortlogic.com/schedule-app.html` and let it load.
+3. If SB already has a schedule, note `JSON.stringify({before: Object.keys(SchedState.masterSchedule||{})})`.
+4. Upload the Class Builder file to the SB load input (`#load-cohort-input`, triggered from
+   Import/Export) via `file_upload`.
+5. Check:
+```javascript
+JSON.stringify({
+  school: SchedState.school?.name,
+  staff: (SchedState.staff||[]).length,
+  scheduleDays: Object.keys(SchedState.masterSchedule||{})
+});
+```
+- **Pass:** `school` becomes `QA Handoff School`, and `scheduleDays` is **unchanged** from
+  step 3 — SB kept its own schedule.
+- **Fail:** SB's `masterSchedule` got wiped or replaced by the Class Builder file. That's data
+  loss for a real user and a hard fail — report it prominently.
+
+---
+
+### 13. Excel export produces a real file — REQUIRES `access:"full"`
+
+Verifies the deliverable users actually hand to staff isn't silently corrupt.
+
+1. On Results (All Grades, after generating), click **⬇️ By Grade** (`#export-by-grade-btn`).
+2. Then click **⬇️ By Teacher** (`#export-by-teacher-btn`).
+3. Confirm both landed and are non-trivial:
+```bash
+ls -lt ~/Downloads/*.xlsx | head -2
+```
+4. Verify each is a genuine, readable workbook (not a 0-byte or HTML-error file):
+```bash
+cd ~/dev/cohortlogic && node -e "
+const XLSX=require('./public/js/vendor-xlsx-shim.js');" 2>/dev/null || \
+python3 -c "
+import zipfile,sys,glob
+f=sorted(glob.glob('$HOME/Downloads/*.xlsx'))[-1]
+z=zipfile.ZipFile(f)
+names=[n for n in z.namelist() if n.startswith('xl/worksheets/')]
+print('file:',f,'sheets:',len(names),'ok' if names else 'NO SHEETS')
+"
+```
+- **Pass:** each file is >5 KB, opens as a valid zip/xlsx, and reports ≥1 worksheet. By Grade
+  should have one sheet per grade; By Teacher one per class.
+- **Fail:** 0-byte file, not a valid zip (SheetJS wrote an error page), or zero worksheets.
+
+**Clean up** the files this run created (per the self-clean policy):
+```bash
+rm -f ~/Downloads/*.cohortlogic ~/Downloads/*.xlsx
+```
+Only remove files this run downloaded — if the folder had pre-existing exports, delete by the
+specific filenames you captured instead of globbing.
+
+---
+
 ## Pre-deploy static check (run locally before deploying)
 
 Before `npx wrangler deploy`, run:
@@ -296,8 +485,13 @@ Date: [today]
 | 6. Violation Cards | ✅ PASS / ❌ FAIL | |
 | 7. Drag to Move | ✅ PASS / ❌ FAIL | |
 | 8. Console Errors | ✅ PASS / ❌ FAIL | |
+| 9. Trial gating | ✅ PASS / ❌ FAIL / ⚪ N/A (full access) | |
+| 10. Edge cases (a–d) | ✅ PASS / ❌ FAIL | |
+| 11. Save/Load round-trip | ✅ PASS / ❌ FAIL / ⚪ SKIP (trial) | |
+| 12. Cross-product handoff | ✅ PASS / ❌ FAIL / ⚪ SKIP (trial) | |
+| 13. Excel export | ✅ PASS / ❌ FAIL / ⚪ SKIP (trial) | |
 
-**Overall: X/8 steps passed**
+**Overall: X/13 steps passed** (note how many were N/A or skipped and why)
 ```
 
 For any ❌ FAIL, include:
