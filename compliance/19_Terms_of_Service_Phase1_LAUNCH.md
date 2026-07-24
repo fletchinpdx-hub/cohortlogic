@@ -29,7 +29,7 @@ Both products process your data **on your own device**. Cohort Logic does **not*
 
 **6. Privacy.** Our handling of the limited personal data we do store (staff accounts, anonymous analytics) is governed by the **Privacy Policy**, incorporated by reference. Where a Customer requires one, we will sign a **Data Processing Agreement / SDPC NDPA**; because we do not store student data for these products, that agreement's data schedule is minimal.
 
-**7. Fees and subscriptions.** [Free through the stated launch window.] Paid plans, billing, renewal, and taxes are set out in the applicable order, checkout terms, or a Master Services Agreement. [Reconcile with pricing + Stripe when billing goes live — PR-01/09.]
+**7. Fees and subscriptions.** Class Builder and Schedule Builder are **free for any school through September 30, 2026.** After that date, continued use requires a paid plan; **no card is charged without an affirmative paid signup** (we do not auto-convert a free account into a paid one). We will not shorten the free window before September 30, 2026 without at least **60 days' email notice**, and the same 60-day notice applies to any go-forward pricing change — reaching the disclosed September 30, 2026 end date is not itself such a change. Paid plans, billing, renewal, and taxes are set out in the applicable order, checkout terms, or a Master Services Agreement. *(Wording set 2026-07-24, Doc 20 Row 13 — attorney to confirm; reconcile with pricing page + Stripe when billing goes live, PR-01. Live-site signup disclosure + pricing-page reconciliation queued as A1/A2 in [23_Site_and_Software_Change_Queue.md](23_Site_and_Software_Change_Queue.md).)*
 
 **8. Term, suspension, termination.** Either party may terminate as set out in the applicable order or, for self-serve accounts, at any time. We may suspend for non-payment, security risk, or AUP violation. Section 9 governs your data on termination.
 
@@ -43,11 +43,11 @@ Both products process your data **on your own device**. Cohort Logic does **not*
 
 **13. Indemnification.** [Attorney to draft — mutual or one-way; coordinate with §4 (your authority to use data) and our security obligations.]
 
-**14. Governing law and disputes.** [State of Oregon or as advised] — attorney to set venue/arbitration.
+**14. Governing law and disputes.** **State of Oregon** (Cohort Logic, LLC's home state; set 2026-07-24, Doc 20 Section A) — attorney to confirm and set venue/arbitration.
 
 **15. Changes.** We may update these Terms; material changes will be communicated, and continued use constitutes acceptance.
 
-**16. Contact.** [legal@cohortlogic.com / hello@cohortlogic.com]
+**16. Contact.** legal@cohortlogic.com (or hello@cohortlogic.com)
 
 ---
 

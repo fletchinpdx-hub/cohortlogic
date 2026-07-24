@@ -57,15 +57,19 @@ Even though your roster never leaves your device, less identifying data in the f
 ### Sub-processors
 | Provider | Role | Your data? | Region |
 |---|---|---|---|
-| Supabase (Postgres on AWS) | Accounts + auth, anonymous analytics | Staff account info; **no student data** | United States [confirm] |
+| Supabase (Postgres on AWS) | Accounts + auth, anonymous analytics | Staff account info; **no student data** | United States |
 | Cloudflare | Hosting, CDN, security edge | None | Global edge |
+
+### Security
+- **Encryption:** all data is encrypted **in transit (TLS)** and **at rest (AES-256)**.
+- **Infrastructure:** hosted on **Supabase** (Postgres on AWS), which is **SOC 2 Type 2** compliant and **ISO 27001** certified; **Cloudflare** secures the network edge. *(These certifications are our infrastructure providers' — Cohort Logic itself is not separately SOC 2 audited; see the honest roadmap below.)*
 
 ### Privacy & compliance
 - **FERPA:** because student data never reaches our servers, we don't hold education records — it stays on your device, under your control. We'll sign your **DPA / SDPC NDPA** on request; our data schedule is essentially empty.
 - **State laws (e.g., California SOPIPA):** no sale, no targeted advertising, purpose limitation, reasonable security.
 
 ### Data handling & your control
-- **Retention:** account data kept while active; deletion on request within 30 days; backups age out within 90 days.
+- **Retention:** account data kept while active; deletion on request within 30 days; deleted data rolls off our encrypted daily backups within about a week.
 - **Export/delete:** manage or delete your account any time by contacting us.
 - **Breach:** if a breach affects your data, we notify you without unreasonable delay.
 
@@ -75,8 +79,8 @@ Published only when real:
 - *(and, later, our data-backed products — Check-in/Check-out and Referral Tracking — with the additional protections stored student data requires.)*
 
 ### Security contact
-- **Security & vulnerability disclosure:** [security@cohortlogic.com] — good-faith reports welcome.
-- **District security questionnaire or DPA?** [privacy@cohortlogic.com] or the contact form — we turn these around quickly.
+- **Security & vulnerability disclosure:** security@cohortlogic.com — good-faith reports welcome.
+- **District security questionnaire or DPA?** privacy@cohortlogic.com or the contact form — we turn these around quickly.
 
 ---
 

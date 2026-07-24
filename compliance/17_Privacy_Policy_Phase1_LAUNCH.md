@@ -30,7 +30,7 @@ To operate the service we store a small amount of **non-student** data:
 
 | Data | Why | Where |
 |---|---|---|
-| **Staff account info** — name, email, school, role | Sign-in and access control | Supabase (US [confirm]) |
+| **Staff account info** — name, email, school, role | Sign-in and access control | Supabase (US) |
 | **Anonymous usage analytics** — feature/session counts, no names | Understand product usage | Supabase — no personal or student data |
 | **Support & marketing** — messages, contact-form and newsletter details you submit | Respond to you; send updates you asked for | Supabase |
 
@@ -52,14 +52,15 @@ Because our products don't transmit or store student education records on our se
 
 | Provider | Purpose | Data | Region |
 |---|---|---|---|
-| **Supabase** (Postgres on AWS) | Accounts + authentication, anonymous analytics | Staff account info; no student data | United States [confirm] |
+| **Supabase** (Postgres on AWS) | Accounts + authentication, anonymous analytics | Staff account info; no student data | United States |
 | **Cloudflare** | Hosting, CDN, security edge | None — app files only | Global edge |
 
 We won't add a sub-processor that touches your data without updating this list.
 
 ### 6. How we protect it
 
-- **Encryption in transit** (TLS) and **at rest**.
+- **Encryption in transit** (TLS) and **at rest** (AES-256).
+- **Hosted on SOC 2 Type 2 / ISO 27001 infrastructure** (Supabase, on AWS); Cloudflare secures the network edge. *(These are our providers' certifications; Cohort Logic is not itself separately SOC 2 audited.)*
 - **Per-account / per-school isolation** enforced at the database level (row-level security).
 - **Access approval + roles**; multi-factor authentication available for administrators.
 - **Automated daily security monitoring** of our controls.
@@ -81,7 +82,7 @@ If we become aware of a breach affecting your data, we will notify you without u
 
 ### 10. Changes and contact
 
-We'll post changes here and update the date above. Questions or deletion requests: **[privacy@cohortlogic.com]** — we respond within 5 business days.
+We'll post changes here and update the date above. Questions or deletion requests: **privacy@cohortlogic.com** — we respond within 5 business days.
 
 ---
 

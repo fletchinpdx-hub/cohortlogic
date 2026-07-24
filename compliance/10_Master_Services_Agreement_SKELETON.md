@@ -25,7 +25,8 @@
 12. **Limitation of liability** — cap + exclusions; **carve-outs likely for data-breach/confidentiality** (districts often require a higher cap or carve-out here — coordinate with cyber-insurance limits, BI-04/05).
 13. **Insurance** — Cohort Logic maintains cyber liability and technology E&O at stated limits; provides a COI on request (BI-04/05/07). *(Districts frequently mandate this clause and specific limits.)*
 14. **Compliance** — FERPA, COPPA, and applicable state student-privacy laws; cooperation with the Customer's compliance obligations.
-15. **General** — assignment, notices, governing law/venue, force majeure, entire agreement, order of precedence (DPA controls for Student Data).
+15. **General** — assignment, notices, **governing law/venue = State of Oregon** (set 2026-07-24, Doc 20 Section A; attorney to confirm), force majeure, entire agreement, order of precedence (DPA controls for Student Data).
+    - **Notice address (Provider):** Cohort Logic, LLC, 9809 SE Nicholas Drive, Happy Valley, OR 97086. *(Kept to signed contracts only — not published on the website. Consider replacing with a PO box / registered-agent address before wide distribution so the home address isn't in every district's files — Doc 20 B. The DPA/NDPA uses this same notice address by reference.)*
 
 **Exhibits:** (1) DPA / SDPC NDPA · (2) Order/Pricing · (3) Data elements schedule (NDPA Exhibit B, from `01_...`) · (4) Security overview / Trust page reference.
 

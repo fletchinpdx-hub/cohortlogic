@@ -39,7 +39,7 @@
 
 **13. Indemnification.** [Mutual/one-way indemnity — attorney to draft, esp. re: Customer's authority to share data and our data-security obligations.]
 
-**14. Governing law and disputes.** [State of Oregon or as advised] — attorney to set venue/arbitration.
+**14. Governing law and disputes.** **State of Oregon** (Cohort Logic, LLC's home state; set 2026-07-24, Doc 20 Section A) — attorney to confirm and set venue/arbitration.
 
 **15. Changes.** We may update these Terms; material changes will be communicated, and continued use constitutes acceptance.
 

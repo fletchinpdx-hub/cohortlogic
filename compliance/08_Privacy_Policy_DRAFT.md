@@ -87,7 +87,7 @@ If we become aware of a data breach affecting your data, we will notify the affe
 
 ### 10. Changes and contact
 
-We'll post changes here and update the "last updated" date; material changes affecting student data will be communicated to schools. Questions or deletion requests: **[privacy@cohortlogic.com / hello@cohortlogic.com]**. We respond within 5 business days.
+We'll post changes here and update the "last updated" date; material changes affecting student data will be communicated to schools. Questions or deletion requests: **privacy@cohortlogic.com** (or hello@cohortlogic.com). We respond within 5 business days.
 
 ---
 

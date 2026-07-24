@@ -2,9 +2,9 @@
 
 **Tracker item:** FE-07
 **Owner:** Michael Fletcher (Cohort Logic)
-**Status:** DRAFT — business decisions marked `[DECIDE]` must be set before this is published or attached to a contract
-**Last updated:** 2026-07-21 (by Claude)
-**Review needed:** Set the `[DECIDE]` retention windows; verify the deletion mechanics against the live schema; attorney review before contractual use.
+**Status:** DRAFT — retention windows set 2026-07-24 (Doc 20 Section A); backups confirmed (Supabase Pro, 7-day daily). One remaining open: audit-log retention (Phase-2/FE-15).
+**Last updated:** 2026-07-24 (by Claude)
+**Review needed:** Confirm the two remaining `[DECIDE]`/`[CONFIRM]` items above; verify the deletion mechanics against the live schema; attorney review before contractual use.
 
 > Districts (and NY Ed Law 2-d, IL SOPPA, and the SDPC NDPA) require a stated retention schedule and a deletion-on-termination commitment. This policy is also what a parent/student data-deletion request is measured against.
 
@@ -23,14 +23,14 @@
 
 | Data category | Store | Retention while active | On school termination | Notes |
 |---|---|---|---|---|
-| Student roster & records (`students`, `cico_*`, `referral_referrals`) | Supabase | Duration of contract | Deleted within **[DECIDE: e.g., 30] days** of termination (or returned first if the school requests export) | Core education records |
-| Audit trail (`audit_log`) | Supabase | `[DECIDE: e.g., 1–3 years]` | Deleted with the school's data, or retained as de-identified counts only | May embed student data — treat as an education record |
-| Staff/user accounts (`profiles`, `auth.users`) | Supabase Auth | Duration of relationship; deactivated accounts `[DECIDE]` | Deleted/anonymized within **[DECIDE] days** | |
-| Feedback (`feedback`) | Supabase | `[DECIDE: e.g., 2 years]` | N/A (not school-scoped student data) | Contains submitter name/email |
-| Marketing (`contact_submissions`, `newsletter_subscribers`) | Supabase | Until unsubscribe / `[DECIDE]` | N/A | Honor opt-out |
-| Error logs (`error_logs`) | Supabase | `[DECIDE: e.g., 90 days]` | N/A | Should contain no student PII |
-| Anonymous analytics (`sessions`, `events`) | Supabase | `[DECIDE]` | N/A | Anonymous; no student records |
-| Database backups / PITR | Supabase (AWS) | `[CONFIRM: Supabase Pro PITR window, e.g., 7 days]` | Aged out within the backup window after primary deletion | See §4 |
+| Student roster & records (`students`, `cico_*`, `referral_referrals`) | Supabase | Duration of contract | Deleted within **30 days** of termination (or returned first if the school requests export) | Core education records |
+| Audit trail (`audit_log`) | Supabase | `[DECIDE: e.g., 1–3 years]` (not covered by the 2026-07-24 defaults — Phase-2, tied to FE-15) | Deleted with the school's data, or retained as de-identified counts only | May embed student data — treat as an education record |
+| Staff/user accounts (`profiles`, `auth.users`) | Supabase Auth | Duration of relationship; deactivated accounts deleted after **12 months** of non-use (with notice) | Deleted/anonymized within **30 days** | |
+| Feedback (`feedback`) | Supabase | **24 months** | N/A (not school-scoped student data) | Contains submitter name/email |
+| Marketing (`contact_submissions`, `newsletter_subscribers`) | Supabase | Until unsubscribe; purge after **24 months** inactive | N/A | Honor opt-out |
+| Error logs (`error_logs`) | Supabase | **90 days** | N/A | Should contain no student PII |
+| Anonymous analytics (`sessions`, `events`) | Supabase | **24 months** | N/A | Anonymous; no student records |
+| Database backups | Supabase (AWS) | **7-day daily encrypted backups** (Supabase Pro, enabled 2026-07-24; PITR not enabled — not needed for Phase 1) | Aged out within ~7 days after primary deletion | See §4 |
 | Client-side data (Class Builder rosters, Schedule Builder files) | User device | Controlled by the user | User deletes their own files | Never transmitted to Cohort Logic |
 
 ---
@@ -54,8 +54,8 @@
 ## 4. Backups
 
 - Student data persists in automated backups after primary deletion until the backup retention window rolls over.
-- **Commitment:** deleted data will not be restored into production except as part of a bona fide disaster recovery, and will age out of backups within **[CONFIRM: PITR/backup window]** days.
-- **Dependency:** requires Supabase **Pro** (SE-07) for Point-in-Time Recovery and a defined backup retention window; document RPO/RTO (SE-08).
+- **Commitment:** deleted data will not be restored into production except as part of a bona fide disaster recovery, and rolls off backups within ~7 days of primary deletion.
+- **Backups:** Supabase **Pro** (enabled 2026-07-24) provides **7-day daily encrypted backups**. PITR is intentionally not enabled — not needed for Phase 1 (no student data at rest).
 
 ---
 
@@ -64,7 +64,7 @@
 Under FERPA, parents/eligible students exercise access and amendment rights **through the school**, not directly with the vendor. Cohort Logic's obligation is to **support the school** promptly:
 
 1. School submits a verified access/correction/deletion request on behalf of a parent/student.
-2. Cohort Logic fulfills within **[DECIDE: e.g., 15 business days]** (align with any stricter contract/state term).
+2. Cohort Logic fulfills within **15 business days** (align with any stricter contract/state term).
 3. Action is logged in `audit_log`; a confirmation is returned to the school.
 
 (See FE-13 for the request runbook.)

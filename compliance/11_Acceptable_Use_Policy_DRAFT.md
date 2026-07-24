@@ -21,7 +21,7 @@ By using Cohort Logic, you agree not to:
 6. **Use it unlawfully.** No use that violates law, infringes rights, or is for any purpose other than your school's internal educational operations.
 7. **Resell or sublicense** the Service without our written agreement.
 
-**Reporting.** Report security issues or suspected misuse to **[security@cohortlogic.com]**. We respond promptly and welcome good-faith vulnerability reports (see the Trust page for our disclosure contact — PR-10).
+**Reporting.** Report security issues or suspected misuse to **security@cohortlogic.com**. We respond promptly and welcome good-faith vulnerability reports (see the Trust page for our disclosure contact — PR-10).
 
 **Enforcement.** We may investigate violations and may suspend or terminate access for conduct that violates this policy, consistent with the ToS/MSA.
 

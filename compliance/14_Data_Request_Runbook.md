@@ -17,8 +17,8 @@ The **school is the data controller**. Cohort Logic does not act on a parent's r
 
 | Request | How it's handled | Target time |
 |---|---|---|
-| **Access / review** | Most data is self-serve: the school admin can view/export student records in-app. For anything not self-serve, we assist. | **[DECIDE: 15 business days]** |
-| **Correction / amendment** | The school edits records directly in-app (changes are captured in the audit log). We assist if a change isn't reachable in the UI. | Self-serve / [15 business days] |
+| **Access / review** | Most data is self-serve: the school admin can view/export student records in-app. For anything not self-serve, we assist. | **15 business days** |
+| **Correction / amendment** | The school edits records directly in-app (changes are captured in the audit log). We assist if a change isn't reachable in the UI. | Self-serve / 15 business days |
 | **Deletion** | School admin deletes an individual student, or requests full-school deletion (completed within **30 days** per the retention policy; backups age out within 90 days). | Per retention policy |
 | **Restriction / stop processing** | School can deactivate users/records or disable a product; full stop = offboarding (`02_...`). | Per request |
 
@@ -33,5 +33,5 @@ The **school is the data controller**. Cohort Logic does not act on a parent's r
 ## 4. Notes
 
 - Keep a simple **request register** (date, school, type, resolution, date closed) — questionnaires and some state laws expect you to demonstrate a process exists.
-- Set the dedicated intake address **[privacy@cohortlogic.com]** and reference it in the Privacy Policy.
-- Decide the `[DECIDE]` access/correction turnaround and align it with any stricter contract or state-law deadline.
+- Dedicated intake address is **privacy@cohortlogic.com** (referenced in the Privacy Policy). Set up 2026-07-24 via Cloudflare Email Routing (forwarding to the central box).
+- Access/correction turnaround is **15 business days** (set 2026-07-24, Doc 20 Section A) — align with any stricter contract or state-law deadline.
